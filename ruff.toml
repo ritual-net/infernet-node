@@ -1,0 +1,6 @@
+target-version = "py311"
+line-length = 89
+
+extend-select = [
+  "ANN101"
+]

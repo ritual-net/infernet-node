@@ -1,0 +1,36 @@
+# Python
+env/
+__pycache__/
+.pytest_cache
+
+# notebooks
+*/.vscode/*
+*/.idea/*
+*/.DS_Store
+*/.env
+*/.env.local
+*/.env.*.local
+
+# Linters
+**/.mypy_cache/
+**/.ruff_cache/
+
+# Unit test / coverage reports
+htmlcov/
+.coverage
+.coverage.*
+
+# Environments
+.env
+.venv
+env/
+venv/
+
+# Local logs
+*.log
+
+# Config file
+config.json
+
+# Redis
+*.rdb

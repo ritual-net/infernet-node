@@ -1,0 +1,8 @@
+# Config file
+config.json
+
+# Data files
+*.rdb
+
+# Log files
+*.log

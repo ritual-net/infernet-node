@@ -1,0 +1,29 @@
+# pre-commit workflow
+#
+# Ensures the codebase passes the pre-commit stack.
+
+name: pre-commit
+
+on: [pull_request]
+
+jobs:
+  node:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+        cache: pip
+
+    - name: Install dependencies (python)
+      run: |
+        pip install -r requirements.txt
+
+    - name: Run pre-commit hooks
+      uses: pre-commit/action@v3.0.0
+      with:
+        extra_args: --all-files --show-diff-on-failure
