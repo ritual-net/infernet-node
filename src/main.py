@@ -1,3 +1,4 @@
+import os
 import signal
 import asyncio
 from typing import Any, Optional, cast
@@ -35,7 +36,8 @@ def on_startup() -> None:
         version = file.read().strip()
 
     # Load and validate config
-    config: ConfigDict = load_validated_config()
+    config_path = os.environ.get("INFERNET_CONFIG_PATH", "config.json")
+    config: ConfigDict = load_validated_config(config_path)
 
     # Setup logging
     setup_logging(config["log_path"])
