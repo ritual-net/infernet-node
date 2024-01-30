@@ -47,7 +47,9 @@ from utils.config import ConfigContainer, ConfigDocker
 DEFAULT_STARTUP_WAIT: float = 60.0
 
 from typing import TypedDict
-class Container():
+
+
+class Container:
     id: str
     running: bool
 
@@ -58,6 +60,7 @@ class Container():
     @property
     def running(self: Container) -> bool:
         return True
+
 
 class ContainerManager(AsyncTask):
     """Manages lifecycle of Docker containers.
@@ -86,7 +89,6 @@ class ContainerManager(AsyncTask):
         _shutdown (bool): True if container manager is shutting down, False otherwise.
     """
 
-
     _startup_wait: float
 
     def __init__(
@@ -111,7 +113,7 @@ class ContainerManager(AsyncTask):
             _client = from_env()
 
         # Store configs, credentials, and port mappings in state
-        self._managed : bool = managed
+        self._managed: bool = managed
         self._configs: list[ConfigContainer] = configs
         self._creds: ConfigDocker = credentials
         self._images: list[str] = [config["image"] for config in self._configs]
@@ -365,7 +367,9 @@ class ContainerManager(AsyncTask):
                     # Request GPU device if enabled
                     device_requests = []
                     if "gpu" in config and config["gpu"]:
-                        device_requests = [DeviceRequest(count=-1, capabilities=[["gpu"]])]
+                        device_requests = [
+                            DeviceRequest(count=-1, capabilities=[["gpu"]])
+                        ]
 
                     # Run container and store object in state
                     self._containers[id] = self.client.containers.run(
@@ -385,4 +389,3 @@ class ContainerManager(AsyncTask):
             else:
                 # Store existing container object in state
                 self._containers[id] = Container(id)
-

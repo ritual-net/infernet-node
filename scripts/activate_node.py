@@ -57,9 +57,7 @@ async def register_node() -> None:
     current_ts = int(time.time())
     cooldown_end_ts = cooldown + 3600
     if current_ts < cooldown_end_ts:
-        log.error(
-            "Cooldown not elapsed", remaining_seconds=cooldown_end_ts - current_ts
-        )
+        log.error("Cooldown not elapsed", remaining_seconds=cooldown_end_ts - current_ts)
         return
 
     # Send node activation tx

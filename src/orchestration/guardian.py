@@ -306,9 +306,7 @@ class Guardian:
 
         # Filter out unallowed subscription recipients
         for container in message.subscription.containers:
-            if not self._is_allowed_address(
-                container, message.subscription.owner, True
-            ):
+            if not self._is_allowed_address(container, message.subscription.owner, True):
                 return self._error(
                     message,
                     "Container not allowed for address",
