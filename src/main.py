@@ -13,8 +13,9 @@ from chain.coordinator import Coordinator
 from chain.processor import ChainProcessor
 from utils.config import ConfigDict, load_validated_config, ConfigDocker
 from orchestration import (
-    MockContainerManager,
     ContainerManager,
+    MockContainerManager,
+    ManagedContainerManager,
     DataStore,
     Guardian,
     Orchestrator,
@@ -53,9 +54,9 @@ def on_startup() -> None:
     if config.get("mock", False):
         managerClass = MockContainerManager
     else:
-        managerClass = ContainerManager
+        managerClass = ManagedContainerManager
 
-    manager = managerClass(
+    manager: ContainerManager = managerClass(
         config["containers"],
         cast(ConfigDocker, config.get("docker", {})),
         startup_wait=config.get("startup_wait"),

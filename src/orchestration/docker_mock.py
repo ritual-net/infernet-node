@@ -3,9 +3,9 @@ from __future__ import annotations
 from asyncio import get_event_loop, sleep
 from typing import Any, Optional
 
-from shared import AsyncTask
 from utils import log
 from utils.config import ConfigContainer, ConfigDocker
+from .docker_abc import ContainerManager as ContainerManagerABC
 
 DEFAULT_STARTUP_WAIT: float = 60.0
 
@@ -27,7 +27,7 @@ class Container:
         pass
 
 
-class ContainerManager(AsyncTask):
+class ContainerManager(ContainerManagerABC):
     """Manages lifecycle of Docker containers.
 
     Pulls images, starts containers, and waits for services to start before

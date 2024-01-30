@@ -40,14 +40,14 @@ from docker.errors import NotFound  # type: ignore
 from docker.models.containers import Container  # type: ignore
 from docker.types import DeviceRequest  # type: ignore
 
-from shared import AsyncTask
 from utils import log
 from utils.config import ConfigContainer, ConfigDocker
+from .docker_abc import ContainerManager as ContainerManagerABC
 
 DEFAULT_STARTUP_WAIT: float = 60.0
 
 
-class ContainerManager(AsyncTask):
+class ContainerManager(ContainerManagerABC):
     """Manages lifecycle of Docker containers.
 
     Pulls images, starts containers, and waits for services to start before
