@@ -12,7 +12,13 @@ from server import RESTServer, StatSender
 from chain.coordinator import Coordinator
 from chain.processor import ChainProcessor
 from utils.config import ConfigDict, load_validated_config, ConfigDocker
-from orchestration import ContainerManager, DataStore, Guardian, Orchestrator
+from orchestration import (
+    MockContainerManager,
+    ContainerManager,
+    DataStore,
+    Guardian,
+    Orchestrator,
+)
 
 # Tasks
 tasks: list[AsyncTask] = []
@@ -44,12 +50,17 @@ def on_startup() -> None:
     log.info("Running startup", chain_enabled=config["chain"]["enabled"])
 
     # Initialize container manager
-    manager = ContainerManager(
+    if config.get("mock", False):
+        managerClass = MockContainerManager
+    else:
+        managerClass = ContainerManager
+
+    manager = managerClass(
         config["containers"],
         cast(ConfigDocker, config.get("docker", {})),
         startup_wait=config.get("startup_wait"),
-        managed=config.get("managed", True),
     )
+
     tasks.append(manager)
 
     # Initialize data store
