@@ -48,6 +48,7 @@ def on_startup() -> None:
         config["containers"],
         cast(ConfigDocker, config.get("docker", {})),
         startup_wait=config.get("startup_wait"),
+        managed=config.get("managed", True),
     )
     tasks.append(manager)
 

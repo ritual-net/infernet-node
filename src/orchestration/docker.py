@@ -35,10 +35,10 @@ from __future__ import annotations
 from asyncio import gather, get_event_loop, sleep
 from typing import Any, Optional
 
-# from docker import from_env  # type: ignore
-# from docker.errors import NotFound  # type: ignore
-# from docker.models.containers import Container  # type: ignore
-# from docker.types import DeviceRequest  # type: ignore
+from docker import from_env  # type: ignore
+from docker.errors import NotFound  # type: ignore
+from docker.models.containers import Container  # type: ignore
+from docker.types import DeviceRequest  # type: ignore
 
 from shared import AsyncTask
 from utils import log
@@ -86,6 +86,7 @@ class ContainerManager(AsyncTask):
         _shutdown (bool): True if container manager is shutting down, False otherwise.
     """
 
+
     _startup_wait: float
 
     def __init__(
@@ -93,6 +94,7 @@ class ContainerManager(AsyncTask):
         configs: list[ConfigContainer],
         credentials: ConfigDocker,
         startup_wait: Optional[float],
+        managed: bool = True,
     ) -> None:
         """Initialize ContainerManager with given configurations and credentials.
 
@@ -104,7 +106,12 @@ class ContainerManager(AsyncTask):
         """
         super().__init__()
 
+        if managed:
+            # Docker daemon must be running on host
+            _client = from_env()
+
         # Store configs, credentials, and port mappings in state
+        self._managed : bool = managed
         self._configs: list[ConfigContainer] = configs
         self._creds: ConfigDocker = credentials
         self._images: list[str] = [config["image"] for config in self._configs]
@@ -179,6 +186,14 @@ class ContainerManager(AsyncTask):
         """
 
         try:
+            if self._managed:
+                # Pull images
+                await self._pull_images()
+
+                # Optionally prune existing containers. This is destructive
+                if prune_containers:
+                    self._prune_containers()
+
             # Run containers
             self._run_containers()
 
@@ -255,6 +270,63 @@ class ContainerManager(AsyncTask):
     ### Private methods ###
     #######################
 
+    async def _pull_images(self: ContainerManager) -> None:
+        """Pulls all supported images in parallel.
+        Raises:
+            RuntimeError: If any images could not be pulled.
+        """
+        log.info("Pulling images, this may take a while...")
+
+        async def pull_image(image: str) -> bool:
+            """Pull a docker image asynchronously
+            - If the image already exists locally, it is not pulled.
+            - If the image doesn't exist and cannot be pulled, returns False.
+            Args:
+                image (str): Image id to pull
+            Returns:
+                bool: True if image exists locally or was successfully pulled, False
+                    otherwise.
+            """
+            try:
+                log.info(f"Pulling image {image}...")
+                await self._loop.run_in_executor(
+                    None,
+                    lambda: self.client.images.pull(image, auth_config=self._creds),
+                )
+                log.info(f"Successfully pulled image {image}")
+                return True
+
+            except Exception as e:
+                # Check if image exists locally
+                if self.client.images.get(image):
+                    log.info(f"Image {image} already exists locally")
+                    return True
+
+                log.error(f"Error pulling image {image}", error=e)
+                return False
+
+        # Pull images in parallel
+        tasks = [pull_image(image_id) for image_id in self._images]
+        results = await gather(*tasks)
+
+        if not all(results):
+            raise RuntimeError("Could not pull all images.")
+
+    def _prune_containers(self: ContainerManager) -> None:
+        """Prunes containers by ID
+        Force stops and removes any (running) containers with names matching any IDs
+        provided in the managed containers config.
+        WARNING: This action is destructive. Use with caution.
+        """
+
+        all_containers = self.client.containers.list(all=True)
+        container_ids = [config["id"] for config in self._configs]
+
+        for container in all_containers:
+            if container.name in container_ids:
+                log.warning("Pruning container", id=container.id)
+                container.remove(force=True)
+
     def _run_containers(self: ContainerManager) -> None:
         """Runs all containers with given configurations.
 
@@ -267,8 +339,50 @@ class ContainerManager(AsyncTask):
 
         for config in self._configs:
             id = config["id"]
-            # Check if the container already exists
-            container = Container(id)
 
-            # Store existing container object in state
-            self._containers[id] = container
+            if self._managed:
+                try:
+                    # Check if the container already exists
+                    container = self.client.containers.get(id)
+
+                    # Store existing container object in state
+                    self._containers[id] = container
+
+                    # Start the container if it's not running
+                    if container.status != "running":
+                        container.start()
+                        log.info(f"Started existing container: {id}")
+                    else:
+                        log.info(f"Container already running: {id}")
+
+                except NotFound:
+                    # Container does not exist, so create and run a new one
+                    command = config["command"]
+                    env = config["env"]
+                    image = config["image"]
+                    port = config["port"]
+
+                    # Request GPU device if enabled
+                    device_requests = []
+                    if "gpu" in config and config["gpu"]:
+                        device_requests = [DeviceRequest(count=-1, capabilities=[["gpu"]])]
+
+                    # Run container and store object in state
+                    self._containers[id] = self.client.containers.run(
+                        image=image,
+                        command=command,
+                        detach=True,
+                        environment=env,
+                        name=id,
+                        ports={"3000/tcp": ("0.0.0.0", port)},
+                        restart_policy={
+                            "Name": "on-failure",
+                            "MaximumRetryCount": 5,
+                        },
+                        device_requests=device_requests,
+                    )
+                    log.info(f"Created and started new container: {id}")
+            else:
+                # Store existing container object in state
+                self._containers[id] = Container(id)
+
