@@ -6,7 +6,7 @@
   "chain": {
     "enabled": true,
     "trail_head_blocks": 5,
-    "rpc_ws": "http://127.0.0.1:8545",
+    "rpc_url": "http://127.0.0.1:8545",
     "coordinator_address": "0x...",
     "wallet": {
       "max_gas_limit": 5000000,
