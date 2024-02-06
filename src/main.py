@@ -55,7 +55,6 @@ def on_startup() -> None:
         config.get("startup_wait"),
         config.get("managed"),
     )
-
     tasks.append(manager)
 
     # Initialize data store

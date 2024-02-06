@@ -109,13 +109,13 @@ class ContainerManager(AsyncTask):
         self._loop = get_event_loop()
         self._shutdown = False
 
-        # Store container objects in state. Only used if managed is True
-        self._containers: dict[str, Container] = {}
-
         self._startup_wait = (
             DEFAULT_STARTUP_WAIT if startup_wait is None else startup_wait
         )
         self._managed = True if managed is None else managed
+
+        # Store container objects in state. Only used if managed is True
+        self._containers: dict[str, Container] = {}
 
         log.info("Initialized Container Manager", port_mappings=self._port_mappings)
 
@@ -129,7 +129,7 @@ class ContainerManager(AsyncTask):
         """Get list of running container IDs"""
 
         # If not managed, return all container IDs as running. TODO: Once /health
-        # endpoint are a requirement for all containers, use that to check if containers
+        # endpoint are a requirement for all containers, use them to check if containers
         # are running.
         if not self._managed:
             return [config["id"] for config in self._configs]
