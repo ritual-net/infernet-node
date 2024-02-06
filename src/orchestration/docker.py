@@ -74,9 +74,6 @@ class ContainerManager(AsyncTask):
         _shutdown (bool): True if container manager is shutting down, False otherwise.
     """
 
-    # Docker daemon must be running on host
-    client = from_env()
-
     _startup_wait: float
 
     def __init__(
@@ -116,6 +113,9 @@ class ContainerManager(AsyncTask):
 
         # Store container objects in state. Only used if managed is True
         self._containers: dict[str, Container] = {}
+
+        # Docker daemon must be running on host. Only used if managed is True
+        self.client = from_env() if self._managed else None
 
         log.info("Initialized Container Manager", port_mappings=self._port_mappings)
 
@@ -275,6 +275,7 @@ class ContainerManager(AsyncTask):
 
     async def _pull_images(self: ContainerManager) -> None:
         """Pulls all supported images in parallel.
+
         Raises:
             RuntimeError: If any images could not be pulled.
         """
@@ -284,8 +285,10 @@ class ContainerManager(AsyncTask):
             """Pull a docker image asynchronously
             - If the image already exists locally, it is not pulled.
             - If the image doesn't exist and cannot be pulled, returns False.
+
             Args:
                 image (str): Image id to pull
+
             Returns:
                 bool: True if image exists locally or was successfully pulled, False
                     otherwise.
@@ -317,8 +320,10 @@ class ContainerManager(AsyncTask):
 
     def _prune_containers(self: ContainerManager) -> None:
         """Prunes containers by ID
+
         Force stops and removes any (running) containers with names matching any IDs
         provided in the managed containers config.
+
         WARNING: This action is destructive. Use with caution.
         """
 
