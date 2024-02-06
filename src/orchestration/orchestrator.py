@@ -6,7 +6,7 @@ from typing import Any, Optional
 from aiohttp import ClientSession
 from json import JSONDecodeError
 
-from .docker_abc import ContainerManager
+from .docker import ContainerManager
 from .store import DataStore
 from shared import ContainerError, ContainerOutput, ContainerResult
 from shared.message import OffchainJobMessage

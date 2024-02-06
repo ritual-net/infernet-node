@@ -40,14 +40,14 @@ from docker.errors import NotFound  # type: ignore
 from docker.models.containers import Container  # type: ignore
 from docker.types import DeviceRequest  # type: ignore
 
+from shared import AsyncTask
 from utils import log
 from utils.config import ConfigContainer, ConfigDocker
-from .docker_abc import ContainerManager as ContainerManagerABC
 
 DEFAULT_STARTUP_WAIT: float = 60.0
 
 
-class ContainerManager(ContainerManagerABC):
+class ContainerManager(AsyncTask):
     """Manages lifecycle of Docker containers.
 
     Pulls images, starts containers, and waits for services to start before
@@ -84,6 +84,7 @@ class ContainerManager(ContainerManagerABC):
         configs: list[ConfigContainer],
         credentials: ConfigDocker,
         startup_wait: Optional[float],
+        managed: Optional[bool],
     ) -> None:
         """Initialize ContainerManager with given configurations and credentials.
 
@@ -91,7 +92,10 @@ class ContainerManager(ContainerManagerABC):
             configs (dict[str, ConfigContainer]): Container configurations to run.
             credentials (ConfigDocker): Docker registry credentials.
             startup_wait (Optional[float]): Number of seconds to wait for containers
-                to start.
+                to start. If None, uses DEFAULT_STARTUP_WAIT.
+            managed (Optional[bool]): If True, containers are managed by the
+                orchestrator. If False, containers are not managed and must be started
+                manually. If None, defaults to True.
         """
         super().__init__()
 
@@ -103,13 +107,15 @@ class ContainerManager(ContainerManagerABC):
             config["id"]: config["port"] for config in self._configs
         }
         self._loop = get_event_loop()
+        self._shutdown = False
+
+        # Store container objects in state. Only used if managed is True
+        self._containers: dict[str, Container] = {}
+
         self._startup_wait = (
             DEFAULT_STARTUP_WAIT if startup_wait is None else startup_wait
         )
-        self._shutdown = False
-
-        # Store container objects in state
-        self._containers: dict[str, Container] = {}
+        self._managed = True if managed is None else managed
 
         log.info("Initialized Container Manager", port_mappings=self._port_mappings)
 
@@ -121,6 +127,12 @@ class ContainerManager(ContainerManagerABC):
     @property
     def running_containers(self: ContainerManager) -> list[str]:
         """Get list of running container IDs"""
+
+        # If not managed, return all container IDs as running. TODO: Once /health
+        # endpoint are a requirement for all containers, use that to check if containers
+        # are running.
+        if not self._managed:
+            return [config["id"] for config in self._configs]
 
         # Container objects are cached, need to reload attributes
         for container in self._containers.values():
@@ -159,7 +171,7 @@ class ContainerManager(ContainerManagerABC):
         self: ContainerManager,
         prune_containers: bool = False,
     ) -> None:
-        """Setup orchestrator
+        """Setup orchestrator. If containers are managed:
 
         1. Pulls images in parallel, if not already pulled.
         2. Prunes any containers with conflicting IDs, if prune_containers is True.
@@ -168,6 +180,10 @@ class ContainerManager(ContainerManagerABC):
         5. Waits for startup_wait seconds for containers to start.
 
         """
+
+        if not self._managed:
+            log.info("Skipping container manager setup, containers are not managed")
+            return
 
         try:
             # Pull images
@@ -236,6 +252,10 @@ class ContainerManager(ContainerManagerABC):
 
     async def stop(self: ContainerManager) -> None:
         """Force stops all containers."""
+        if not self._managed:
+            log.info("Skipping container manager stop, containers are not managed")
+            return
+
         log.info("Stopping containers")
 
         self._shutdown = True
