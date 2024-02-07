@@ -1,7 +1,7 @@
 import os
 import signal
 import asyncio
-from typing import Any, Optional, cast
+from typing import Any, Optional
 
 from chain.coordinator import Coordinator
 from chain.listener import ChainListener
@@ -17,7 +17,7 @@ from orchestration import (
 from server import RESTServer, StatSender
 from shared import AsyncTask
 from utils import log, setup_logging
-from utils.config import ConfigDict, load_validated_config, ConfigDocker
+from utils.config import ConfigDict, load_validated_config
 
 # Tasks
 tasks: list[AsyncTask] = []
@@ -50,10 +50,10 @@ def on_startup() -> None:
 
     # Initialize container manager
     manager = ContainerManager(
-        config["containers"],
-        cast(ConfigDocker, config.get("docker", {})),
-        config.get("startup_wait"),
-        config.get("managed"),
+        configs=config["containers"],
+        credentials=config.get("docker"),
+        startup_wait=config.get("startup_wait"),
+        managed=config.get("manage_containers"),
     )
     tasks.append(manager)
 

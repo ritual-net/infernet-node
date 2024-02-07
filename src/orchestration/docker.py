@@ -79,7 +79,7 @@ class ContainerManager(AsyncTask):
     def __init__(
         self: ContainerManager,
         configs: list[ConfigContainer],
-        credentials: ConfigDocker,
+        credentials: Optional[ConfigDocker],
         startup_wait: Optional[float],
         managed: Optional[bool],
     ) -> None:
@@ -98,7 +98,7 @@ class ContainerManager(AsyncTask):
 
         # Store configs, credentials, and port mappings in state
         self._configs: list[ConfigContainer] = configs
-        self._creds: ConfigDocker = credentials
+        self._creds = credentials
         self._images: list[str] = [config["image"] for config in self._configs]
         self._port_mappings: dict[str, int] = {
             config["id"]: config["port"] for config in self._configs

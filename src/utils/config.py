@@ -59,7 +59,7 @@ class ConfigDict(TypedDict):
     """Expected config format"""
 
     log_path: str
-    managed: Optional[bool]
+    manage_containers: Optional[bool]
     server: ConfigServer
     chain: ConfigChain
     docker: Optional[ConfigDocker]

@@ -1,6 +1,6 @@
 {
   "log_path": "infernet_node.log",
-  "managed": true,
+  "manage_containers": true,
   "server": {
     "port": 4000
   },
