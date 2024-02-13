@@ -9,25 +9,26 @@ events against guardian and forwards to ChainProcessor.
 
 from __future__ import annotations
 
-from typing import cast, Optional
+import asyncio
 from asyncio import create_task, sleep
+from typing import cast, Optional
 
 from eth_abi.abi import decode  # type: ignore
-from web3.types import LogReceipt
 from eth_typing import BlockNumber
+from web3.types import LogReceipt
 
-from utils import log
-from chain.rpc import RPC
-from shared.service import AsyncTask
-from chain.processor import ChainProcessor
-from orchestration.guardian import Guardian
 from chain.coordinator import Coordinator, CoordinatorEvent
+from chain.processor import ChainProcessor
+from chain.rpc import RPC
+from orchestration.guardian import Guardian
 from shared.message import (
     GuardianError,
     SubscriptionCreatedMessage,
     SubscriptionCancelledMessage,
     SubscriptionFulfilledMessage,
 )
+from shared.service import AsyncTask
+from utils import log
 
 
 class ChainListener(AsyncTask):
@@ -62,6 +63,8 @@ class ChainListener(AsyncTask):
         guardian: Guardian,
         processor: ChainProcessor,
         trail_head_blocks: int,
+        rate_limit_sleep: int = 1,
+        batch_size: int = 200,
     ) -> None:
         """Initializes new ChainListener
 
@@ -71,6 +74,10 @@ class ChainListener(AsyncTask):
             guardian (Guardian): Guardian instance
             processor (ChainProcessor): ChainProcessor instance
             trail_head_blocks (int): How many blocks to trail head by
+            rate_limit_sleep (int): How long to sleep between RPC calls (in seconds)
+            during snapshot sync
+            batch_size (int): How many logs to process in a single batch during
+            snapshot sync
         """
 
         # Initialize inherited AsyncTask
@@ -81,6 +88,8 @@ class ChainListener(AsyncTask):
         self._guardian = guardian
         self._processor = processor
         self._trail_head_blocks = trail_head_blocks
+        self.rate_limit_sleep = rate_limit_sleep
+        self.batch_size = batch_size
         log.info("Initialized ChainListener")
 
     async def _sync_subscription_creation(
@@ -152,12 +161,20 @@ class ChainListener(AsyncTask):
 
         # Get highest subscription ID at head block
         head_id = await self._coordinator.get_head_subscription_id(head_block)
-        log.info("Collected highest subscription id", id=head_id)
-
         # Subscription indexes are 1-indexed at contract level
         # For subscriptions 1 -> head, sync subscription creation
-        for id in range(1, head_id + 1):
-            await self._sync_subscription_creation(id, head_block, None)
+        tasks = []
+
+        for sub_id in range(1, head_id + 1):
+            log.info("syncing subscription", id=sub_id)
+            await self._sync_subscription_creation(sub_id, head_block, None)
+            task = asyncio.create_task(
+                self._sync_subscription_creation(sub_id, head_block, None)
+            )
+            tasks.append(task)
+            if sub_id % self.batch_size == 0:
+                await asyncio.sleep(self.rate_limit_sleep)
+        await asyncio.gather(*tasks)
 
     async def _parse_created_log(self: ChainListener, receipt: LogReceipt) -> None:
         """Parses SubscriptionCreated event
