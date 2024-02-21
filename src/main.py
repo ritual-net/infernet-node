@@ -1,17 +1,23 @@
+import os
 import signal
 import asyncio
-from typing import Any, Optional, cast
+from typing import Any, Optional
 
-from chain.rpc import RPC
-from shared import AsyncTask
-from chain.wallet import Wallet
-from utils import log, setup_logging
-from chain.listener import ChainListener
-from server import RESTServer, StatSender
 from chain.coordinator import Coordinator
+from chain.listener import ChainListener
 from chain.processor import ChainProcessor
-from utils.config import ConfigDict, load_validated_config, ConfigDocker
-from orchestration import ContainerManager, DataStore, Guardian, Orchestrator
+from chain.rpc import RPC
+from chain.wallet import Wallet
+from orchestration import (
+    ContainerManager,
+    DataStore,
+    Guardian,
+    Orchestrator,
+)
+from server import RESTServer, StatSender
+from shared import AsyncTask
+from utils import log, setup_logging
+from utils.config import ConfigDict, load_validated_config
 
 # Tasks
 tasks: list[AsyncTask] = []
@@ -35,7 +41,8 @@ def on_startup() -> None:
         version = file.read().strip()
 
     # Load and validate config
-    config: ConfigDict = load_validated_config()
+    config_path = os.environ.get("INFERNET_CONFIG_PATH", "config.json")
+    config: ConfigDict = load_validated_config(config_path)
 
     # Setup logging
     setup_logging(config["log_path"])
@@ -43,9 +50,10 @@ def on_startup() -> None:
 
     # Initialize container manager
     manager = ContainerManager(
-        config["containers"],
-        cast(ConfigDocker, config.get("docker", {})),
+        configs=config["containers"],
+        credentials=config.get("docker"),
         startup_wait=config.get("startup_wait"),
+        managed=config.get("manage_containers"),
     )
     tasks.append(manager)
 
