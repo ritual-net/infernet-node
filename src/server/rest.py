@@ -268,9 +268,11 @@ class RESTServer(AsyncTask):
                 filtered = cast(
                     list[Union[OffchainMessage, GuardianError]],
                     [
-                        self._guardian.process_message(item)
-                        if item is not None
-                        else None
+                        (
+                            self._guardian.process_message(item)
+                            if item is not None
+                            else None
+                        )
                         for item in parsed
                     ],
                 )
@@ -354,6 +356,56 @@ class RESTServer(AsyncTask):
                     [BaseMessage(id, client_ip) for id in job_ids], intermediate
                 )
                 return jsonify(data), 200
+
+        @self._app.route("/api/status", methods=["PUT"])
+        async def store_job_status() -> Tuple[Response, int]:
+            """Stores job status in data store"""
+            try:
+                # Collect JSON body
+                data = await request.get_json(force=True)
+
+                # Get the IP address of the client
+                client_ip = request.remote_addr
+                if not client_ip:
+                    return jsonify({"error": "Could not get client IP address"}), 400
+
+                log.debug("Received new result", result=data)
+
+                # Create off-chain message with client IP
+                parsed: Optional[OffchainMessage] = from_union(
+                    OffchainMessage,
+                    {
+                        "id": data["id"],
+                        "ip": client_ip,
+                        "containers": data["containers"],
+                        "data": {},
+                    },
+                )
+                if not parsed:
+                    return jsonify({"error": "Could not parse status"}), 400
+
+                # Store job status
+                match data["status"]:
+                    case "success":
+                        self._store.set_success(parsed, [])
+                    case "failed":
+                        self._store.set_failed(parsed, [])
+                    case "running":
+                        self._store.set_running(parsed)
+                    case _:
+                        return jsonify({"error": "Status is invalid"}), 400
+
+                return jsonify(), 200
+            except Exception as e:
+                # Return error
+                log.error(
+                    "Processed REST response",
+                    endpoint="/api/status",
+                    method="PUT",
+                    status=500,
+                    err=e,
+                )
+                return jsonify({"error": "Could not store job status"}), 500
 
     async def run_forever(self: RESTServer) -> None:
         """Main RESTServer lifecycle loop. Uses production hypercorn server"""

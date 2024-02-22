@@ -14,7 +14,7 @@ from utils.logging import log
 
 # Constants - intervals in seconds for forwarding stats to Ritual
 LIVE_INTERVAL = 5
-NODE_INTERVAL = 3600
+NODE_INTERVAL = 900
 
 
 class StatCollector:
@@ -220,6 +220,9 @@ class StatSender(AsyncTask):
             # Ensure live stats collection is complete before sending
             await live_stats
             self._sender.emit(label="live", data=live_stats.result())
+
+        # Send node stats on shutdown
+        self._sender.emit(label="node", data=await self._get_node_stats())
 
     async def stop(self: StatSender) -> None:
         """Stop the task"""

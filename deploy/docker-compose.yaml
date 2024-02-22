@@ -2,7 +2,7 @@ version: '3'
 
 services:
   node:
-    image: ritualnetwork/infernet-node:0.1.0
+    image: ritualnetwork/infernet-node:0.2.0
     ports:
       - "0.0.0.0:4000:4000"
     volumes:
@@ -37,7 +37,6 @@ services:
     image: fluent/fluent-bit:latest
     ports:
       - "24224:24224"
-
     environment:
       - FLUENTBIT_CONFIG_PATH=/fluent-bit/etc/fluent-bit.conf
     volumes:
