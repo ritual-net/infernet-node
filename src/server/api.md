@@ -43,7 +43,7 @@ Creates a new off-chain job (direct compute request or subscription).
   - **Failure:**
     - **Code:** `400 Bad Request`
     - **Content:**
-        `{"error": string[, "params": object]}`
+        `{ "error": string[, "params": object] }`
       - `error`: Error message
       - `params`: Additional error parameters (if applicable).
 
@@ -63,12 +63,12 @@ the returned array for errors in creating jobs.
   - **Success:**
     - **Code:** `200 OK`
     - **Content:**
-    `{"id": string} | {"error": string[, "params": object]} []`
+    `{ "id": string } | { "error": string[, "params": object] } []`
       - Array of job UUID or error for each JobRequest **in order**, depending on successful creation.
   - **Failure:**
     - **Code:** `400 Bad Request`
     - **Content:**
-        `{"error": string[, "params": object]}`
+        `{ "error": string[, "params": object] }`
       - `error`: Error message
       - `params`: Additional error parameters (if applicable).
 
@@ -99,9 +99,39 @@ Retrieves specific job results based on one or more provided job IDs. If the id 
     - **Content:** `{ "error": string }`
       - `error`: Error message
 
-
 ---
 
+#### 4. PUT `/api/status`
+
+> **Warning: DO NOT USE THIS ENDPOINT IF YOU DON'T KNOW WHAT YOU'RE DOING.**
+> This endpoint is meant to be used by containers that do **NOT** comply with Infernet, but still want to use it to record job IDs and statuses. This could be useful in the case of legacy images, where achieving [Infernet compatibility](https://docs.ritual.net/infernet/node/containers) is impractical.
+
+Registers job ID and status with the node.
+
+- **Method:** `PUT`
+- **URL:** `/api/status`
+- **Body:** 
+  ```json
+    {
+      "id": string,
+      "status": "success" | "failed" | "running"
+      "containers": string[]
+    }
+  ```
+  - `id`: ID of the job
+  - `status`: Status of the job
+  - `containers`: IDs of container(s) to associate with the job
+- **Response:**
+  - **Success:**
+    - **Code:** `200 OK`
+  - **Failure:**
+    - **Code:** `400 Bad Request`
+    - **Content:**
+        `{ "error": string }`
+      - `error`: Error message
+      - `params`: Additional error parameters (if applicable).
+
+---
 
 ## Data Types
 
