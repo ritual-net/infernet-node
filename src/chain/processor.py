@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import time
 from asyncio import create_task, sleep
+from copy import deepcopy
 from typing import Optional, Any, cast
 
 from eth_abi import encode  # type: ignore
@@ -435,7 +436,11 @@ class ChainProcessor(AsyncTask):
             3. If self._attempts[tx] < 3, evicts failed tx else keeps blocked
         """
         failed_txs: list[tuple[UnionID, Interval]] = []
-        for (id, interval), tx_hash in self._pending.items():
+
+        # Make deep copy to avoid mutation during iteration
+        pending_copy = deepcopy(self._pending)
+
+        for (id, interval), tx_hash in pending_copy.items():
             # Check if tx_hash is not blocked
             if tx_hash != BLOCKED:
                 # Check if tx failed on-chain
@@ -735,7 +740,10 @@ class ChainProcessor(AsyncTask):
             # Prune pending txs that have failed
             create_task(self._prune_failed_txs())
 
-            for subId, subscription in self._subscriptions.items():
+            # Make deep copy to avoid mutation during iteration
+            subscriptions_copy = deepcopy(self._subscriptions)
+
+            for subId, subscription in subscriptions_copy.items():
                 # Skips if subscription is not active
                 if not subscription.active:
                     continue
