@@ -35,7 +35,6 @@ services:
     image: fluent/fluent-bit:latest
     ports:
       - "24224:24224"
-
     environment:
       - FLUENTBIT_CONFIG_PATH=/fluent-bit/etc/fluent-bit.conf
     volumes:
