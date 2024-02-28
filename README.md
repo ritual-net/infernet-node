@@ -113,11 +113,11 @@ Follow README instructions in the [infernet-deploy](https://github.com/ritual-ne
 # Set tag
 tag="0.1.0"
 
-# Force linux build (useful when building on Mac)
-docker build --platform linux/amd64 -t ritualnetwork/infernet-node:$tag .
+# Build for local platform
+make build
 
-# Push to Dockerhub
-docker push ritualnetwork/infernet-node:$tag
+# Multi-platform build and push to repo
+make build-multiplatform
 ```
 
 ## License
