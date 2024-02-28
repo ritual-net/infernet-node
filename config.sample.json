@@ -26,35 +26,15 @@
   "startup_wait": 1.0,
   "containers": [
     {
-      "id": "service-1",
-      "image": "org1/image1:tag1",
-      "description": "Container 1 description",
+      "id": "hello-world",
+      "image": "ritualnetwork/hello-world-infernet:latest",
       "external": true,
-      "port": "4999",
-      "allowed_ips": ["XX.XX.XX.XXX", "XX.XX.XX.XXX"],
-      "allowed_addresses": ["0x..."],
-      "allowed_delegate_addresses": ["0x..."],
+      "port": "3000",
+      "allowed_delegate_addresses": [],
+      "allowed_addresses": [],
+      "allowed_ips": [],
       "command": "--bind=0.0.0.0:3000 --workers=2",
-      "env": {
-        "KEY1": "VALUE1",
-        "KEY2": "VALUE2"
-      },
-      "gpu": true
-    },
-    {
-      "id": "service-2",
-      "image": "org2/image2:tag2",
-      "description": "Container 2 description",
-      "external": false,
-      "port": "4998",
-      "allowed_ips": ["XX.XX.XX.XXX", "XX.XX.XX.XXX"],
-      "allowed_addresses": ["0x..."],
-      "allowed_delegate_addresses": ["0x..."],
-      "command": "--bind=0.0.0.0:3000 --workers=2",
-      "env": {
-        "KEY3": "VALUE3",
-        "KEY4": "VALUE4"
-      }
+      "env": {}
     }
   ]
 }
