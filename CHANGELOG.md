@@ -18,6 +18,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - Sample config `rpc_ws` should be `rpc_url` in `config.sample.json`.
 - Added working container example to `config.sample.json`.
+- Bug in `processor.py` where state dictionaries could be mutated while being iterated over.
 
 ### Security
 - Bumped `aiohttp` version to `3.9.2`.
