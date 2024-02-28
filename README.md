@@ -53,6 +53,9 @@ vim config.json
     - **allowed_delegate_addresses** (`array[string]`). Container-level firewall. Only specified addresses allowed to request execution of this container, with request originating from on-chain contract but via off-chain delegate subscription (with this address corresponding to the delegate subscription `owner`).
       - _Leave empty for no restrictions_.
     - **gpu** (`boolean`). Whether this should be a GPU-enabled container. Host must also be GPU-enabled.
+  - **snapshot_sync** (`object`, Optional). Snapshot sync configurations.
+    - **snapshot_sync_sleep** (`int`).  Number of seconds to sleep between snapshot syncs
+    - **snapshot_sync_batch_size** (`int`). Number of blocks to sync per batch
 
 ### Sane default configuration parameters
 

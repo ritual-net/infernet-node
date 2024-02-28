@@ -55,6 +55,13 @@ class ConfigRedis(TypedDict):
     port: int
 
 
+class ConfigSnapshotSync(TypedDict):
+    """Expected config[snapshot_sync] format"""
+
+    snapshot_sync_sleep: int
+    snapshot_sync_interval: int
+
+
 class ConfigDict(TypedDict):
     """Expected config format"""
 
@@ -66,6 +73,7 @@ class ConfigDict(TypedDict):
     containers: list[ConfigContainer]
     forward_stats: bool
     startup_wait: Optional[float]
+    snapshot_sync: Optional[ConfigSnapshotSync]
 
 
 class ValidationItem(NamedTuple):

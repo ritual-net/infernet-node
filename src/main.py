@@ -1,17 +1,17 @@
-import signal
 import asyncio
+import signal
 from typing import Any, Optional, cast
 
-from chain.rpc import RPC
-from shared import AsyncTask
-from chain.wallet import Wallet
-from utils import log, setup_logging
-from chain.listener import ChainListener
-from server import RESTServer, StatSender
 from chain.coordinator import Coordinator
+from chain.listener import ChainListener
 from chain.processor import ChainProcessor
-from utils.config import ConfigDict, load_validated_config, ConfigDocker
+from chain.rpc import RPC
+from chain.wallet import Wallet
 from orchestration import ContainerManager, DataStore, Guardian, Orchestrator
+from server import RESTServer, StatSender
+from shared import AsyncTask
+from utils import log, setup_logging
+from utils.config import ConfigDict, load_validated_config, ConfigDocker
 
 # Tasks
 tasks: list[AsyncTask] = []
@@ -76,6 +76,7 @@ def on_startup() -> None:
             guardian,
             processor,
             config["chain"]["trail_head_blocks"],
+            **config.get("snapshot_sync", {}),
         )
         tasks.extend([processor, listener])
 
