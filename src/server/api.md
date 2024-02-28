@@ -110,7 +110,7 @@ Registers job ID and status with the node.
 
 - **Method:** `PUT`
 - **URL:** `/api/status`
-- **Body:** 
+- **Body:**
   ```json
     {
       "id": string,
