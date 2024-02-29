@@ -1,7 +1,7 @@
 import asyncio
 import os
 import signal
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 from chain.coordinator import Coordinator
 from chain.listener import ChainListener
@@ -67,7 +67,9 @@ def on_startup() -> None:
     # Initialize chain-specific tasks
     processor: Optional[ChainProcessor] = None
     wallet: Optional[Wallet] = None
-    snapshot_sync: dict[str, int] = cast(dict[str, int], config.get("snapshot_sync", {}))
+    snapshot_sync: dict[str, int] = cast(
+        dict[str, int], config.get("snapshot_sync", {})
+    )
 
     if config["chain"]["enabled"]:
         rpc = RPC(config["chain"]["rpc_url"])
