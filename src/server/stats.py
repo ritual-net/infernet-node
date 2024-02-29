@@ -12,6 +12,10 @@ from orchestration import DataStore, Guardian
 from shared.service import AsyncTask
 from utils.logging import log
 
+# Constants - intervals in seconds for forwarding stats to Ritual
+LIVE_INTERVAL = 5
+NODE_INTERVAL = 3600
+
 
 class StatCollector:
     """Collects machine stats
@@ -190,36 +194,28 @@ class StatSender(AsyncTask):
             "utilization": await StatCollector.get_utilization(),
         }
 
-    async def run_forever(
-        self: StatSender, live_interval: int = 5, node_interval: int = 60
-    ) -> None:
+    async def run_forever(self: StatSender) -> None:
         """Default lifecycle loop
 
-        Sends node stats to fluentbit on startup, then every node_interval seconds.
-        Sends live stats every live_interval seconds; live_interval must be less than
-        node_interval. Asynchronous sleep is used to wait to avoid blocking.
-
-        Args:
-            live_interval (int, optional): The interval (in seconds) to send live stats.
-                Defaults to 5.
-            node_interval (int, optional): The interval (in seconds) to send node stats.
-                Defaults to 3600 (1 hour).
+        Sends node stats to fluentbit on startup, then every NODE_INTERVAL seconds.
+        Sends live stats every LIVE_INTERVAL seconds; LIVE_INTERVAL must be less than
+        NODE_INTERVAL. Asynchronous sleep is used to wait to avoid blocking.
         """
-        assert live_interval < node_interval
 
         last_sent = None
         while not self._shutdown:
-            # Send node stats at longer node interval
             now = time.time()
-            if not last_sent or (now - last_sent >= node_interval):
+
+            # Send node stats at boot, then every NODE_INTERVAL seconds
+            if not last_sent or (now - last_sent >= NODE_INTERVAL):
                 self._sender.emit(label="node", data=await self._get_node_stats())
                 last_sent = now
 
             # Get live stats
             live_stats = asyncio.create_task(self._get_live_stats())
 
-            # Wait for the live interval to complete
-            await asyncio.sleep(live_interval)
+            # Wait for LIVE_INTERVAL seconds
+            await asyncio.sleep(LIVE_INTERVAL)
 
             # Ensure live stats collection is complete before sending
             await live_stats

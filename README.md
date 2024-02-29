@@ -74,7 +74,7 @@ vim config.json
 
 ```bash
 # Set tag
-tag="0.0.1"
+tag="0.1.0"
 
 # Build image from source
 docker build -t ritualnetwork/infernet-node:$tag .
@@ -108,13 +108,13 @@ make run
 
 ### Remotely via AWS / GCP
 
-Follow README instructions in the [infernet-node-deploy](https://github.com/ritual-net/infernet-node-deploy) repository.
+Follow README instructions in the [infernet-deploy](https://github.com/ritual-net/infernet-deploy) repository.
 
 ## Publishing a Docker image
 
 ```bash
 # Set tag
-tag="0.0.1"
+tag="0.1.0"
 
 # Force linux build (useful when building on Mac)
 docker build --platform linux/amd64 -t ritualnetwork/infernet-node:$tag .
