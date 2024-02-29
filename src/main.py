@@ -120,7 +120,7 @@ async def lifecycle_run() -> None:
         # Check if any tasks failed
         if task.exception() is not None:
             # Log exception
-            log.error("Task exception", exception=task.exception())
+            log.error(f"Task exception: {task.exception()}")
 
 
 async def lifecycle_stop() -> None:
