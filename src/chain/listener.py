@@ -68,8 +68,8 @@ class ChainListener(AsyncTask):
         guardian: Guardian,
         processor: ChainProcessor,
         trail_head_blocks: int,
-        snapshot_sync_sleep: int,
-        snapshot_sync_batch_size: int,
+        snapshot_sync_sleep: Optional[int],
+        snapshot_sync_batch_size: Optional[int],
     ) -> None:
         """Initializes new ChainListener
 
