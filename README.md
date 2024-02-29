@@ -1,4 +1,4 @@
-[![pre-commit](https://github.com/ritual-net/infernet-node/actions/workflows/workflow.yaml/badge.svg)](https://github.com/ritual-net/infernet-node/migration/actions/workflows/workflow.yaml)
+[![pre-commit](https://github.com/ritual-net/infernet-node/actions/workflows/workflow.yaml/badge.svg)](https://github.com/ritual-net/infernet-node-internal/actions/workflows/workflow.yaml)
 
 # Infernet Node
 
@@ -116,11 +116,11 @@ Follow README instructions in the [infernet-deploy](https://github.com/ritual-ne
 # Set tag
 tag="0.1.0"
 
-# Force linux build (useful when building on Mac)
-docker build --platform linux/amd64 -t ritualnetwork/infernet-node:$tag .
+# Build for local platform
+make build
 
-# Push to Dockerhub
-docker push ritualnetwork/infernet-node:$tag
+# Multi-platform build and push to repo
+make build-multiplatform
 ```
 
 ## License

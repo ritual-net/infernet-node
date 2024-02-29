@@ -2,13 +2,11 @@ version: '3'
 
 services:
   node:
-    image: ritualnetwork/infernet-node:0.1.0
+    image: ritualnetwork/infernet-node:latest
     ports:
       - "0.0.0.0:4000:4000"
     volumes:
-      - type: bind
-        source: ./config.json
-        target: /app/config.json
+      - ./config.json:/app/config.json
       - node-logs:/logs
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
@@ -37,7 +35,6 @@ services:
     image: fluent/fluent-bit:latest
     ports:
       - "24224:24224"
-
     environment:
       - FLUENTBIT_CONFIG_PATH=/fluent-bit/etc/fluent-bit.conf
     volumes:

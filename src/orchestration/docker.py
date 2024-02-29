@@ -74,16 +74,14 @@ class ContainerManager(AsyncTask):
         _shutdown (bool): True if container manager is shutting down, False otherwise.
     """
 
-    # Docker daemon must be running on host
-    client = from_env()
-
     _startup_wait: float
 
     def __init__(
         self: ContainerManager,
         configs: list[ConfigContainer],
-        credentials: ConfigDocker,
+        credentials: Optional[ConfigDocker],
         startup_wait: Optional[float],
+        managed: Optional[bool],
     ) -> None:
         """Initialize ContainerManager with given configurations and credentials.
 
@@ -91,25 +89,33 @@ class ContainerManager(AsyncTask):
             configs (dict[str, ConfigContainer]): Container configurations to run.
             credentials (ConfigDocker): Docker registry credentials.
             startup_wait (Optional[float]): Number of seconds to wait for containers
-                to start.
+                to start. If None, uses DEFAULT_STARTUP_WAIT.
+            managed (Optional[bool]): If True, containers are managed by the
+                orchestrator. If False, containers are not managed and must be started
+                manually. If None, defaults to True.
         """
         super().__init__()
 
         # Store configs, credentials, and port mappings in state
         self._configs: list[ConfigContainer] = configs
-        self._creds: ConfigDocker = credentials
+        self._creds = credentials
         self._images: list[str] = [config["image"] for config in self._configs]
         self._port_mappings: dict[str, int] = {
             config["id"]: config["port"] for config in self._configs
         }
         self._loop = get_event_loop()
+        self._shutdown = False
+
         self._startup_wait = (
             DEFAULT_STARTUP_WAIT if startup_wait is None else startup_wait
         )
-        self._shutdown = False
+        self._managed = True if managed is None else managed
 
-        # Store container objects in state
+        # Store container objects in state. Only used if managed is True
         self._containers: dict[str, Container] = {}
+
+        # Docker daemon must be running on host. Only used if managed is True
+        self.client = from_env() if self._managed else None
 
         log.info("Initialized Container Manager", port_mappings=self._port_mappings)
 
@@ -121,6 +127,12 @@ class ContainerManager(AsyncTask):
     @property
     def running_containers(self: ContainerManager) -> list[str]:
         """Get list of running container IDs"""
+
+        # If not managed, return all container IDs as running. TODO: Once /health
+        # endpoint are a requirement for all containers, use them to check if containers
+        # are running.
+        if not self._managed:
+            return [config["id"] for config in self._configs]
 
         # Container objects are cached, need to reload attributes
         for container in self._containers.values():
@@ -159,7 +171,7 @@ class ContainerManager(AsyncTask):
         self: ContainerManager,
         prune_containers: bool = False,
     ) -> None:
-        """Setup orchestrator
+        """Setup orchestrator. If containers are managed:
 
         1. Pulls images in parallel, if not already pulled.
         2. Prunes any containers with conflicting IDs, if prune_containers is True.
@@ -168,6 +180,10 @@ class ContainerManager(AsyncTask):
         5. Waits for startup_wait seconds for containers to start.
 
         """
+
+        if not self._managed:
+            log.info("Skipping container manager setup, containers are not managed")
+            return
 
         try:
             # Pull images
@@ -236,6 +252,10 @@ class ContainerManager(AsyncTask):
 
     async def stop(self: ContainerManager) -> None:
         """Force stops all containers."""
+        if not self._managed:
+            log.info("Skipping container manager stop, containers are not managed")
+            return
+
         log.info("Stopping containers")
 
         self._shutdown = True
@@ -263,7 +283,6 @@ class ContainerManager(AsyncTask):
 
         async def pull_image(image: str) -> bool:
             """Pull a docker image asynchronously
-
             - If the image already exists locally, it is not pulled.
             - If the image doesn't exist and cannot be pulled, returns False.
 
@@ -328,6 +347,7 @@ class ContainerManager(AsyncTask):
 
         for config in self._configs:
             id = config["id"]
+
             try:
                 # Check if the container already exists
                 container = self.client.containers.get(id)
@@ -369,6 +389,3 @@ class ContainerManager(AsyncTask):
                     device_requests=device_requests,
                 )
                 log.info(f"Created and started new container: {id}")
-
-            except Exception as e:
-                log.error(f"Error starting container {id}", error=e)
