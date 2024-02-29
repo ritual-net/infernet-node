@@ -68,8 +68,8 @@ class ChainListener(AsyncTask):
         guardian: Guardian,
         processor: ChainProcessor,
         trail_head_blocks: int,
-        snapshot_sync_sleep: int = SNAPSHOT_SYNC_BATCH_SLEEP_S,
-        snapshot_sync_batch_size: int = SNAPSHOT_SYNC_BATCH_SIZE,
+        snapshot_sync_sleep: int,
+        snapshot_sync_batch_size: int,
     ) -> None:
         """Initializes new ChainListener
 
@@ -91,8 +91,16 @@ class ChainListener(AsyncTask):
         self._guardian = guardian
         self._processor = processor
         self._trail_head_blocks = trail_head_blocks
-        self._snapshot_sync_sleep = snapshot_sync_sleep
-        self._snapshot_sync_batch_size = snapshot_sync_batch_size
+        self._snapshot_sync_sleep = (
+            SNAPSHOT_SYNC_BATCH_SLEEP_S
+            if (snapshot_sync_sleep is None)
+            else snapshot_sync_sleep
+        )
+        self._snapshot_sync_batch_size = (
+            SNAPSHOT_SYNC_BATCH_SIZE
+            if snapshot_sync_batch_size is None
+            else snapshot_sync_batch_size
+        )
         log.info("Initialized ChainListener")
 
     async def _sync_subscription_creation(
