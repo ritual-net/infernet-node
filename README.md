@@ -54,8 +54,8 @@ vim config.json
       - _Leave empty for no restrictions_.
     - **gpu** (`boolean`). Whether this should be a GPU-enabled container. Host must also be GPU-enabled.
   - **snapshot_sync** (`object`, Optional). Snapshot sync configurations.
-    - **sleep** (`int`).  Number of seconds to sleep between snapshot syncs
-    - **batch_size** (`int`). Number of blocks to sync per batch
+    - **sleep** (`int`).  Number of seconds to sleep between snapshot syncs.
+    - **batch_size** (`int`). Number of blocks to sync per batch.
 
 ### Sane default configuration parameters
 
