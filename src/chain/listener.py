@@ -93,7 +93,7 @@ class ChainListener(AsyncTask):
         self._trail_head_blocks = trail_head_blocks
         self._snapshot_sync_sleep = (
             SNAPSHOT_SYNC_BATCH_SLEEP_S
-            if (snapshot_sync_sleep is None)
+            if snapshot_sync_sleep is None
             else snapshot_sync_sleep
         )
         self._snapshot_sync_batch_size = (
@@ -180,18 +180,17 @@ class ChainListener(AsyncTask):
         # self._snapshot_sync_batch_size, to throttle, sleeps self._snapshot_sync_sleep
         # seconds between each batch
 
-        tasks = []
-
-        for id in range(1, head_id + 1):
-            tasks.append(
-                asyncio.create_task(
-                    self._sync_subscription_creation(id, head_block, None),
-                )
+        batches = [
+            range(i, i + self._snapshot_sync_batch_size)
+            for i in range(1, head_id + 1, self._snapshot_sync_batch_size)
+        ]
+        for batch in batches:
+            # sync for this batch
+            await asyncio.gather(
+                *(self._sync_subscription_creation(id, head_block, None) for id in batch)
             )
-            if id % self._snapshot_sync_batch_size == 0:
-                await asyncio.sleep(self._snapshot_sync_sleep)
-
-        await asyncio.gather(*tasks)
+            # sleep between batches to avoid getting rate-limited by the RPC
+            await asyncio.sleep(self._snapshot_sync_sleep)
 
     async def _parse_created_log(self: ChainListener, receipt: LogReceipt) -> None:
         """Parses SubscriptionCreated event
