@@ -37,6 +37,9 @@ vim config.json
 - **docker** (`object`, optional). Docker credentials to pull private containers with
   - **username** (`string`). The Dockerhub username.
   - **password** (`string`). The Dockerhub [Personal Access Token](https://docs.docker.com/security/for-developers/access-tokens/) (PAT).
+- **snapshot_sync** (`object`, Optional). Snapshot sync configurations.
+  - **sleep** (`float`, Optional).  Number of seconds to sleep between snapshot syncs. Defaults to `1.0`.
+  - **batch_size** (`int`, Optional). Number of subscriptions to sync in each batch. Defaults to `200`.
 - **containers** (`array[container_spec]`). Array of supported container specifications.
   - **container_spec** (`object`). Specification of supported container.
     - **id** (`string`). **Must be unique**. ID of supported service.
@@ -53,9 +56,6 @@ vim config.json
     - **allowed_delegate_addresses** (`array[string]`). Container-level firewall. Only specified addresses allowed to request execution of this container, with request originating from on-chain contract but via off-chain delegate subscription (with this address corresponding to the delegate subscription `owner`).
       - _Leave empty for no restrictions_.
     - **gpu** (`boolean`). Whether this should be a GPU-enabled container. Host must also be GPU-enabled.
-  - **snapshot_sync** (`object`, Optional). Snapshot sync configurations.
-    - **sleep** (`float`, Optional).  Number of seconds to sleep between snapshot syncs. Defaults to `1.0`.
-    - **batch_size** (`int`, Optional). Number of subscriptions to sync in each batch. Defaults to `200`.
 
 ### Sane default configuration parameters
 
