@@ -58,7 +58,7 @@ class ConfigRedis(TypedDict):
 class ConfigSnapshotSync(TypedDict):
     """Expected config[snapshot_sync] format"""
 
-    sleep: int
+    sleep: float
     batch_size: int
 
 

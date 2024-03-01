@@ -31,7 +31,7 @@ from shared.service import AsyncTask
 from utils import log
 
 SNAPSHOT_SYNC_BATCH_SIZE = 200
-SNAPSHOT_SYNC_BATCH_SLEEP_S = 1
+SNAPSHOT_SYNC_BATCH_SLEEP_S = 1.0
 
 
 class ChainListener(AsyncTask):
