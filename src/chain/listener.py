@@ -187,7 +187,10 @@ class ChainListener(AsyncTask):
         for batch in batches:
             # sync for this batch
             await asyncio.gather(
-                *(self._sync_subscription_creation(id, head_block, None) for id in batch)
+                *(
+                    self._sync_subscription_creation(id, head_block, None)
+                    for id in batch
+                )
             )
             # sleep between batches to avoid getting rate-limited by the RPC
             await asyncio.sleep(self._snapshot_sync_sleep)
