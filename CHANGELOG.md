@@ -22,6 +22,7 @@ All notable changes to this project will be documented in this file.
 
 ### Security
 - Bumped `aiohttp` version to `3.9.2`.
+- Compose file no longer exposes Fluentbit and Redis ports to the host.
 
 ## [0.1.0] - 2024-01-18
 

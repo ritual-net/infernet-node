@@ -21,8 +21,8 @@ services:
 
   redis:
     image: redis:latest
-    ports:
-      - "6379:6379"
+    expose:
+      - "6379"
     networks:
       - network
     volumes:
@@ -33,8 +33,8 @@ services:
 
   fluentbit:
     image: fluent/fluent-bit:latest
-    ports:
-      - "24224:24224"
+    expose:
+      - "24224"
     environment:
       - FLUENTBIT_CONFIG_PATH=/fluent-bit/etc/fluent-bit.conf
     volumes:
