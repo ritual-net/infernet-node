@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import cast, Optional
 from asyncio import create_task, sleep
 
-from eth_abi.abi import decode  # type: ignore
+from eth_abi.abi import decode
 from web3.types import LogReceipt
 from eth_typing import BlockNumber
 
