@@ -229,7 +229,7 @@ class RESTServer(AsyncTask):
                     endpoint="/api/jobs",
                     method="POST",
                     status=500,
-                    err=e,
+                    err=str(e),
                 )
                 return jsonify({"error": "Could not enqueue job"}), 500
 
@@ -323,7 +323,7 @@ class RESTServer(AsyncTask):
                     endpoint="/api/jobs/batch",
                     method="POST",
                     status=500,
-                    err=e,
+                    err=str(e),
                 )
                 return jsonify({"error": "Could not enqueue job"}), 500
 
