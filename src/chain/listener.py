@@ -13,7 +13,7 @@ import asyncio
 from asyncio import create_task, sleep
 from typing import cast, Optional
 
-from eth_abi.abi import decode  # type: ignore
+from eth_abi.abi import decode
 from eth_typing import BlockNumber
 from web3.types import LogReceipt
 
