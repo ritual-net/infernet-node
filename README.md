@@ -37,6 +37,9 @@ vim config.json
 - **docker** (`object`, optional). Docker credentials to pull private containers with
   - **username** (`string`). The Dockerhub username.
   - **password** (`string`). The Dockerhub [Personal Access Token](https://docs.docker.com/security/for-developers/access-tokens/) (PAT).
+- **snapshot_sync** (`object`, Optional). Snapshot sync configurations.
+  - **sleep** (`float`, Optional).  Number of seconds to sleep between snapshot syncs. Defaults to `1.0`.
+  - **batch_size** (`int`, Optional). Number of subscriptions to sync in each batch. Defaults to `200`.
 - **containers** (`array[container_spec]`). Array of supported container specifications.
   - **container_spec** (`object`). Specification of supported container.
     - **id** (`string`). **Must be unique**. ID of supported service.

@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - Option for containers to be managed separately from the node (via `manage_containers` option in `config.json`)
 - Option to specify alternate `config.json` file name / path via environment variable `INFERNET_CONFIG_PATH`.
+- Batch-syncing support for snapshot-sync, along with batch-sync configuration in the `config.json` file.
 - New endpoint `/api/status` for "independent" (i.e. non-conforming) containers to manually register status of jobs by ID with the node.
 
 ### Changed
