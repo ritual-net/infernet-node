@@ -1,4 +1,4 @@
-[![pre-commit](https://github.com/ritual-net/infernet-node/actions/workflows/workflow.yaml/badge.svg)](https://github.com/ritual-net/infernet-node/migration/actions/workflows/workflow.yaml)
+[![pre-commit](https://github.com/ritual-net/infernet-node/actions/workflows/workflow.yaml/badge.svg)](https://github.com/ritual-net/infernet-node-internal/actions/workflows/workflow.yaml)
 
 # Infernet Node
 
@@ -37,6 +37,9 @@ vim config.json
 - **docker** (`object`, optional). Docker credentials to pull private containers with
   - **username** (`string`). The Dockerhub username.
   - **password** (`string`). The Dockerhub [Personal Access Token](https://docs.docker.com/security/for-developers/access-tokens/) (PAT).
+- **snapshot_sync** (`object`, Optional). Snapshot sync configurations.
+  - **sleep** (`float`, Optional).  Number of seconds to sleep between snapshot syncs. Defaults to `1.0`.
+  - **batch_size** (`int`, Optional). Number of subscriptions to sync in each batch. Defaults to `200`.
 - **containers** (`array[container_spec]`). Array of supported container specifications.
   - **container_spec** (`object`). Specification of supported container.
     - **id** (`string`). **Must be unique**. ID of supported service.
@@ -71,7 +74,7 @@ vim config.json
 
 ```bash
 # Set tag
-tag="0.0.1"
+tag="0.1.0"
 
 # Build image from source
 docker build -t ritualnetwork/infernet-node:$tag .
@@ -105,19 +108,19 @@ make run
 
 ### Remotely via AWS / GCP
 
-Follow README instructions in the [infernet-node-deploy](https://github.com/ritual-net/infernet-node-deploy) repository.
+Follow README instructions in the [infernet-deploy](https://github.com/ritual-net/infernet-deploy) repository.
 
 ## Publishing a Docker image
 
 ```bash
 # Set tag
-tag="0.0.1"
+tag="0.1.0"
 
-# Force linux build (useful when building on Mac)
-docker build --platform linux/amd64 -t ritualnetwork/infernet-node:$tag .
+# Build for local platform
+make build
 
-# Push to Dockerhub
-docker push ritualnetwork/infernet-node:$tag
+# Multi-platform build and push to repo
+make build-multiplatform
 ```
 
 ## License
