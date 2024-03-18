@@ -381,7 +381,7 @@ class ContainerManager(AsyncTask):
                     detach=True,
                     environment=env,
                     name=id,
-                    ports={"3000/tcp": ("0.0.0.0", port)},
+                    ports={"3000/tcp": ("127.0.0.1", port)},
                     restart_policy={
                         "Name": "on-failure",
                         "MaximumRetryCount": 5,

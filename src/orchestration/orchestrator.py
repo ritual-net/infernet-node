@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from enum import Enum
 from json import JSONDecodeError
+from os import environ
 from typing import Any, Optional
 
 from aiohttp import ClientSession
@@ -31,6 +32,13 @@ class Orchestrator:
 
         self._manager = manager
         self._store = store
+
+        # Set host based on runtime environment
+        self._host = (
+            "host.docker.internal"
+            if environ.get("RUNTIME") == "docker"
+            else "localhost"
+        )
 
     async def _run_job(
         self: Orchestrator,
@@ -72,7 +80,7 @@ class Orchestrator:
 
                 # Get container port and URL
                 port = self._manager.get_port(container)
-                url = f"http://host.docker.internal:{port}/service_output"
+                url = f"http://{self._host}:{port}/service_output"
 
                 try:
                     async with session.post(
