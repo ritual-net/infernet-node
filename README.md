@@ -105,7 +105,7 @@ make run
 
 ### Remotely via AWS / GCP
 
-Follow README instructions in the [infernet-node-deploy](https://github.com/ritual-net/infernet-node-deploy) repository.
+Follow README instructions in the [infernet-deploy](https://github.com/ritual-net/infernet-deploy) repository.
 
 ## Publishing a Docker image
 
