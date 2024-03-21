@@ -182,12 +182,10 @@ class RESTServer(AsyncTask):
                 log.debug("Received new off-chain raw message", msg=data)
 
                 # Parse message data, inject uuid and client IP
-                parsed: Optional[OffchainMessage] = from_union(
+                parsed: OffchainMessage = from_union(
                     OffchainMessage,
                     {"id": str(uuid4()), "ip": client_ip, **data},
                 )
-                if not parsed:
-                    return jsonify({"error": "Could not parse message"}), 400
 
                 # Filter message through guardian
                 filtered = self._guardian.process_message(parsed)
@@ -244,7 +242,7 @@ class RESTServer(AsyncTask):
                     status=500,
                     err=str(e),
                 )
-                return jsonify({"error": "Could not enqueue job"}), 500
+                return jsonify({"error": f"Could not enqueue job: {str(e)}"}), 500
 
         @self._app.route("/api/jobs/batch", methods=["POST"])
         async def create_job_batch() -> Tuple[Response, int]:
@@ -266,10 +264,10 @@ class RESTServer(AsyncTask):
 
                 # If data is not an array, return error
                 if not isinstance(data, list):
-                    return jsonify({"error": "Could not parse message"}), 400
+                    return jsonify({"error": "Expected a list"}), 400
 
                 # Inject uuid and client IP to each message
-                parsed: list[Optional[OffchainMessage]] = [
+                parsed: list[OffchainMessage] = [
                     from_union(
                         OffchainMessage,
                         {"id": str(uuid4()), "ip": client_ip, **item},
@@ -338,7 +336,7 @@ class RESTServer(AsyncTask):
                     status=500,
                     err=str(e),
                 )
-                return jsonify({"error": "Could not enqueue job"}), 500
+                return jsonify({"error": f"Could not enqueue job:  {str(e)}"}), 500
 
         @self._app.route("/api/jobs", methods=["GET"])
         async def get_job() -> Tuple[Response, int]:
@@ -385,7 +383,7 @@ class RESTServer(AsyncTask):
                 log.debug("Received new result", result=data)
 
                 # Create off-chain message with client IP
-                parsed: Optional[OffchainMessage] = from_union(
+                parsed: OffchainMessage = from_union(
                     OffchainMessage,
                     {
                         "id": data["id"],
@@ -394,8 +392,6 @@ class RESTServer(AsyncTask):
                         "data": {},
                     },
                 )
-                if not parsed:
-                    return jsonify({"error": "Could not parse status"}), 400
 
                 # Store job status
                 match data["status"]:
