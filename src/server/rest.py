@@ -25,7 +25,20 @@ from utils.parser import from_union
 
 
 class RESTServer(AsyncTask):
-    """Initializes a new REST webserver to process off-chain requests."""
+    """A REST webserver that processes off-chain requests.
+    
+    Attributes:
+        _app (Quart): Quart webserver instance
+        _app_config (Config): Quart webserver configuration
+        _chain (bool): chain enabled status
+        _manager (ContainerManager): container manager instance
+        _orchestrator (Orchestrator): orchestrator instance
+        _port (int): webserver port
+        _processor (Optional[ChainProcessor]): chain processor instance
+        _store (DataStore): data store instance
+        _version (str): node version
+        _wallet_address (Optional[str]): node wallet address
+    """
 
     def __init__(
         self: RESTServer,

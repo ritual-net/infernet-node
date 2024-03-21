@@ -30,6 +30,34 @@ class ContainerRestrictions:
 
 
 class Guardian:
+    """Filters job requests based on container restrictions
+
+    Both off-chain and on-chain job requests are filtered based on sanity checks and
+    container-level restrictions, such as origin IP address and allowed chain
+    addresses. If a message fails filtering, a GuardianError is returned. Otherwise,
+    the message is returned for processing.
+
+    Attributes:
+        _restrictions (dict[str, ContainerRestrictions]): Container restrictions
+        _chain_enabled (bool): Is chain module enabled?
+
+    Methods:
+        process_message: Parses and filters message
+    
+    Private Methods:
+        _is_external: Is container external
+        _is_allowed_ip: Is IP address allowed for container
+        _is_allowed_address: Is chain address allowed for container
+        _error: Create error message for given message id
+        _process_offchain_message: Filters off-chain job messages
+        _process_delegated_subscription_message: Filters delegated Subscription messages
+        _process_coordinator_created_message: Filters on-chain Coordinator subscription
+            creation messages
+        _process_coordinator_cancelled_message: Filters on-chain Coordinator subscription
+            cancellation messages
+        _process_coordinator_fulfilled_message: Filters on-chain Coordinator subscription
+            fulfillment messages
+    """
     def __init__(
         self: Guardian, configs: list[ConfigContainer], chain_enabled: bool
     ) -> None:

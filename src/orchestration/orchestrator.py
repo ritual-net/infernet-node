@@ -23,6 +23,27 @@ class OrchestratorInputSource(Enum):
 
 
 class Orchestrator:
+    """Orchestrates container execution
+
+    Orchestrates container execution and tracks job status and results. Handles
+    off-chain messages and on-chain subscriptions. Calls containers in order and
+    passes output of previous container as input to next container. If any container
+    fails, the job is marked as failed. If all containers succeed, the job is marked as
+    successful. Stores job status and results.
+
+    Attributes:
+        _manager (ContainerManager): container manager
+        _store (DataStore): data store
+        _host (str): host address
+
+    Methods:
+        process_chain_processor_job: Processes on-chain job from chain processor
+        process_offchain_job: Processes off-chain job message
+
+    Private Methods:
+        _run_job: Run a job
+    """
+
     def __init__(
         self: Orchestrator,
         manager: ContainerManager,
@@ -47,7 +68,7 @@ class Orchestrator:
         containers: list[str],
         message: Optional[OffchainJobMessage],
     ) -> list[ContainerResult]:
-        """Run off-chain job
+        """Runs a job
 
         Calls containers in order and passes output of previous container as input to
         next container. If any container fails, the job is marked as failed. If all

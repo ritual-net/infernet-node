@@ -22,6 +22,16 @@ class StatCollector:
 
     Methods to create machine ID, execute shell commands, and collect various
     machine stats.
+
+    Methods:
+        get_uid: Create a unique machine ID
+        get_ip: Get the external IP address
+        get_resources: Get {cpu, disk, gpu, kernel, memory} specs asynchronously
+        get_utilization: Get {cpu, disk, gpu, memory} utilization
+        get_uptime: Get the machine uptime
+
+    Private Methods:
+        _execute: Execute a shell command asynchronously
     """
 
     @classmethod
@@ -128,9 +138,9 @@ class StatCollector:
 
 
 class StatSender(AsyncTask):
-    """Periodically sends stats to fluentbit
+    """Periodically forwards node stats via fluentbit
 
-    Sends node (long-lived) stats and live (short-lived) stats to fluentbit, at
+    Sends node (long-lived) stats and live (short-lived) stats via fluentbit, at
     different intervals.
 
     Attributes:
