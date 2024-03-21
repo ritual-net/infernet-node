@@ -43,7 +43,7 @@ class Guardian:
 
     Methods:
         process_message: Parses and filters message
-    
+
     Private Methods:
         _is_external: Is container external
         _is_allowed_ip: Is IP address allowed for container
@@ -58,6 +58,7 @@ class Guardian:
         _process_coordinator_fulfilled_message: Filters on-chain Coordinator subscription
             fulfillment messages
     """
+
     def __init__(
         self: Guardian, configs: list[ConfigContainer], chain_enabled: bool
     ) -> None:

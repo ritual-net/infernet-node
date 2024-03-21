@@ -26,7 +26,7 @@ from utils.parser import from_union
 
 class RESTServer(AsyncTask):
     """A REST webserver that processes off-chain requests.
-    
+
     Attributes:
         _app (Quart): Quart webserver instance
         _app_config (Config): Quart webserver configuration
