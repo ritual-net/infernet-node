@@ -36,16 +36,15 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=bind,source=requirements.txt,target=requirements.txt \
     python -m pip install -r requirements.txt
 
-# Switch to the non-privileged user to run the application.
-# USER appuser
-
 # Install some executables
 RUN apt-get update \
     && apt-get install -y curl procps sysstat ifstat \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the source code into the container.
-COPY . .
+COPY src/ src/
+COPY entrypoint.sh .
+COPY version.txt .
 
 # Run the application.
 ENTRYPOINT ["/app/entrypoint.sh"]
