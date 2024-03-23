@@ -13,6 +13,7 @@ from server import RESTServer, StatSender
 from shared import AsyncTask
 from utils import log, setup_logging
 from utils.config import ConfigDict, load_validated_config
+from utils.logging import _ascii_status
 
 # Tasks
 tasks: list[AsyncTask] = []
@@ -126,9 +127,11 @@ async def lifecycle_run() -> None:
     done, _ = await asyncio.wait(asyncio_tasks, return_when=asyncio.FIRST_COMPLETED)
     for task in done:
         # Check if any tasks failed
-        if task.exception() is not None:
+        exception = task.exception()
+        if exception:
             # Log exception
             log.error(f"Task exited: {task.exception()}")
+        _ascii_status(f"Node exited{': ' + str(exception) if exception else ''}", False)
 
 
 async def lifecycle_stop() -> None:

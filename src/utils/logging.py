@@ -1,6 +1,8 @@
 import logging
 
+import pyfiglet  # type: ignore
 import structlog
+from rich import print
 from structlog.typing import Processor
 
 # Re-export logger
@@ -15,6 +17,9 @@ SHARED_PROCESSORS: list[Processor] = [
     structlog.processors.TimeStamper("%Y-%m-%d %H:%M:%S", utc=False),  # Timestamp
     structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
 ]
+
+# Font for ASCII art, taken from http://www.figlet.org/examples.html
+PIGLET_FONT = "o8"
 
 
 def setup_logging(log_path: str = "/tmp/infernet_node.log") -> None:
@@ -61,3 +66,28 @@ def setup_logging(log_path: str = "/tmp/infernet_node.log") -> None:
     # Add log handlers to raw python logger
     root_logger.addHandler(console_handler)
     root_logger.addHandler(file_handler)
+
+
+RITUAL_LABEL = pyfiglet.figlet_format("RITUAL", font=PIGLET_FONT)
+
+
+def _ascii_status(message: str, success: bool) -> None:
+    """Display ASCII art status message with colorized text
+
+    Args:
+        message (str): Message to display
+        success (bool): Status of message
+    """
+
+    def _colorize(color: str, text: str) -> str:
+        return f"[{color}]{text}[/{color}]"
+
+    print(
+        f"\n{_colorize('#40ffaf' if success else '#ba3f38', RITUAL_LABEL)}\n"
+        + (
+            f"Status: {_colorize('bold green', 'SUCCESS')} "
+            if success
+            else f"Status: {_colorize('bold red', 'FAILURE')} "
+        )
+        + message
+    )

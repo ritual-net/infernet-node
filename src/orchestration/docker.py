@@ -39,17 +39,13 @@ from docker import from_env  # type: ignore
 from docker.errors import NotFound  # type: ignore
 from docker.models.containers import Container  # type: ignore
 from docker.types import DeviceRequest  # type: ignore
-import pyfiglet  # type: ignore
-from rich import print
 
 from shared import AsyncTask
 from utils import log
 from utils.config import ConfigContainer, ConfigDocker
+from utils.logging import _ascii_status
 
 DEFAULT_STARTUP_WAIT: float = 60.0
-
-# Font for ASCII art, taken from http://www.figlet.org/examples.html
-PIGLET_FONT = "o8"
 
 
 class ContainerManager(AsyncTask):
@@ -110,7 +106,6 @@ class ContainerManager(AsyncTask):
         }
         self._loop = get_event_loop()
         self._shutdown = False
-        self._show_status = False
 
         self._startup_wait = (
             DEFAULT_STARTUP_WAIT if startup_wait is None else startup_wait
@@ -216,22 +211,6 @@ class ContainerManager(AsyncTask):
         except Exception as e:
             log.error("Error setting up container manager", error=e)
 
-    def _ascii_status(self: ContainerManager) -> None:
-        if not self._show_status:
-            return
-        current_containers = self.running_containers
-
-        def _colorize(color: str, text: str) -> str:
-            return f"[{color}]{text}[/{color}]"
-
-        art = pyfiglet.figlet_format("RITUAL", font=PIGLET_FONT)
-
-        print(
-            f"\n{_colorize('#40ffaf', art)}\n"
-            f"Status: {_colorize('bold green', 'SUCCESS')} "
-            f"Running containers: {current_containers}"
-        )
-
     async def run_forever(self: ContainerManager) -> None:
         """Lifecycle loop for container manager
 
@@ -246,7 +225,10 @@ class ContainerManager(AsyncTask):
         while not self._shutdown:
             # Get running containers
             current_containers = self.running_containers
-            self._ascii_status()
+
+            # Show ASCII status in logs
+            _ascii_status(f"Running containers: {current_containers}", True)
+
             # Check if any containers exited / crashed
             if len(current_containers) > len(running_containers):
                 log.warning(

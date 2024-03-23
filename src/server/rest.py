@@ -415,7 +415,6 @@ class RESTServer(AsyncTask):
         """Main RESTServer lifecycle loop. Uses production hypercorn server"""
 
         log.info("Serving REST webserver", addr="0.0.0.0", port=self._port)
-        self._manager._show_status = True
 
         async def shutdown_trigger() -> None:
             """Shutdown trigger for hypercorn"""
