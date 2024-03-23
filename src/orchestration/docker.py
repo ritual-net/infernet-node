@@ -39,12 +39,12 @@ from docker import from_env  # type: ignore
 from docker.errors import NotFound  # type: ignore
 from docker.models.containers import Container  # type: ignore
 from docker.types import DeviceRequest  # type: ignore
+import pyfiglet  # type: ignore
 from rich import print
 
 from shared import AsyncTask
 from utils import log
 from utils.config import ConfigContainer, ConfigDocker
-import pyfiglet
 
 DEFAULT_STARTUP_WAIT: float = 60.0
 
@@ -213,19 +213,20 @@ class ContainerManager(AsyncTask):
         except Exception as e:
             log.error("Error setting up container manager", error=e)
 
-    def _ascii_status(self: ContainerManager):
+    def _ascii_status(self: ContainerManager) -> None:
         if not self._show_status:
             return
         current_containers = self.running_containers
 
-        def _colorize(color: str, text: str):
+        def _colorize(color: str, text: str) -> str:
             return f"[{color}]{text}[/{color}]"
 
         art = pyfiglet.figlet_format("RITUAL", font="o8")
 
         print(
             f"\n{_colorize('#40ffaf', art)}\n"
-            f"Status: {_colorize('bold green', 'SUCCESS')} Running containers: {current_containers}"
+            f"Status: {_colorize('bold green', 'SUCCESS')} "
+            f"Running containers: {current_containers}"
         )
 
     async def run_forever(self: ContainerManager) -> None:
