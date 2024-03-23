@@ -9,6 +9,7 @@ pip-chill==1.0.3
 quart==0.19.3
 redis==5.0.1
 rich==13.7.0
+pyfiglet==1.0.2
 ruff==0.1.8
 structlog==23.2.0
 types-redis==4.6.0.11

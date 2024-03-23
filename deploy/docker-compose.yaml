@@ -9,6 +9,7 @@ services:
       - ./config.json:/app/config.json
       - node-logs:/logs
       - /var/run/docker.sock:/var/run/docker.sock
+    tty: true
     networks:
       - network
     depends_on:
