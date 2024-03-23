@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import asdict
 from json import dumps, loads
-from typing import Optional, Dict
+from typing import Dict, Optional
 
 import redis
 

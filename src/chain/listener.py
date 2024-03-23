@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 from asyncio import create_task, sleep
-from typing import cast, Optional
+from typing import Optional, cast
 
 from eth_abi.abi import decode
 from eth_typing import BlockNumber
@@ -23,8 +23,8 @@ from chain.rpc import RPC
 from orchestration.guardian import Guardian
 from shared.message import (
     GuardianError,
-    SubscriptionCreatedMessage,
     SubscriptionCancelledMessage,
+    SubscriptionCreatedMessage,
     SubscriptionFulfilledMessage,
 )
 from shared.service import AsyncTask

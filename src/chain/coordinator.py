@@ -59,14 +59,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from functools import cache
-from typing import cast, Any, Iterable
+from typing import Any, Iterable, cast
 
 from eth_abi import encode  # type: ignore
 from eth_account import Account
 from eth_typing import BlockNumber, ChecksumAddress, Hash32, HexStr
 from hexbytes import HexBytes
 from web3.constants import ADDRESS_ZERO
-from web3.types import FilterParams, LogReceipt, TxParams, Nonce
+from web3.types import FilterParams, LogReceipt, Nonce, TxParams
 
 from chain.rpc import RPC
 from shared.subscription import Subscription

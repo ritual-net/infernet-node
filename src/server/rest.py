@@ -6,22 +6,22 @@ from uuid import uuid4
 
 from hypercorn.asyncio import serve
 from hypercorn.config import Config
-from quart import Quart, jsonify, Response, request
+from quart import Quart, Response, jsonify, request
 
+from chain.processor import ChainProcessor
 from orchestration import ContainerManager, DataStore, Guardian, Orchestrator
 from shared import AsyncTask, JobResult
 from shared.message import (
     BaseMessage,
-    GuardianError,
-    OffchainMessage,
-    OffchainJobMessage,
-    MessageType,
     DelegatedSubscriptionMessage,
+    GuardianError,
+    MessageType,
+    OffchainJobMessage,
+    OffchainMessage,
 )
 from utils import log
 from utils.config import ConfigChain, ConfigServer
 from utils.parser import from_union
-from chain.processor import ChainProcessor
 
 
 class RESTServer(AsyncTask):

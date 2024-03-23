@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import time
+from typing import Any, Optional
 from uuid import uuid4
 
 from fluent import sender  # type: ignore
-from typing import Any, Optional
 
 from chain.wallet import Wallet
 from orchestration import DataStore, Guardian

@@ -48,16 +48,16 @@ Examples:
 from __future__ import annotations
 
 from functools import cache
-from typing import Sequence, Any, cast
+from typing import Any, Sequence, cast
 
 import validators  # type: ignore
 from async_lru import alru_cache
-from web3 import AsyncWeb3, AsyncHTTPProvider
-from web3.exceptions import TransactionNotFound
-from web3.contract.async_contract import AsyncContract
 from eth_account.datastructures import SignedTransaction
 from eth_typing import BlockNumber, ChecksumAddress, HexStr
-from web3.types import LogReceipt, BlockData, FilterParams, ABIElement, Nonce
+from web3 import AsyncHTTPProvider, AsyncWeb3
+from web3.contract.async_contract import AsyncContract
+from web3.exceptions import TransactionNotFound
+from web3.types import ABIElement, BlockData, FilterParams, LogReceipt, Nonce
 
 from utils.logging import log
 

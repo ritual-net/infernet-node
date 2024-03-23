@@ -1,16 +1,17 @@
 from __future__ import annotations
 
 from enum import Enum
+from json import JSONDecodeError
 from typing import Any, Optional
 
 from aiohttp import ClientSession
-from json import JSONDecodeError
 
-from .docker import ContainerManager
-from .store import DataStore
 from shared import ContainerError, ContainerOutput, ContainerResult
 from shared.message import OffchainJobMessage
 from utils import log
+
+from .docker import ContainerManager
+from .store import DataStore
 
 
 class OrchestratorInputSource(Enum):

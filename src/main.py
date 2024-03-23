@@ -8,12 +8,7 @@ from chain.listener import ChainListener
 from chain.processor import ChainProcessor
 from chain.rpc import RPC
 from chain.wallet import Wallet
-from orchestration import (
-    ContainerManager,
-    DataStore,
-    Guardian,
-    Orchestrator,
-)
+from orchestration import ContainerManager, DataStore, Guardian, Orchestrator
 from server import RESTServer, StatSender
 from shared import AsyncTask
 from utils import log, setup_logging
