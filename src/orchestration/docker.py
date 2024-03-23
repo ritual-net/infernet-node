@@ -48,6 +48,9 @@ from utils.config import ConfigContainer, ConfigDocker
 
 DEFAULT_STARTUP_WAIT: float = 60.0
 
+# Font for ASCII art, taken from http://www.figlet.org/examples.html
+PIGLET_FONT = "o8"
+
 
 class ContainerManager(AsyncTask):
     """Manages lifecycle of Docker containers.
@@ -221,7 +224,7 @@ class ContainerManager(AsyncTask):
         def _colorize(color: str, text: str) -> str:
             return f"[{color}]{text}[/{color}]"
 
-        art = pyfiglet.figlet_format("RITUAL", font="o8")
+        art = pyfiglet.figlet_format("RITUAL", font=PIGLET_FONT)
 
         print(
             f"\n{_colorize('#40ffaf', art)}\n"
