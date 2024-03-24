@@ -79,15 +79,12 @@ def ascii_status(message: str, success: bool) -> None:
         success (bool): Status of message
     """
 
-    def _colorize(color: str, text: str) -> str:
+    color = "bold green" if success else "bold red"
+
+    def _colorize(text: str) -> str:
         return f"[{color}]{text}[/{color}]"
 
     print(
-        f"\n{_colorize('#40ffaf' if success else '#ba3f38', RITUAL_LABEL)}\n"
-        + (
-            f"Status: {_colorize('bold green', 'SUCCESS')} "
-            if success
-            else f"Status: {_colorize('bold red', 'FAILURE')} "
-        )
-        + message
+        f"\n{_colorize(RITUAL_LABEL)}\n"
+        f"Status: {_colorize('SUCCESS' if success else 'FAILURE')} " + message
     )
