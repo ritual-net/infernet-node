@@ -18,7 +18,7 @@ repos:
         language: system
         types: [python]
 
-  # this pre-commit hook loads the configurations from the pyproject.toml file
+  # This pre-commit hook loads the configurations from the pyproject.toml file
   - repo: https://github.com/pycqa/isort
     rev: 5.13.2
     hooks:
