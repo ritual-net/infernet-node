@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from asyncio import CancelledError, Event, create_task
+from datetime import timedelta
 from typing import Any, Optional, Tuple, Union, cast
 from uuid import uuid4
 
 from hypercorn.asyncio import serve
 from hypercorn.config import Config
 from quart import Quart, Response, jsonify, request
+from quart_rate_limiter import RateLimiter, rate_limit
 
 from chain.processor import ChainProcessor
 from orchestration import ContainerManager, DataStore, Guardian, Orchestrator
@@ -96,6 +98,9 @@ class RESTServer(AsyncTask):
             }
         )
 
+        # Initialize rate limiter
+        RateLimiter(self._app)
+
         # Register Quart routes
         self.register_routes()
 
@@ -106,6 +111,7 @@ class RESTServer(AsyncTask):
         """Registers Quart webserver routes"""
 
         @self._app.route("/health", methods=["GET"])
+        @rate_limit(60, timedelta(seconds=60))
         async def health() -> Tuple[Response, int]:
             """Collects health of node
 
@@ -122,6 +128,7 @@ class RESTServer(AsyncTask):
             )
 
         @self._app.route("/info", methods=["GET"])
+        @rate_limit(60, timedelta(seconds=60))
         async def info() -> Tuple[Response, int]:
             """Collects node info
 
@@ -145,6 +152,7 @@ class RESTServer(AsyncTask):
             )
 
         @self._app.route("/api/jobs", methods=["POST"])
+        @rate_limit(30, timedelta(seconds=60))
         async def create_job() -> Tuple[Response, int]:
             """Creates new off-chain job (direct compute request or subscription)
 
@@ -226,6 +234,7 @@ class RESTServer(AsyncTask):
                 return jsonify({"error": f"Could not enqueue job: {str(e)}"}), 500
 
         @self._app.route("/api/jobs/batch", methods=["POST"])
+        @rate_limit(10, timedelta(seconds=60))
         async def create_job_batch() -> Tuple[Response, int]:
             """Creates off-chain jobs in batch (direct compute requests / subscriptions)
 
@@ -320,6 +329,7 @@ class RESTServer(AsyncTask):
                 return jsonify({"error": f"Could not enqueue job:  {str(e)}"}), 500
 
         @self._app.route("/api/jobs", methods=["GET"])
+        @rate_limit(60, timedelta(seconds=60))
         async def get_job() -> Tuple[Response, int]:
             # Get the IP address of the client
             client_ip = request.remote_addr
@@ -350,6 +360,7 @@ class RESTServer(AsyncTask):
                 return jsonify(data), 200
 
         @self._app.route("/api/status", methods=["PUT"])
+        @rate_limit(60, timedelta(seconds=60))
         async def store_job_status() -> Tuple[Response, int]:
             """Stores job status in data store"""
             try:
