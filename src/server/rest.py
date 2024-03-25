@@ -135,30 +135,11 @@ class RESTServer(AsyncTask):
                     {
                         "containers": self._manager.running_container_info,
                         "pending": self._store.get_pending_counters(),
+                        "chain": {
+                            "enabled": self._chain,
+                            "address": self._wallet_address or "",
+                        },
                     }
-                ),
-                200,
-            )
-
-        @self._app.route("/api/chain/enabled", methods=["GET"])
-        async def get_chain_status() -> Tuple[Response, int]:
-            """Collects status of whether chain module is enabled or not
-
-            Returns:
-                Response (dict[str, bool]): chain enabled true/false
-            """
-            return jsonify({"enabled": self._chain}), 200
-
-        @self._app.route("/api/chain/address", methods=["GET"])
-        async def get_node_address() -> Tuple[Response, int]:
-            """Collects node address, if exists
-
-            Returns:
-                Tuple[Response, int]: node address or "" if chain disabled
-            """
-            return (
-                jsonify(
-                    {"address": self._wallet_address if self._wallet_address else ""}
                 ),
                 200,
             )
