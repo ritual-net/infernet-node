@@ -45,6 +45,8 @@ register-node:
 activate-node:
 	@PYTHONPATH=$$PYTHONPATH:src python3.11 scripts/activate_node.py
 
+tag ?= latest
+
 build:
 	docker build -t ritualnetwork/infernet-node:$(tag) .
 

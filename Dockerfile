@@ -28,13 +28,20 @@ RUN adduser \
     --uid "${UID}" \
     appuser
 
+RUN apt-get update
+RUN apt-get install -y curl
+
+# Install UV
+ADD --chmod=755 https://astral.sh/uv/install.sh /install.sh
+RUN /install.sh && rm /install.sh
+
 # Download dependencies as a separate step to take advantage of Docker's caching.
-# Leverage a cache mount to /root/.cache/pip to speed up subsequent builds.
+# Leverage a cache mount to /root/.cache/uv to speed up subsequent builds.
 # Leverage a bind mount to requirements to avoid having to copy them into
 # into this layer.
-RUN --mount=type=cache,target=/root/.cache/pip \
+RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=requirements.txt,target=requirements.txt \
-    python -m pip install -r requirements.txt
+    /root/.cargo/bin/uv pip install --system -r requirements.txt
 
 # Install some executables
 RUN apt-get update \
