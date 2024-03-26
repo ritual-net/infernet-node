@@ -200,6 +200,9 @@ class RESTServer(AsyncTask):
                             cast(OffchainJobMessage, filtered)
                         )
                     )
+                    # Return created job ID
+                    return_obj = {"id": str(parsed.id)}
+
                 elif filtered.type == MessageType.DelegatedSubscription:
                     # Should only reach this point if chain is enabled (else, filtered
                     # out upstream)
@@ -212,6 +215,10 @@ class RESTServer(AsyncTask):
                             cast(DelegatedSubscriptionMessage, filtered)
                         )
                     )
+                    # Don't return job ID for subscriptions; results / status can't be
+                    # fetched via REST so it would be misleading. They are tracked
+                    # on-chain instead
+                    return_obj = {}
 
                 # Return created message ID
                 log.info(
@@ -219,9 +226,10 @@ class RESTServer(AsyncTask):
                     endpoint="/api/jobs",
                     method="POST",
                     status=200,
+                    type=filtered.type,
                     id=str(parsed.id),
                 )
-                return jsonify({"id": str(parsed.id)}), 200
+                return jsonify(return_obj), 200
             except Exception as e:
                 # Return error
                 log.error(
@@ -305,6 +313,7 @@ class RESTServer(AsyncTask):
                                     cast(DelegatedSubscriptionMessage, item)
                                 )
                             )
+                            results.append({})
                         else:
                             results.append({"error": "Could not parse message"})
 
