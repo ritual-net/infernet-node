@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import time
-from functools import cache
 from dataclasses import dataclass
+from functools import cache
 
+from eth_account.messages import SignableMessage, encode_structured_data
 from eth_typing import ChecksumAddress
-from eth_account.messages import encode_structured_data, SignableMessage
 
 
 class Subscription:

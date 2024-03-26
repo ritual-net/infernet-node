@@ -1,11 +1,11 @@
-from enum import Enum
 from dataclasses import dataclass
-from typing import Union, Any, Optional
+from enum import Enum
+from typing import Any, Optional, Union
 
 from eth_typing import ChecksumAddress
 
 from chain.coordinator import CoordinatorSignatureParams
-from shared.subscription import Subscription, SerializedSubscription
+from shared.subscription import SerializedSubscription, Subscription
 
 
 class MessageType(Enum):

@@ -8,19 +8,19 @@ from __future__ import annotations
 from typing import Optional, cast
 
 from eth_account import Account
-from web3.types import TxParams
-from eth_typing import ChecksumAddress
 from eth_account.datastructures import SignedTransaction
+from eth_typing import ChecksumAddress
+from web3.types import TxParams
 
-from chain.rpc import RPC
-from utils.logging import log
-from shared.subscription import Subscription
 from chain.coordinator import (
     Coordinator,
-    CoordinatorTxParams,
     CoordinatorDeliveryParams,
     CoordinatorSignatureParams,
+    CoordinatorTxParams,
 )
+from chain.rpc import RPC
+from shared.subscription import Subscription
+from utils.logging import log
 
 
 class Wallet:

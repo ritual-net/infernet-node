@@ -6,13 +6,13 @@ from typing import Any, Union, cast
 
 from shared.message import (
     DelegatedSubscriptionMessage,
+    FilteredMessage,
     GuardianError,
     MessageType,
     OffchainJobMessage,
     PrefilterMessage,
-    FilteredMessage,
-    SubscriptionCreatedMessage,
     SubscriptionCancelledMessage,
+    SubscriptionCreatedMessage,
     SubscriptionFulfilledMessage,
 )
 from utils.config import ConfigContainer

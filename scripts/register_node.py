@@ -11,14 +11,14 @@ from __future__ import annotations
 
 import asyncio
 
-from chain.rpc import RPC
-from utils.logging import log
-from chain.wallet import Wallet
-from chain.coordinator import Coordinator, NodeStatus
-from utils.config import ConfigDict, load_validated_config
-
 # Update path to include src modules
 import sys
+
+from chain.coordinator import Coordinator, NodeStatus
+from chain.rpc import RPC
+from chain.wallet import Wallet
+from utils.config import ConfigDict, load_validated_config
+from utils.logging import log
 
 sys.path.extend([".", "./src"])
 
