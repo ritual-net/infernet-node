@@ -43,6 +43,7 @@ from docker.types import DeviceRequest  # type: ignore
 from shared import AsyncTask
 from utils import log
 from utils.config import ConfigContainer, ConfigDocker
+from utils.logging import log_ascii_status
 
 DEFAULT_STARTUP_WAIT: float = 60.0
 
@@ -224,6 +225,9 @@ class ContainerManager(AsyncTask):
         while not self._shutdown:
             # Get running containers
             current_containers = self.running_containers
+
+            # Show ASCII status in logs
+            log_ascii_status(f"Running containers: {current_containers}", True)
 
             # Check if any containers exited / crashed
             if len(current_containers) > len(running_containers):
