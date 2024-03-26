@@ -13,7 +13,7 @@ from server import RESTServer, StatSender
 from shared import AsyncTask
 from utils import log, setup_logging
 from utils.config import ConfigDict, load_validated_config
-from utils.logging import ascii_status
+from utils.logging import log_ascii_status
 
 # Tasks
 tasks: list[AsyncTask] = []
@@ -131,7 +131,9 @@ async def lifecycle_run() -> None:
         if exception:
             # Log exception
             log.error(f"Task exited: {task.exception()}")
-        ascii_status(f"Node exited{': ' + str(exception) if exception else ''}", False)
+        log_ascii_status(
+            f"Node exited{': ' + str(exception) if exception else ''}", False
+        )
 
 
 async def lifecycle_stop() -> None:

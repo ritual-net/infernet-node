@@ -71,7 +71,7 @@ def setup_logging(log_path: str = "/tmp/infernet_node.log") -> None:
 RITUAL_LABEL = pyfiglet.figlet_format("RITUAL", font=PIGLET_FONT)
 
 
-def ascii_status(message: str, success: bool) -> None:
+def log_ascii_status(message: str, success: bool) -> None:
     """Display ASCII art status message with colorized text
 
     Args:
