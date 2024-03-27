@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import asdict
+from datetime import timedelta
 from json import dumps, loads
 from typing import Dict, Optional
 
@@ -10,6 +11,9 @@ import redis
 from shared import ContainerResult, JobResult, JobStatus
 from shared.message import BaseMessage, OffchainMessage
 from utils import log
+
+# Loose expiration time for pending jobs
+PENDING_JOB_TTL = 15  # minutes
 
 
 class KeyFormatter:
@@ -105,10 +109,8 @@ class DataStore:
             "container": Counter(),
         }
 
-        self.pending_counters: Dict[str, int] = {
-            "offchain": 0,
-            "onchain": 0,
-        }
+        # Counter for pending on-chain jobs. Off-chain jobs are tracked in Redis.
+        self._onchain_pending = 0
 
         # Initialize cache for offchain jobs
         self._completed = redis.Redis(host=host, port=port, db=0)
@@ -143,12 +145,12 @@ class DataStore:
         return total_counters
 
     def get_pending_counters(self: DataStore) -> dict[str, int]:
-        """Returns pending counters
+        """Returns pending counters for onchain and offchain jobs
 
         Returns:
             dict[str, int]: Pending counters
         """
-        return self.pending_counters
+        return {"offchain": self._pending.dbsize(), "onchain": self._onchain_pending}
 
     def _set(
         self: DataStore,
@@ -160,6 +162,11 @@ class DataStore:
 
         Sets job data to Redis. If status is "running", sets job as pending. If status
         is "success" or "failed", sets job as completed, and removes it from pending.
+
+        NOTE: Pending jobs are set with an expiration time of PENDING_JOB_TTL minutes,
+        which is a loose upper bound on the time it should take for a job to complete.
+        This is to ensure crashes and / or incorrect use of the `/status` endpoint do
+        not leave jobs in a pending state indefinitely.
 
         Args:
             message (OffchainMessage): Job message
@@ -174,8 +181,12 @@ class DataStore:
         )
 
         if status == "running":
-            # Set job as pending
-            self._pending.set(KeyFormatter.format(message), dumps(asdict(job)))
+            # Set job as pending. Expiration time is PENDING_JOB_TTL
+            self._pending.setex(
+                KeyFormatter.format(message),
+                timedelta(minutes=PENDING_JOB_TTL),
+                dumps(asdict(job)),
+            )
         else:
             # Remove job from pending
             self._pending.delete(KeyFormatter.format(message))
@@ -189,7 +200,7 @@ class DataStore:
         """Get job data
 
         Returns job data from Redis for specified job IDs. Checks pending and completed
-        jobs db. Ignores jobs that are not found. Optionally returns intermediate
+        jobs DBs. Ignores jobs that are not found. Optionally returns intermediate
         results.
 
         Args:
@@ -272,9 +283,8 @@ class DataStore:
         """
         if message:
             self._set(message, "running")
-            self.pending_counters["offchain"] += 1
         else:
-            self.pending_counters["onchain"] += 1
+            self._onchain_pending += 1
 
     def set_success(
         self: DataStore,
@@ -289,10 +299,9 @@ class DataStore:
         """
         if message:
             self._set(message, "success", results)
-            self.pending_counters["offchain"] -= 1
             self.total_counters["offchain"]["success"] += 1
         else:
-            self.pending_counters["onchain"] -= 1
+            self._onchain_pending -= 1
             self.total_counters["onchain"]["success"] += 1
 
     def set_failed(
@@ -308,10 +317,9 @@ class DataStore:
         """
         if message:
             self._set(message, "failed", results)
-            self.pending_counters["offchain"] -= 1
             self.total_counters["offchain"]["failed"] += 1
         else:
-            self.pending_counters["onchain"] -= 1
+            self._onchain_pending -= 1
             self.total_counters["onchain"]["failed"] += 1
 
     def track_container(self: DataStore, container: str) -> None:
