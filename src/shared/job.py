@@ -1,5 +1,23 @@
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any, Literal, Optional, Union
+
+
+class ChainLocation(Enum):
+    """Chain location"""
+
+    ONCHAIN = 0
+    OFFCHAIN = 1
+
+
+@dataclass(frozen=True)
+class ContainerInput:
+    """Container source, destination, and data"""
+
+    source: int  # ChainLocation
+    destination: int  # ChainLocation
+    data: Any
+    type: int  # OrchestratorInputType
 
 
 @dataclass(frozen=True)
@@ -19,6 +37,17 @@ class ContainerError:
 
 
 ContainerResult = Union[ContainerError, ContainerOutput]
+
+
+@dataclass(frozen=True)
+class JobInput:
+    """Job source, destination, and data"""
+
+    source: int  # ChainLocation
+    destination: int  # ChainLocation
+    data: Any
+    type: int  # OrchestratorInputType
+
 
 JobStatus = Literal["running", "success", "failed"]
 

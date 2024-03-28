@@ -21,7 +21,7 @@ from orchestration.orchestrator import (
     OrchestratorInputSource,
     OrchestratorInputType,
 )
-from shared.job import ContainerError, ContainerOutput
+from shared.job import ChainLocation, ContainerError, ContainerOutput, JobInput
 from shared.message import (
     DelegatedSubscriptionMessage,
     MessageType,
@@ -616,11 +616,12 @@ class ChainProcessor(AsyncTask):
 
         if delegated:
             # Setup off-chain inputs
-            container_input = {
-                "source": OrchestratorInputSource.OFFCHAIN.value,
-                "data": parsed_params[1],
-                "type": OrchestratorInputType.NON_STREAMING.value,
-            }
+            container_input = JobInput(
+                source=ChainLocation.OFFCHAIN.value,
+                destination=ChainLocation.ONCHAIN.value,
+                data=parsed_params[1],
+                type=OrchestratorInputType.NON_STREAMING.value,
+            )
         else:
             # Setup on-chain inputs
             chain_input = await self._coordinator.get_container_inputs(
@@ -629,11 +630,12 @@ class ChainProcessor(AsyncTask):
                 timestamp=int(time.time()),
                 caller=self._wallet.address,
             )
-            container_input = {
-                "source": OrchestratorInputSource.ONCHAIN.value,
-                "data": chain_input.hex(),
-                "type": OrchestratorInputType.NON_STREAMING.value,
-            }
+            container_input = JobInput(
+                source=ChainLocation.ONCHAIN.value,
+                destination=ChainLocation.ONCHAIN.value,
+                data=chain_input.hex(),
+                type=OrchestratorInputType.NON_STREAMING.value,
+            )
         log.debug(
             "Setup container input",
             id=id,
@@ -644,7 +646,7 @@ class ChainProcessor(AsyncTask):
         # Execute containers
         container_results = await self._orchestrator.process_chain_processor_job(
             job_id=id,
-            initial_input=container_input,
+            job_input=container_input,
             containers=subscription.containers,
         )
 
