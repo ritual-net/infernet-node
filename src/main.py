@@ -131,8 +131,7 @@ class NodeLifecycle:
     async def _lifecycle_setup(self: NodeLifecycle) -> None:
         """Process async setup lifecycles for tasks"""
         log.info("Running node lifecycle setup")
-        for resource in self._tasks:
-            await resource.setup()
+        await asyncio.gather(*(resource.setup() for resource in self._tasks))
 
     async def _lifecycle_run(self: NodeLifecycle) -> int:
         """Runs node lifecycle
@@ -180,27 +179,19 @@ class NodeLifecycle:
             await self._stat_sender.send_node_stats_shutdown()
         return 0
 
-    async def _lifecycle_stop(self: NodeLifecycle) -> None:
-        """Process stop events for async tasks"""
-        log.info("Stopping node lifecycle")
+    async def _shutdown(self: NodeLifecycle) -> None:
+        """Gracefully shutdown node. Stops all tasks and cleans up."""
+        log.info("Shutting down node")
 
         # Stop all tasks
-        for task in self._tasks:
-            await task.stop()
+        await asyncio.gather(*(task.stop() for task in self._tasks))
 
         # Wait for all task `run_forever` loops to stop
         await asyncio.gather(*self._asyncio_tasks, return_exceptions=True)
 
-    async def _lifecycle_cleanup(self: NodeLifecycle) -> None:
-        """Process cleanup for async tasks and services"""
-        log.info("Cleaning up node lifecycle")
-        for resource in self._tasks:
-            await resource.cleanup()
+        # Cleanup all tasks
+        await asyncio.gather(*(task.cleanup() for task in self._tasks))
 
-    async def _shutdown(self: NodeLifecycle) -> None:
-        """Gracefully shutdown node. Run `lifecycle_stop` and `lifecycle_cleanup`"""
-        await self._lifecycle_stop()
-        await self._lifecycle_cleanup()
         log.info("Shutdown complete.")
 
     def lifecycle_main(self: NodeLifecycle) -> None:
