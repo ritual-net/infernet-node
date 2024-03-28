@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from enum import Enum
 from json import JSONDecodeError
+from os import environ
 from typing import Any, Optional
 
 from aiohttp import ClientSession
@@ -22,6 +23,27 @@ class OrchestratorInputSource(Enum):
 
 
 class Orchestrator:
+    """Orchestrates container execution
+
+    Orchestrates container execution and tracks job status and results. Handles
+    off-chain messages and on-chain subscriptions. Calls containers in order and
+    passes output of previous container as input to next container. If any container
+    fails, the job is marked as failed. If all containers succeed, the job is marked as
+    successful. Stores job status and results.
+
+    Attributes:
+        _manager (ContainerManager): container manager
+        _store (DataStore): data store
+        _host (str): host address
+
+    Methods:
+        process_chain_processor_job: Processes on-chain job from chain processor
+        process_offchain_job: Processes off-chain job message
+
+    Private Methods:
+        _run_job: Run a job
+    """
+
     def __init__(
         self: Orchestrator,
         manager: ContainerManager,
@@ -32,6 +54,13 @@ class Orchestrator:
         self._manager = manager
         self._store = store
 
+        # Set host based on runtime environment
+        self._host = (
+            "host.docker.internal"
+            if environ.get("RUNTIME") == "docker"
+            else "localhost"
+        )
+
     async def _run_job(
         self: Orchestrator,
         job_id: Any,
@@ -39,7 +68,7 @@ class Orchestrator:
         containers: list[str],
         message: Optional[OffchainJobMessage],
     ) -> list[ContainerResult]:
-        """Run off-chain job
+        """Runs a job
 
         Calls containers in order and passes output of previous container as input to
         next container. If any container fails, the job is marked as failed. If all
@@ -72,7 +101,7 @@ class Orchestrator:
 
                 # Get container port and URL
                 port = self._manager.get_port(container)
-                url = f"http://host.docker.internal:{port}/service_output"
+                url = f"http://{self._host}:{port}/service_output"
 
                 try:
                     async with session.post(

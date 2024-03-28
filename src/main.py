@@ -25,10 +25,9 @@ asyncio_tasks: list[asyncio.Task[Any]] = []
 def on_startup() -> None:
     """Node startup
 
-    1. Collect and update global config
+    1. Collect global config and version
     2. Setup logging
     3. Initialize tasks
-    4. Forward stats to Fluentbit
     """
     global tasks
 

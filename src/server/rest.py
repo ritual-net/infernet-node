@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from asyncio import CancelledError, Event, create_task
+from datetime import timedelta
 from typing import Any, Optional, Tuple, Union, cast
 from uuid import uuid4
 
 from hypercorn.asyncio import serve
 from hypercorn.config import Config
 from quart import Quart, Response, jsonify, request
+from quart_rate_limiter import RateLimiter, rate_limit
 
 from chain.processor import ChainProcessor
 from orchestration import ContainerManager, DataStore, Guardian, Orchestrator
@@ -25,7 +27,20 @@ from utils.parser import from_union
 
 
 class RESTServer(AsyncTask):
-    """Initializes a new REST webserver to process off-chain requests."""
+    """A REST webserver that processes off-chain requests.
+
+    Attributes:
+        _app (Quart): Quart webserver instance
+        _app_config (Config): Quart webserver configuration
+        _chain (bool): chain enabled status
+        _manager (ContainerManager): container manager instance
+        _orchestrator (Orchestrator): orchestrator instance
+        _port (int): webserver port
+        _processor (Optional[ChainProcessor]): chain processor instance
+        _store (DataStore): data store instance
+        _version (str): node version
+        _wallet_address (Optional[str]): node wallet address
+    """
 
     def __init__(
         self: RESTServer,
@@ -83,6 +98,9 @@ class RESTServer(AsyncTask):
             }
         )
 
+        # Initialize rate limiter
+        RateLimiter(self._app)
+
         # Register Quart routes
         self.register_routes()
 
@@ -93,6 +111,7 @@ class RESTServer(AsyncTask):
         """Registers Quart webserver routes"""
 
         @self._app.route("/health", methods=["GET"])
+        @rate_limit(60, timedelta(seconds=60))
         async def health() -> Tuple[Response, int]:
             """Collects health of node
 
@@ -109,6 +128,7 @@ class RESTServer(AsyncTask):
             )
 
         @self._app.route("/info", methods=["GET"])
+        @rate_limit(60, timedelta(seconds=60))
         async def info() -> Tuple[Response, int]:
             """Collects node info
 
@@ -122,35 +142,17 @@ class RESTServer(AsyncTask):
                     {
                         "containers": self._manager.running_container_info,
                         "pending": self._store.get_pending_counters(),
+                        "chain": {
+                            "enabled": self._chain,
+                            "address": self._wallet_address or "",
+                        },
                     }
                 ),
                 200,
             )
 
-        @self._app.route("/api/chain/enabled", methods=["GET"])
-        async def get_chain_status() -> Tuple[Response, int]:
-            """Collects status of whether chain module is enabled or not
-
-            Returns:
-                Response (dict[str, bool]): chain enabled true/false
-            """
-            return jsonify({"enabled": self._chain}), 200
-
-        @self._app.route("/api/chain/address", methods=["GET"])
-        async def get_node_address() -> Tuple[Response, int]:
-            """Collects node address, if exists
-
-            Returns:
-                Tuple[Response, int]: node address or "" if chain disabled
-            """
-            return (
-                jsonify(
-                    {"address": self._wallet_address if self._wallet_address else ""}
-                ),
-                200,
-            )
-
         @self._app.route("/api/jobs", methods=["POST"])
+        @rate_limit(30, timedelta(seconds=60))
         async def create_job() -> Tuple[Response, int]:
             """Creates new off-chain job (direct compute request or subscription)
 
@@ -169,12 +171,10 @@ class RESTServer(AsyncTask):
                 log.debug("Received new off-chain raw message", msg=data)
 
                 # Parse message data, inject uuid and client IP
-                parsed: Optional[OffchainMessage] = from_union(
+                parsed: OffchainMessage = from_union(
                     OffchainMessage,
                     {"id": str(uuid4()), "ip": client_ip, **data},
                 )
-                if not parsed:
-                    return jsonify({"error": "Could not parse message"}), 400
 
                 # Filter message through guardian
                 filtered = self._guardian.process_message(parsed)
@@ -200,6 +200,9 @@ class RESTServer(AsyncTask):
                             cast(OffchainJobMessage, filtered)
                         )
                     )
+                    # Return created job ID
+                    return_obj = {"id": str(parsed.id)}
+
                 elif filtered.type == MessageType.DelegatedSubscription:
                     # Should only reach this point if chain is enabled (else, filtered
                     # out upstream)
@@ -212,6 +215,10 @@ class RESTServer(AsyncTask):
                             cast(DelegatedSubscriptionMessage, filtered)
                         )
                     )
+                    # Don't return job ID for subscriptions; results / status can't be
+                    # fetched via REST so it would be misleading. They are tracked
+                    # on-chain instead
+                    return_obj = {}
 
                 # Return created message ID
                 log.info(
@@ -219,9 +226,10 @@ class RESTServer(AsyncTask):
                     endpoint="/api/jobs",
                     method="POST",
                     status=200,
+                    type=filtered.type,
                     id=str(parsed.id),
                 )
-                return jsonify({"id": str(parsed.id)}), 200
+                return jsonify(return_obj), 200
             except Exception as e:
                 # Return error
                 log.error(
@@ -231,9 +239,10 @@ class RESTServer(AsyncTask):
                     status=500,
                     err=str(e),
                 )
-                return jsonify({"error": "Could not enqueue job"}), 500
+                return jsonify({"error": f"Could not enqueue job: {str(e)}"}), 500
 
         @self._app.route("/api/jobs/batch", methods=["POST"])
+        @rate_limit(10, timedelta(seconds=60))
         async def create_job_batch() -> Tuple[Response, int]:
             """Creates off-chain jobs in batch (direct compute requests / subscriptions)
 
@@ -253,10 +262,10 @@ class RESTServer(AsyncTask):
 
                 # If data is not an array, return error
                 if not isinstance(data, list):
-                    return jsonify({"error": "Could not parse message"}), 400
+                    return jsonify({"error": "Expected a list"}), 400
 
                 # Inject uuid and client IP to each message
-                parsed: list[Optional[OffchainMessage]] = [
+                parsed: list[OffchainMessage] = [
                     from_union(
                         OffchainMessage,
                         {"id": str(uuid4()), "ip": client_ip, **item},
@@ -304,6 +313,7 @@ class RESTServer(AsyncTask):
                                     cast(DelegatedSubscriptionMessage, item)
                                 )
                             )
+                            results.append({})
                         else:
                             results.append({"error": "Could not parse message"})
 
@@ -325,9 +335,10 @@ class RESTServer(AsyncTask):
                     status=500,
                     err=str(e),
                 )
-                return jsonify({"error": "Could not enqueue job"}), 500
+                return jsonify({"error": f"Could not enqueue job:  {str(e)}"}), 500
 
         @self._app.route("/api/jobs", methods=["GET"])
+        @rate_limit(60, timedelta(seconds=60))
         async def get_job() -> Tuple[Response, int]:
             # Get the IP address of the client
             client_ip = request.remote_addr
@@ -358,6 +369,7 @@ class RESTServer(AsyncTask):
                 return jsonify(data), 200
 
         @self._app.route("/api/status", methods=["PUT"])
+        @rate_limit(60, timedelta(seconds=60))
         async def store_job_status() -> Tuple[Response, int]:
             """Stores job status in data store"""
             try:
@@ -372,7 +384,7 @@ class RESTServer(AsyncTask):
                 log.debug("Received new result", result=data)
 
                 # Create off-chain message with client IP
-                parsed: Optional[OffchainMessage] = from_union(
+                parsed: OffchainMessage = from_union(
                     OffchainMessage,
                     {
                         "id": data["id"],
@@ -381,8 +393,6 @@ class RESTServer(AsyncTask):
                         "data": {},
                     },
                 )
-                if not parsed:
-                    return jsonify({"error": "Could not parse status"}), 400
 
                 # Store job status
                 match data["status"]:

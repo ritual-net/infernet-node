@@ -47,7 +47,7 @@ vim config.json
     - **command** (`string`). The command and flags to run the container with.
     - **env** (`object`). The environment variables to pass into the container.
     - **port** (`integer`). Local port to expose this container on.
-    - **external** (`boolean`). Whether this container can be the first container in a [JobRequest](/src/server/api.md#jobrequest).
+    - **external** (`boolean`). Whether this container can be the first container in a [JobRequest](https://docs.ritual.net/infernet/node/api#jobrequest).
     - **description** (`string`, optional). Description of service provided by this container.
     - **allowed_ips** (`array[string]`). Container-level firewall. Only specified IPs allowed to request execution of this container.
       - _Leave empty for no restrictions_.

@@ -34,3 +34,6 @@ config.json
 
 # Redis
 *.rdb
+
+# IDE
+launch.json

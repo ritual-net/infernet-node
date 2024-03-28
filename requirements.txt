@@ -7,6 +7,7 @@ mypy==1.7.0
 mypy-extensions==1.0.0
 pip-chill==1.0.3
 quart==0.19.3
+quart-rate-limiter==0.9.0
 redis==5.0.1
 rich==13.7.0
 pyfiglet==1.0.2

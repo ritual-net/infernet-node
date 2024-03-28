@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 - ##### The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - ##### This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Limit restarts within time window in `docker-compose.yaml`.
+- Consolidated `/chain/enabled` and `/chain/address` endpoints into `/info`.
+
+### Fixed
+- Orchestrator now works in dev mode (outside of docker), previously `host.docker.internal` was hardcoded.
+- Surface dacite errors when parsing REST interface inputs for better UX.
+- Don't return job IDs for Delegated Subscriptions (misleading, since results can only be fetched on-chain).
+- Added pending job TTL (loose upper bound) to prevent jobs from being in a pending state indefinitely (due crashes and / or incorrect use of the /status endpoint)
+
 ## [0.2.0] - 2024-03-21
 
 ### Added
