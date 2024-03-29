@@ -16,6 +16,7 @@ from shared import AsyncTask
 from utils import log, setup_logging
 from utils.config import ConfigDict, load_validated_config
 from utils.logging import log_ascii_status
+from version import __version__
 
 
 class NodeLifecycle:
@@ -51,10 +52,6 @@ class NodeLifecycle:
         3. Initialize tasks
         4. Forward stats to Fluentbit
         """
-
-        # Get version from version.txt
-        with open("version.txt", "r") as file:
-            version = file.read().strip()
 
         # Load and validate config
         config_path = os.environ.get("INFERNET_CONFIG_PATH", "config.json")
@@ -118,14 +115,14 @@ class NodeLifecycle:
                 store,
                 config["chain"],
                 config["server"],
-                version,
+                __version__,
                 wallet.address if wallet else None,
             )
         )
 
         # Forward stats to Fluentbit, if enabled
         if config["forward_stats"]:
-            self._stat_sender = StatSender(version, guardian, store, wallet)
+            self._stat_sender = StatSender(__version__, guardian, store, wallet)
             self._tasks.append(self._stat_sender)
 
     async def _lifecycle_setup(self: NodeLifecycle) -> None:
