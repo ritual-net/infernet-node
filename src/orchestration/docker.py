@@ -297,6 +297,12 @@ class ContainerManager(AsyncTask):
                 bool: True if image exists locally or was successfully pulled, False
                     otherwise.
             """
+
+            # Check if image exists locally
+            if self.client.images.get(image):
+                log.info(f"Image {image} already exists locally")
+                return True
+
             try:
                 log.info(f"Pulling image {image}...")
                 await self._loop.run_in_executor(
@@ -307,11 +313,6 @@ class ContainerManager(AsyncTask):
                 return True
 
             except Exception as e:
-                # Check if image exists locally
-                if self.client.images.get(image):
-                    log.info(f"Image {image} already exists locally")
-                    return True
-
                 log.error(f"Error pulling image {image}", error=e)
                 return False
 
