@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import Enum
 from json import JSONDecodeError
 from os import environ
-from typing import Any, Optional
+from typing import Any, AsyncGenerator, Optional
 
 from aiohttp import ClientSession
 
@@ -191,3 +191,70 @@ class Orchestrator:
             containers=message.containers,
             message=message,
         )
+
+    async def process_streaming_job(
+        self: Orchestrator, message: OffchainJobMessage
+    ) -> AsyncGenerator[bytes, None]:
+        """Runs a streaming job
+
+        Calls streaming container and yields chunks of output as they are received. If
+        the container fails, the job is marked as failed. If the container succeeds, the
+        job is marked as successful, and the full output is stored in Redis as an array
+        of chunks.
+
+        NOTE: If multiple containers are specified in the message, only the first
+        container is executed, the rest are ignored.
+
+        Args:
+            message (OffchainJobMessage): raw off-chain job message
+
+        Yields:
+            bytes: streaming output chunks
+
+        Raises:
+            Exception: If the container fails
+        """
+
+        # Only one container is supported for streaming (i.e. no chaining)
+        container = message.containers[0]
+
+        port = self._manager.get_port(container)
+        url = f"http://{self._host}:{port}/service_output"
+
+        # Start job and track container
+        self._store.set_running(message)
+        self._store.track_container(container)
+
+        # Hold chunks in memory to store final results in Redis
+        chunks = []
+
+        async with ClientSession() as session:
+            try:
+                async with session.post(
+                    url,
+                    json={
+                        "source": OrchestratorInputSource.OFFCHAIN.value,
+                        "data": message.data,
+                    },
+                    timeout=180,
+                ) as response:
+                    # Raises exception if status code is not 200
+                    response.raise_for_status()
+
+                    async for chunk in response.content.iter_any():
+                        chunks.append(chunk)
+                        yield chunk
+
+                # Track job success
+                final_result = b"".join(chunks).decode("utf-8")
+                self._store.set_success(
+                    message,
+                    [ContainerOutput(container, dict({"output": final_result}))],
+                )
+
+            except Exception as e:
+                # Track job failure
+                log.error(
+                    "Container error", id=message.id, container=container, error=str(e)
+                )
+                self._store.set_failed(message, [ContainerError(container, str(e))])

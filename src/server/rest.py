@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from asyncio import CancelledError, Event, create_task
 from datetime import timedelta
+from functools import wraps
 from typing import Any, Optional, Tuple, Union, cast
 from uuid import uuid4
 
@@ -151,70 +152,96 @@ class RESTServer(AsyncTask):
                 200,
             )
 
+        def filter_create_job(func):  # type: ignore
+            """Decorator to filter and preprocess incoming off-chain messages"""
+
+            @wraps(func)
+            async def wrapper() -> Any:
+                """Wrapper function to preprocess incoming off-chain messages.
+
+                Parses incoming JSON body, injects UUID and client IP, and filters
+                message through guardian. If message is valid, passes it to the actual
+                endpoint function.
+                """
+                try:
+                    # Collect JSON body
+                    data = await request.get_json()
+
+                    # Get the IP address of the client
+                    client_ip = request.remote_addr
+                    if not client_ip:
+                        return (
+                            jsonify({"error": "Could not get client IP address"}),
+                            400,
+                        )
+
+                    # Parse message data, inject uuid and client IP
+                    job_id = str(uuid4())  # Generate a unique job ID
+                    parsed: OffchainMessage = from_union(
+                        OffchainMessage,
+                        {"id": job_id, "ip": client_ip, **data},
+                    )
+
+                    # Filter message through guardian
+                    filtered = self._guardian.process_message(parsed)
+
+                    if isinstance(filtered, GuardianError):
+                        log.info(
+                            "Error submitting job",
+                            endpoint=request.path,
+                            method=request.method,
+                            status=403,
+                            err=filtered.error,
+                            **filtered.params,
+                        )
+                        return (
+                            jsonify(
+                                {"error": filtered.error, "params": filtered.params}
+                            ),
+                            405,
+                        )
+
+                    # Call actual endpoint function
+                    return await func(message=filtered)
+
+                except Exception as e:
+                    log.error(f"Error in endpoint preprocessing: {e}")
+                    return jsonify({"error": f"Internal server error: {str(e)}"}), 500
+
+            return wrapper
+
         @self._app.route("/api/jobs", methods=["POST"])
+        @filter_create_job  # type: ignore
         @rate_limit(30, timedelta(seconds=60))
-        async def create_job() -> Tuple[Response, int]:
+        async def create_job(message: OffchainMessage) -> Tuple[Response, int]:
             """Creates new off-chain job (direct compute request or subscription)
+
+            Args:
+                message (OffchainMessage): Offchain message
 
             Returns:
                 Response (dict[str, str]): created job ID
             """
             try:
-                # Collect JSON body
-                data = await request.get_json(force=True)
+                if message.type == MessageType.OffchainJob:
+                    message = cast(OffchainJobMessage, message)
 
-                # Get the IP address of the client
-                client_ip = request.remote_addr
-                if not client_ip:
-                    return jsonify({"error": "Could not get client IP address"}), 400
-
-                log.debug("Received new off-chain raw message", msg=data)
-
-                # Parse message data, inject uuid and client IP
-                parsed: OffchainMessage = from_union(
-                    OffchainMessage,
-                    {"id": str(uuid4()), "ip": client_ip, **data},
-                )
-
-                # Filter message through guardian
-                filtered = self._guardian.process_message(parsed)
-
-                if isinstance(filtered, GuardianError):
-                    log.info(
-                        "Error submitting job",
-                        endpoint="/api/jobs",
-                        method="POST",
-                        status=403,
-                        err=filtered.error,
-                        **filtered.params,
-                    )
-                    return (
-                        jsonify({"error": filtered.error, "params": filtered.params}),
-                        405,
-                    )
-
-                if filtered.type == MessageType.OffchainJob:
-                    # Submit filtered off-chain job message to orchestrator
-                    create_task(
-                        self._orchestrator.process_offchain_job(
-                            cast(OffchainJobMessage, filtered)
-                        )
-                    )
+                    # Submit off-chain job message to orchestrator
+                    create_task(self._orchestrator.process_offchain_job(message))
                     # Return created job ID
-                    return_obj = {"id": str(parsed.id)}
+                    return_obj = {"id": str(message.id)}
 
-                elif filtered.type == MessageType.DelegatedSubscription:
+                elif message.type == MessageType.DelegatedSubscription:
+                    message = cast(DelegatedSubscriptionMessage, message)
+
                     # Should only reach this point if chain is enabled (else, filtered
                     # out upstream)
                     if self._processor is None:
                         raise RuntimeError("Chain not enabled")
 
-                    # Submit filtered delegated subscription message to processor
-                    create_task(
-                        self._processor.track(
-                            cast(DelegatedSubscriptionMessage, filtered)
-                        )
-                    )
+                    # Submit delegated subscription message to processor
+                    create_task(self._processor.track(message))
+
                     # Don't return job ID for subscriptions; results / status can't be
                     # fetched via REST so it would be misleading. They are tracked
                     # on-chain instead
@@ -223,23 +250,66 @@ class RESTServer(AsyncTask):
                 # Return created message ID
                 log.info(
                     "Processed REST response",
-                    endpoint="/api/jobs",
-                    method="POST",
+                    endpoint=request.path,
+                    method=request.method,
                     status=200,
-                    type=filtered.type,
-                    id=str(parsed.id),
+                    type=message.type,
+                    id=str(message.id),
                 )
                 return jsonify(return_obj), 200
             except Exception as e:
                 # Return error
                 log.error(
                     "Processed REST response",
-                    endpoint="/api/jobs",
-                    method="POST",
+                    endpoint=request.path,
+                    method=request.method,
                     status=500,
                     err=str(e),
                 )
                 return jsonify({"error": f"Could not enqueue job: {str(e)}"}), 500
+
+        @self._app.route("/api/jobs/stream", methods=["POST"])
+        @filter_create_job  # type: ignore
+        @rate_limit(10, timedelta(seconds=60))
+        async def create_job_stream(message: OffchainMessage) -> Tuple[Response, int]:
+            """Creates new off-chain streaming job (direct compute request only)
+
+            Args:
+                message (OffchainMessage): Offchain message
+
+            Returns:
+                Response: A stream, yielding job ID and streaming job results
+            """
+
+            if message.type != MessageType.OffchainJob:
+                return (
+                    jsonify(
+                        {"error": "Streaming only supported for OffchainJob requests."}
+                    ),
+                    405,
+                )
+
+            message = cast(OffchainJobMessage, message)
+
+            # Return created message ID
+            log.info(
+                "Processed REST response",
+                endpoint=request.path,
+                method=request.method,
+                status=200,
+                type=message.type,
+                id=message.id,
+            )
+
+            async def generator() -> Any:
+                """Yields job ID and streaming job results"""
+                yield message.id
+
+                # Yield streaming job results
+                async for chunk in self._orchestrator.process_streaming_job(message):
+                    yield chunk
+
+            return Response(generator()), 200
 
         @self._app.route("/api/jobs/batch", methods=["POST"])
         @rate_limit(10, timedelta(seconds=60))
@@ -320,8 +390,8 @@ class RESTServer(AsyncTask):
                 # Return created message IDs or errors
                 log.info(
                     "Processed REST response",
-                    endpoint="/api/jobs/batch",
-                    method="POST",
+                    endpoint=request.path,
+                    method=request.method,
                     status=200,
                     results=results,
                 )
@@ -330,8 +400,8 @@ class RESTServer(AsyncTask):
                 # Return error
                 log.error(
                     "Processed REST response",
-                    endpoint="/api/jobs/batch",
-                    method="POST",
+                    endpoint=request.path,
+                    method=request.method,
                     status=500,
                     err=str(e),
                 )
@@ -414,8 +484,8 @@ class RESTServer(AsyncTask):
                 # Return error
                 log.error(
                     "Processed REST response",
-                    endpoint="/api/status",
-                    method="PUT",
+                    endpoint=request.path,
+                    method=request.method,
                     status=500,
                     err=e,
                 )
