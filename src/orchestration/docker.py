@@ -137,7 +137,12 @@ class ContainerManager(AsyncTask):
 
         # Container objects are cached, need to reload attributes
         for container in self._containers.values():
-            container.reload()
+            try:
+                container.reload()
+            except Exception as e:
+                raise ValueError(
+                    f"Container {container.name} was removed or can't be reloaded: {e}"
+                )
 
         # IDs of running containers
         return [
@@ -230,7 +235,7 @@ class ContainerManager(AsyncTask):
             log_ascii_status(f"Running containers: {current_containers}", True)
 
             # Check if any containers exited / crashed
-            if len(current_containers) > len(running_containers):
+            if len(current_containers) < len(running_containers):
                 log.warning(
                     "Container(s) failed / exited / crashed",
                     failed_containers=[
@@ -239,7 +244,7 @@ class ContainerManager(AsyncTask):
                         if container not in current_containers
                     ],
                 )
-            elif len(current_containers) < len(running_containers):
+            elif len(current_containers) > len(running_containers):
                 log.warning(
                     "Container(s) back up",
                     started_containers=[
