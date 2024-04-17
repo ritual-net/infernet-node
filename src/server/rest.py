@@ -140,6 +140,7 @@ class RESTServer(AsyncTask):
             return (
                 jsonify(
                     {
+                        "version": self._version,
                         "containers": self._manager.running_container_info,
                         "pending": self._store.get_pending_counters(),
                         "chain": {
