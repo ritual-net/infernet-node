@@ -10,7 +10,8 @@ from typing import Optional, cast
 from eth_account import Account
 from eth_account.datastructures import SignedTransaction
 from eth_typing import ChecksumAddress
-from web3.types import TxParams
+from web3.exceptions import ContractCustomError
+from web3.types import TxParams, Nonce
 
 from chain.coordinator import (
     Coordinator,
@@ -18,6 +19,7 @@ from chain.coordinator import (
     CoordinatorSignatureParams,
     CoordinatorTxParams,
 )
+from chain.errors import is_infernet_error
 from chain.rpc import RPC
 from shared.subscription import Subscription
 from utils.logging import log
@@ -121,7 +123,7 @@ class Wallet:
 
     async def __send_tx_retries(
         self: Wallet, tx: SignedTransaction, retries: int, current_try: int
-    ) -> bytes:
+    ) -> Optional[bytes]:
         """Internal counterpart to _send_tx_receipts with current_try counter
 
         Args:
@@ -135,6 +137,7 @@ class Wallet:
         Returns:
             bytes: transaction hash
         """
+
         try:
             # Send transaction
             return await self._rpc.send_transaction(tx)
@@ -147,14 +150,14 @@ class Wallet:
 
         # If maximum retries hit, throw error
         if retries == current_try:
-            raise RuntimeError("Failed sending tx")
+            raise RuntimeError("Failed sending tx: ")
 
         # Retry transaction
         return await self.__send_tx_retries(tx, retries, current_try + 1)
 
     async def _send_tx_retries(
         self: Wallet, tx: SignedTransaction, retries: int
-    ) -> bytes:
+    ) -> Optional[bytes]:
         """Trys to send tx `retries` times until successful or RuntimeError
 
         Args:
@@ -172,7 +175,7 @@ class Wallet:
         input: bytes,
         output: bytes,
         proof: bytes,
-    ) -> bytes:
+    ) -> Optional[bytes]:
         """Sends Coordinator.deliverCompute() tx, retrying failed txs thrice
 
         Args:
@@ -200,23 +203,42 @@ class Wallet:
             raise RuntimeError("Could not collect nonce")
 
         # Build Coordinator tx
-        tx_params = await self._coordinator.get_deliver_compute_tx(
+        fn = self._coordinator.get_deliver_compute_tx_contract_function(
             data=CoordinatorDeliveryParams(
                 subscription=subscription,
                 interval=subscription.interval,
                 input=input,
                 output=output,
                 proof=proof,
-            ),
-            tx=CoordinatorTxParams(
-                nonce=self._nonce,
-                sender=self.address,
-                gas_limit=min(subscription.max_gas_limit, self._max_gas_limit),
-            ),
+            )
         )
 
-        # Sign coordinator tx
-        signed_tx = self._sign_tx_params(tx_params)
+        try:
+            # simulate transaction first
+            await fn.call({"from": self._account.address})
+        except ContractCustomError as e:
+            if is_infernet_error(e, subscription):
+                # returning early since we know the error, no need to retry
+                return None
+            log.error("Failed to simulate transaction", error=e)
+            return None
+
+        coordinator_params = CoordinatorTxParams(
+            nonce=self._nonce,
+            sender=self.address,
+            gas_limit=min(subscription.max_gas_limit, self._max_gas_limit),
+        )
+
+        tx = await fn.build_transaction(
+            {
+                "nonce": cast(Nonce, coordinator_params.nonce),
+                "from": coordinator_params.sender,
+                "gas": coordinator_params.gas_limit,
+            }
+        )
+
+        # build & sign the transaction
+        signed_tx = self._sign_tx_params(tx)
 
         # Send tx, retrying submission thrice
         return await self._send_tx_retries(signed_tx, 3)
@@ -265,7 +287,7 @@ class Wallet:
                 output=output,
                 proof=proof,
             ),
-            tx=CoordinatorTxParams(
+            tx_params=CoordinatorTxParams(
                 nonce=self._nonce,
                 sender=self.address,
                 gas_limit=min(subscription.max_gas_limit, self._max_gas_limit),

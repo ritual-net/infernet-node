@@ -688,6 +688,11 @@ class ChainProcessor(AsyncTask):
                 proof=proof,
             )
 
+        # if tx_hash is none, it means that the transaction simulation failed,
+        # we won't need to track it.
+        if tx_hash is None:
+            return
+
         # Update pending with accurate tx hash
         self._pending[(id, interval)] = tx_hash.hex()
         log.info(
