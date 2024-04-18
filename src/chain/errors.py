@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, IntEnum
 
 from web3.exceptions import ContractCustomError
 
@@ -45,65 +45,38 @@ def is_infernet_error(e: ContractCustomError, sub: Subscription) -> bool:
     Returns:
         bool: True if the error belongs to the coordinator, False otherwise
     """
+    error_message = str(e)
 
-    match str(e):
-        case ManagerError.NodeNotActive.value:
-            log.error("Node is not active", subscription_id=sub.id)
-            return True
-        case ManagerError.NodeNotRegisterable.value:
-            log.error("Node is not registerable", subscription_id=sub.id)
-            return True
-        case ManagerError.CooldownActive.value:
-            log.error("Cooldown is active", subscription_id=sub.id)
-            return True
-        case ManagerError.NodeNotActivateable.value:
-            log.error("Node is not activateable", subscription_id=sub.id)
-            return True
-        case CoordinatorError.GasPriceExceeded.value:
-            log.error(
-                "Gas price exceeded the subscription's max gas price",
-                subscription_id=sub.id,
+    # List of errors and corresponding log messages
+    errors = {
+        ManagerError.NodeNotActive.value: "Node is not active",
+        ManagerError.NodeNotRegisterable.value: "Node is not registerable",
+        ManagerError.CooldownActive.value: "Cooldown is active",
+        ManagerError.NodeNotActivateable.value: "Node is not activateable",
+        CoordinatorError.GasPriceExceeded.value: "Gas price exceeded the subscription's max gas price",
+        CoordinatorError.GasLimitExceeded.value: "Gas limit exceeded the subscription's max gas limit",
+        CoordinatorError.IntervalMismatch.value: "Interval mismatch. The interval is not the current one.",
+        CoordinatorError.IntervalCompleted.value: "Interval completed. Redundancy has been already met for the current interval",
+        CoordinatorError.NodeRespondedAlready.value: "Node already responded for this interval",
+        CoordinatorError.SubscriptionNotFound.value: "Subscription not found",
+        CoordinatorError.NotSubscriptionOwner.value: "Caller is not the owner of the subscription",
+        CoordinatorError.SubscriptionCompleted.value: "Subscription is already completed, another node has likely already delivered the response",
+        CoordinatorError.SubscriptionNotActive.value: "Subscription is not active",
+    }
+
+    for error_value, message in errors.items():
+        if error_value in error_message:
+            _log = (
+                log.info
+                if error_value
+                in (
+                    CoordinatorError.NodeRespondedAlready.value,
+                    CoordinatorError.SubscriptionCompleted.value,
+                    CoordinatorError.IntervalCompleted.value,
+                )
+                else log.error
             )
+            _log(message, subscription_id=sub.id)
             return True
-        case CoordinatorError.GasLimitExceeded.value:
-            log.error(
-                "Gas limit exceeded the subscription's max gas limit",
-                subscription_id=sub.id,
-            )
-            return True
-        case CoordinatorError.IntervalMismatch.value:
-            log.error(
-                "Interval mismatch. The interval is not the current one.",
-                subscription_id=sub.id,
-            )
-            return True
-        case CoordinatorError.IntervalCompleted.value:
-            log.error(
-                "Interval completed. Redundancy has been already met for the "
-                "current interval",
-                subscription_id=sub.id,
-            )
-            return True
-        case CoordinatorError.NodeRespondedAlready.value:
-            log.error("Node already responded for this interval", subscription_id=sub.id)
-            return True
-        case CoordinatorError.SubscriptionNotFound.value:
-            log.error("Subscription not found", subscription_id=sub.id)
-            return True
-        case CoordinatorError.NotSubscriptionOwner.value:
-            log.error(
-                "Caller is not the owner of the subscription", subscription_id=sub.id
-            )
-            return True
-        case CoordinatorError.SubscriptionCompleted.value:
-            log.info(
-                "Subscription is already completed, another node has likely already "
-                "delivered the response",
-                subscription_id=sub.id,
-            )
-            return True
-        case CoordinatorError.SubscriptionNotActive.value:
-            log.error("Subscription is not active", subscription_id=sub.id)
-            return True
-        case _:
-            return False
+
+    return False
