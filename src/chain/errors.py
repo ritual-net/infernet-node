@@ -1,4 +1,4 @@
-from enum import Enum, IntEnum
+from enum import Enum
 
 from web3.exceptions import ContractCustomError
 
@@ -56,11 +56,13 @@ def is_infernet_error(e: ContractCustomError, sub: Subscription) -> bool:
         CoordinatorError.GasPriceExceeded.value: "Gas price exceeded the subscription's max gas price",
         CoordinatorError.GasLimitExceeded.value: "Gas limit exceeded the subscription's max gas limit",
         CoordinatorError.IntervalMismatch.value: "Interval mismatch. The interval is not the current one.",
-        CoordinatorError.IntervalCompleted.value: "Interval completed. Redundancy has been already met for the current interval",
+        CoordinatorError.IntervalCompleted.value: "Interval completed. Redundancy has been already met "
+        "for the current interval",
         CoordinatorError.NodeRespondedAlready.value: "Node already responded for this interval",
         CoordinatorError.SubscriptionNotFound.value: "Subscription not found",
         CoordinatorError.NotSubscriptionOwner.value: "Caller is not the owner of the subscription",
-        CoordinatorError.SubscriptionCompleted.value: "Subscription is already completed, another node has likely already delivered the response",
+        CoordinatorError.SubscriptionCompleted.value: "Subscription is already completed, another node has likely "
+        "already delivered the response",
         CoordinatorError.SubscriptionNotActive.value: "Subscription is not active",
     }
 

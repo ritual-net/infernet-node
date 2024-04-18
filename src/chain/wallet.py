@@ -11,7 +11,7 @@ from eth_account import Account
 from eth_account.datastructures import SignedTransaction
 from eth_typing import ChecksumAddress
 from web3.exceptions import ContractCustomError
-from web3.types import TxParams, Nonce
+from web3.types import Nonce, TxParams
 
 from chain.coordinator import (
     Coordinator,
@@ -250,7 +250,7 @@ class Wallet:
         input: bytes,
         output: bytes,
         proof: bytes,
-    ) -> bytes:
+    ) -> Optional[bytes]:
         """Sends Coordinator.deliverComputeDelegatee() tx, retrying failed txs thrice
 
         Args:
@@ -301,7 +301,7 @@ class Wallet:
         # Send tx, retrying submission thrice
         return await self._send_tx_retries(signed_tx, 3)
 
-    async def register_node(self: Wallet) -> bytes:
+    async def register_node(self: Wallet) -> Optional[bytes]:
         """Sends Coordinator.registerNode() tx, retrying failed txs thrice
 
         Raises:
@@ -338,7 +338,7 @@ class Wallet:
         # Send tx
         return await self._send_tx_retries(signed_tx, 3)
 
-    async def activate_node(self: Wallet) -> bytes:
+    async def activate_node(self: Wallet) -> Optional[bytes]:
         """Sends Coordinator.activateNode() tx, retrying failed txs thrice
 
         Raises:
