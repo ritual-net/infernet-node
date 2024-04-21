@@ -33,6 +33,26 @@ class CoordinatorError(Enum):
     SubscriptionNotActive = "0xefb74efe"
 
 
+node_not_active_error = "Node is not active"
+node_not_registerable_error = "Node is not registerable"
+cooldown_active_error = "Cooldown is active"
+node_not_activateable_error = "Node is not activateable"
+gas_price_exceeded_error = "Gas price exceeded the subscription's max gas price"
+gas_limit_exceeded_error = "Gas limit exceeded the subscription's max gas limit"
+interval_mismatch_error = "Interval mismatch. The interval is not the current one."
+interval_completed_error = (
+    "Interval completed. Redundancy has been already met for the current interval"
+)
+node_responded_already_error = "Node already responded for this interval"
+subscription_not_found_error = "Subscription not found"
+not_subscription_owner_error = "Caller is not the owner of the subscription"
+subscription_completed_error = (
+    "Subscription is already completed, another node "
+    "has likely already delivered the response"
+)
+subscription_not_active_error = "Subscription is not active"
+
+
 def is_infernet_error(e: ContractCustomError, sub: Subscription) -> bool:
     """
     Checks if the error belongs to the infernet contracts based on its 4-byte signature,
@@ -49,21 +69,19 @@ def is_infernet_error(e: ContractCustomError, sub: Subscription) -> bool:
 
     # List of errors and corresponding log messages
     errors = {
-        ManagerError.NodeNotActive.value: "Node is not active",
-        ManagerError.NodeNotRegisterable.value: "Node is not registerable",
-        ManagerError.CooldownActive.value: "Cooldown is active",
-        ManagerError.NodeNotActivateable.value: "Node is not activateable",
-        CoordinatorError.GasPriceExceeded.value: "Gas price exceeded the subscription's max gas price",
-        CoordinatorError.GasLimitExceeded.value: "Gas limit exceeded the subscription's max gas limit",
-        CoordinatorError.IntervalMismatch.value: "Interval mismatch. The interval is not the current one.",
-        CoordinatorError.IntervalCompleted.value: "Interval completed. Redundancy has been already met "
-        "for the current interval",
-        CoordinatorError.NodeRespondedAlready.value: "Node already responded for this interval",
-        CoordinatorError.SubscriptionNotFound.value: "Subscription not found",
-        CoordinatorError.NotSubscriptionOwner.value: "Caller is not the owner of the subscription",
-        CoordinatorError.SubscriptionCompleted.value: "Subscription is already completed, another node has likely "
-        "already delivered the response",
-        CoordinatorError.SubscriptionNotActive.value: "Subscription is not active",
+        ManagerError.NodeNotActive.value: node_not_active_error,
+        ManagerError.NodeNotRegisterable.value: node_not_registerable_error,
+        ManagerError.CooldownActive.value: cooldown_active_error,
+        ManagerError.NodeNotActivateable.value: node_not_activateable_error,
+        CoordinatorError.GasPriceExceeded.value: gas_price_exceeded_error,
+        CoordinatorError.GasLimitExceeded.value: gas_limit_exceeded_error,
+        CoordinatorError.IntervalMismatch.value: interval_mismatch_error,
+        CoordinatorError.IntervalCompleted.value: interval_completed_error,
+        CoordinatorError.NodeRespondedAlready.value: node_responded_already_error,
+        CoordinatorError.SubscriptionNotFound.value: subscription_not_found_error,
+        CoordinatorError.NotSubscriptionOwner.value: not_subscription_owner_error,
+        CoordinatorError.SubscriptionCompleted.value: subscription_completed_error,
+        CoordinatorError.SubscriptionNotActive.value: subscription_not_active_error,
     }
 
     for error_value, message in errors.items():
