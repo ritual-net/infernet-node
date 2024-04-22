@@ -184,15 +184,23 @@ class ChainListener(AsyncTask):
             range(i, i + self._snapshot_sync_batch_size)
             for i in range(1, head_id + 1, self._snapshot_sync_batch_size)
         ]
+
+        retry_delay = self._snapshot_sync_sleep
         for batch in batches:
-            # sync for this batch
-            await asyncio.gather(
-                *(
-                    self._sync_subscription_creation(id, head_block, None)
-                    for id in batch
+            try:
+                await asyncio.gather(
+                    *(
+                        self._sync_subscription_creation(id, head_block, None)
+                        for id in batch
+                    )
                 )
-            )
-            # sleep between batches to avoid getting rate-limited by the RPC
+            except:
+                await asyncio.sleep(retry_delay)
+                retry_delay *= 2  # Double the delay for exponential backoff
+                continue
+
+            # Reset the delay after successful batch
+            retry_delay = self._snapshot_sync_sleep
             await asyncio.sleep(self._snapshot_sync_sleep)
 
     async def _parse_created_log(self: ChainListener, receipt: LogReceipt) -> None:
