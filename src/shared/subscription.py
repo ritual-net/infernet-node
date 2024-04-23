@@ -4,7 +4,7 @@ import time
 from dataclasses import dataclass
 from functools import cache
 
-from eth_account.messages import SignableMessage, encode_structured_data
+from eth_account.messages import SignableMessage, encode_typed_data
 from eth_typing import ChecksumAddress
 
 
@@ -255,8 +255,8 @@ class Subscription:
         Returns:
             SignableMessage: typed, signable DelegateSubscription message
         """
-        return encode_structured_data(
-            {
+        return encode_typed_data(
+            full_message={
                 "types": {
                     "EIP712Domain": [
                         {"name": "name", "type": "string"},

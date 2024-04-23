@@ -36,3 +36,9 @@ repos:
         args: ["--maxkb=5000"]
       # Newline at end of file
       - id: trailing-whitespace
+
+  # OpenAPI spec validator
+  - repo: https://github.com/python-openapi/openapi-spec-validator
+    rev: master
+    hooks:
+      - id: openapi-spec-validator
