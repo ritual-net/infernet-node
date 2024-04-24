@@ -81,7 +81,7 @@ class NodeLifecycle:
         processor: Optional[ChainProcessor] = None
         wallet: Optional[Wallet] = None
         snapshot_sync: dict[str, int] = cast(
-            dict[str, int], config.get("snapshot_sync", {})
+            dict[str, int], config["chain"].get("snapshot_sync", {})
         )
 
         if config["chain"]["enabled"]:
