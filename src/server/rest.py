@@ -303,7 +303,7 @@ class RESTServer(AsyncTask):
 
             async def generator() -> Any:
                 """Yields job ID and streaming job results"""
-                yield message.id
+                yield f"{message.id}\n"
 
                 # Yield streaming job results
                 async for chunk in self._orchestrator.process_streaming_job(message):
