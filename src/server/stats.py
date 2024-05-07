@@ -13,8 +13,8 @@ from shared.service import AsyncTask
 from utils.logging import log
 
 # Constants - intervals in seconds for forwarding stats to Ritual
-LIVE_INTERVAL = 5
-NODE_INTERVAL = 900
+LIVE_INTERVAL = 60
+NODE_INTERVAL = 3600
 
 
 class StatCollector:
@@ -204,6 +204,19 @@ class StatSender(AsyncTask):
             "utilization": await StatCollector.get_utilization(),
         }
 
+    async def send_node_stats_shutdown(
+        self: StatSender, error: Optional[str] = None
+    ) -> None:
+        """Send node stats with optional error message at shutdown
+
+        Args:
+            error (Optional[str]): The error message to report
+        """
+        data = await self._get_node_stats()
+        if error:
+            data["error"] = error
+        self._sender.emit(label="node", data=data)
+
     async def run_forever(self: StatSender) -> None:
         """Default lifecycle loop
 
@@ -230,9 +243,6 @@ class StatSender(AsyncTask):
             # Ensure live stats collection is complete before sending
             await live_stats
             self._sender.emit(label="live", data=live_stats.result())
-
-        # Send node stats on shutdown
-        self._sender.emit(label="node", data=await self._get_node_stats())
 
     async def stop(self: StatSender) -> None:
         """Stop the task"""
