@@ -25,6 +25,8 @@ All notable changes to this project will be documented in this file.
 - Don't return job IDs for Delegated Subscriptions (misleading, since results can only be fetched on-chain).
 - Added pending job TTL (loose upper bound) to prevent jobs from being in a pending state indefinitely (due crashes and / or incorrect use of the /status endpoint)
 
+### Security
+- Bumped `aiohttp` version to `3.9.4`.
 
 ## [0.2.0] - 2024-03-21
 
