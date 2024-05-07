@@ -7,6 +7,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Support for streaming offchain job responses, via the `/api/jobs/stream` endpoint.
+
 ### Changed
 - Limit restarts within time window in `docker-compose.yaml`.
 - Consolidated `/chain/enabled` and `/chain/address` endpoints into `/info`.
