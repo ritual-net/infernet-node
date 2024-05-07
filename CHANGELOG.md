@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - Forward fatal errors via metric sender at shutdown for better error diagnosing (only if forwarding stats is enabled.)
+- New `destination` field to container inputs, to decouple job input source from output destination.
 - Support for streaming offchain job responses, via the `/api/jobs/stream` endpoint.
 
 ### Changed
