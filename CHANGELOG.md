@@ -8,17 +8,23 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Forward fatal errors via metric sender at shutdown for better error diagnosing (only if forwarding stats is enabled.)
 - Support for streaming offchain job responses, via the `/api/jobs/stream` endpoint.
 
 ### Changed
 - Limit restarts within time window in `docker-compose.yaml`.
 - Consolidated `/chain/enabled` and `/chain/address` endpoints into `/info`.
+- Refactored node entrypoint (`main.py`) into a class.
+- Increased metric sender intervals to combat outbound data rate limits.
+  - `NODE_INTERVAL` for node metrics is now `3600` seconds.
+  - `LIVE_INTERVAL` for live metrics is now `60` seconds.
 
 ### Fixed
 - Orchestrator now works in dev mode (outside of docker), previously `host.docker.internal` was hardcoded.
 - Surface dacite errors when parsing REST interface inputs for better UX.
 - Don't return job IDs for Delegated Subscriptions (misleading, since results can only be fetched on-chain).
 - Added pending job TTL (loose upper bound) to prevent jobs from being in a pending state indefinitely (due crashes and / or incorrect use of the /status endpoint)
+
 
 ## [0.2.0] - 2024-03-21
 

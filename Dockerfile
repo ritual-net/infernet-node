@@ -52,7 +52,6 @@ RUN apt-get update \
 # Copy the source code into the container.
 COPY src/ src/
 COPY entrypoint.sh .
-COPY version.txt .
 
 # Run the application.
 ENTRYPOINT ["/app/entrypoint.sh"]
