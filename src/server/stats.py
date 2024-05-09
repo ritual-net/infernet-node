@@ -120,7 +120,7 @@ class StatCollector:
             "cpu": """mpstat | awk '$2 == "all" {printf "%.1f%%", 100 - $12 - $9}'""",
             "disk": "df -h | awk '/\/$/ {print $5}'",
             "io": """iostat -p sda -d 4 1 -y | awk '/^sda / {print $3" kB_read/s" ", " $4 " kB_wrtn/s"}'""",  # noqa: E501
-            "gpu": """bash -c "if which nvidia-smi > /dev/null; then awk '{sum += $1; count++} END {if (count > 0) print sum / count}' <(nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader | awk '{print $1}'); fi" """,  # noqa: E501
+            "gpu": """bash -c "if which nvidia-smi > /dev/null; then nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader | awk '{print \$1}' | awk '{sum += \$1; count++} END {if (count > 0) print sum / count}'; fi" """,  # noqa: E501
             "memory": """free -m | awk '/Mem:/ {printf "%.f%%", $3 / $2 * 100}'""",
             "network": """ifstat 5 1 | awk 'NR>2 {for (i=1; i<=NF; i+=2) inSum += $i; for (i=2; i<=NF; i+=2) outSum += $i} END {print inSum " KB/s, " outSum " KB/s"}'""",  # noqa: E501
         }

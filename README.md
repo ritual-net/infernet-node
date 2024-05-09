@@ -88,6 +88,26 @@ cp ../config.sample.json config.json
 docker compose up -d
 ```
 
+### Locally via Docker (GPU-enabled)
+
+The GPU-enabled version of the image comes pre-installed with the [NVIDIA CUDA Toolkit](https://developer.nvidia.com/cuda-toolkit?ref=blog.kobus.me). Using this image on your GPU-enabled machine enabled the node to interact with the attached accelerators for diagnostic and purposes, such as heartbeat checks and utilization reports.
+
+```bash
+# Set tag
+tag="0.1.0"
+
+# Build GPU-enabled image from source
+docker build -f Dockerfile-gpu -t ritualnetwork/infernet-node:$tag-gpu .
+
+# Configure node
+cd deploy
+cp ../config.sample.json config.json
+# FILL IN config.json #
+
+# Run node and dependencies
+docker compose -f docker-compose-gpu.yaml  up -d
+```
+
 ### Locally via source
 
 ```bash
