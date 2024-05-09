@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 - Forward fatal errors via metric sender at shutdown for better error diagnosing (only if forwarding stats is enabled.)
 - New `destination` field to container inputs, to decouple job input source from output destination.
 - Support for streaming offchain job responses, via the `/api/jobs/stream` endpoint.
+- Added files `Dockerfile-gpu` and `docker-compose-gpu.yaml` for building and deploying GPU-enabled node with access to all local GPUs.
 
 ### Changed
 - Limit restarts within time window in `docker-compose.yaml`.
