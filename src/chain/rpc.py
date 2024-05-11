@@ -257,5 +257,6 @@ class RPC:
         """
         try:
             return await self._web3.eth.send_raw_transaction(tx.rawTransaction)
-        except Exception:
+        except Exception as e:
+            print(f"rpc.send_transaction failsed: {e}")
             raise
