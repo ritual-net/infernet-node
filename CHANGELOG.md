@@ -35,6 +35,7 @@ All notable changes to this project will be documented in this file.
 - New endpoint `/api/status` for "independent" (i.e. non-conforming) containers to manually register status of jobs by ID with the node.
 - Simulation of transactions before submitting them to the chain, to prevent submitting invalid transactions, resulting in wasted gas.
 - Better error-checking and handling for all infernet-related on-chain transaction errors.
+- New flag `"type"` to infernet container inputs, to distinguish between streaming and non-streaming jobs.
 
 ### Changed
 - `NODE_INTERVAL` for forwarding node metrics is now `900` seconds.
