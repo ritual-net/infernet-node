@@ -135,13 +135,15 @@ class Wallet:
             RuntimeError: Throws if maximum retries is hit without success
 
         Returns:
-            bytes: transaction hash
+            Optional[bytes]: transaction hash
         """
+        err = ""
 
         try:
             # Send transaction
             return await self._rpc.send_transaction(tx)
         except ValueError as e:
+            err = str(e)
             # Handle some exceptions
             # Nonce mismatch (most common)
             if len(e.args) > 0 and e.args[0]["message"].startswith("nonce"):
@@ -150,7 +152,7 @@ class Wallet:
 
         # If maximum retries hit, throw error
         if retries == current_try:
-            raise RuntimeError("Failed sending tx: ")
+            raise RuntimeError(f"Failed sending tx: {err}")
 
         # Retry transaction
         return await self.__send_tx_retries(tx, retries, current_try + 1)
@@ -165,7 +167,7 @@ class Wallet:
             retries (int): number of attempts to make to send tx
 
         Returns:
-            bytes: transaction hash
+            Optional[bytes]: transaction hash
         """
         return await self.__send_tx_retries(tx, retries, 0)
 
@@ -188,7 +190,7 @@ class Wallet:
             RuntimeError: Throws if can't collect nonce to send tx
 
         Returns:
-            bytes: transaction hash
+            Optional[bytes]: transaction hash
         """
 
         if self._nonce is None:
@@ -264,7 +266,7 @@ class Wallet:
             RuntimeError: Throws if can't collect nonce to send tx
 
         Returns:
-            bytes: transaction hash
+            Optional[bytes]: transaction hash
         """
 
         if self._nonce is None:
@@ -308,7 +310,7 @@ class Wallet:
             RuntimeError: Throws if can't collect nonce to send tx
 
         Returns:
-            bytes: transaction hash
+            Optional[bytes]: transaction hash
         """
 
         if self._nonce is None:
@@ -345,7 +347,7 @@ class Wallet:
             RuntimeError: Throws if can't collect nonce to send tx
 
         Returns:
-            bytes: transaction hash
+            Optional[bytes]: transaction hash
         """
 
         if self._nonce is None:

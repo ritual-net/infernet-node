@@ -691,6 +691,13 @@ class ChainProcessor(AsyncTask):
         # if tx_hash is none, it means that the transaction simulation failed,
         # we won't need to track it.
         if tx_hash is None:
+            log.info(
+                "Did not send tx",
+                subscription=subscription,
+                id=id,
+                interval=interval,
+                delegated=delegated,
+            )
             return
 
         # Update pending with accurate tx hash

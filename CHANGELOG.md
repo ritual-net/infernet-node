@@ -24,6 +24,8 @@ All notable changes to this project will be documented in this file.
 - Option to specify alternate `config.json` file name / path via environment variable `INFERNET_CONFIG_PATH`.
 - Batch-syncing support for snapshot-sync, along with batch-sync configuration in the `config.json` file.
 - New endpoint `/api/status` for "independent" (i.e. non-conforming) containers to manually register status of jobs by ID with the node.
+- Simulation of transactions before submitting them to the chain, to prevent submitting invalid transactions, resulting in wasted gas.
+- Better error-checking and handling for all infernet-related on-chain transaction errors.
 
 ### Changed
 - `NODE_INTERVAL` for forwarding node metrics is now `900` seconds.
