@@ -64,7 +64,8 @@ async def register_node() -> None:
 
     # Send node activation tx
     tx_hash = await wallet.activate_node()
-    log.info("Sent activation tx", tx_hash=tx_hash.hex())
+    if tx_hash:
+        log.info("Sent activation tx", tx_hash=tx_hash.hex())
 
 
 loop = asyncio.get_event_loop()

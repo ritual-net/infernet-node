@@ -180,10 +180,17 @@ class ChainListener(AsyncTask):
         # self._snapshot_sync_batch_size, to throttle, sleeps self._snapshot_sync_sleep
         # seconds between each batch
 
-        batches = [
-            range(i, i + self._snapshot_sync_batch_size)
-            for i in range(1, head_id + 1, self._snapshot_sync_batch_size)
-        ]
+        if head_id == 1:
+            # if there are no subscriptions, don't sync anything
+            batches = []
+        elif head_id <= self._snapshot_sync_batch_size:
+            # if there are less subscriptions than the batch size, sync all in one batch
+            batches = [range(1, head_id + 1)]
+        else:
+            batches = [
+                range(i, i + self._snapshot_sync_batch_size)
+                for i in range(1, head_id + 1, self._snapshot_sync_batch_size)
+            ]
         for batch in batches:
             # sync for this batch
             await asyncio.gather(

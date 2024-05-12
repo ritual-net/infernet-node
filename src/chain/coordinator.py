@@ -20,7 +20,7 @@ Examples:
     >>> await coordinator.recover_delegatee_signer(subscription, signature)
     0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
 
-    >>> await coordinator.get_deliver_compute_tx(data, tx)
+    >>> await coordinator.get_deliver_compute_tx_contract_function(data, tx)
     TxParams(...)
 
     >>> await coordiantor.get_deliver_compute_delegatee_tx(data, tx, signature)
@@ -66,6 +66,7 @@ from eth_account import Account
 from eth_typing import BlockNumber, ChecksumAddress, Hash32, HexStr
 from hexbytes import HexBytes
 from web3.constants import ADDRESS_ZERO
+from web3.contract.async_contract import AsyncContractFunction
 from web3.types import FilterParams, LogReceipt, Nonce, TxParams
 
 from chain.rpc import RPC
@@ -294,45 +295,37 @@ class Coordinator:
             ),
         )
 
-    async def get_deliver_compute_tx(
+    def get_deliver_compute_tx_contract_function(
         self: Coordinator,
         data: CoordinatorDeliveryParams,
-        tx: CoordinatorTxParams,
-    ) -> TxParams:
-        """Generates tx to call Coordinator.deliverCompute()
+    ) -> AsyncContractFunction:
+        """Generates a contract function to call Coordinator.deliverCompute()
 
         Args:
             data (CoordinatorDeliveryParams): deliverCompute() params
-            tx (CoordinatorTxParams): general tx params
 
         Returns:
-            TxParams: built transaction params
+            contract function: built contract function
         """
-        return await self._contract.functions.deliverCompute(
+        return self._contract.functions.deliverCompute(
             data.subscription.id,
             data.interval,
             data.input,
             data.output,
             data.proof,
-        ).build_transaction(
-            {
-                "nonce": cast(Nonce, tx.nonce),
-                "from": tx.sender,
-                "gas": tx.gas_limit,
-            }
         )
 
     async def get_deliver_compute_delegatee_tx(
         self: Coordinator,
         data: CoordinatorDeliveryParams,
-        tx: CoordinatorTxParams,
+        tx_params: CoordinatorTxParams,
         signature: CoordinatorSignatureParams,
     ) -> TxParams:
         """Generates tx to call Coordinator.deliverComputeDelegatee()
 
         Args:
             data (CoordinatorDeliveryParams): deliverCompute() params
-            tx (CoordinatorTxParams): general tx params
+            tx_params (CoordinatorTxParams): general tx params
             signature (CoordinatorSignatureParams): delegatee signature
 
         Returns:
@@ -351,9 +344,9 @@ class Coordinator:
             data.proof,
         ).build_transaction(
             {
-                "nonce": cast(Nonce, tx.nonce),
-                "from": tx.sender,
-                "gas": tx.gas_limit,
+                "nonce": cast(Nonce, tx_params.nonce),
+                "from": tx_params.sender,
+                "gas": tx_params.gas_limit,
             }
         )
 
