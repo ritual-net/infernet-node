@@ -22,6 +22,13 @@ class OrchestratorInputSource(Enum):
     OFFCHAIN = 1
 
 
+class OrchestratorInputType(Enum):
+    """Orchestrator input type"""
+
+    NON_STREAMING = 0
+    STREAMING = 1
+
+
 class Orchestrator:
     """Orchestrates container execution
 
@@ -113,6 +120,7 @@ class Orchestrator:
                         input_data = {
                             "source": OrchestratorInputSource.OFFCHAIN.value,
                             "data": output,
+                            "type": OrchestratorInputType.NON_STREAMING.value,
                         }
 
                 except JSONDecodeError:
@@ -187,6 +195,7 @@ class Orchestrator:
             initial_input={
                 "source": OrchestratorInputSource.OFFCHAIN.value,
                 "data": message.data,
+                "type": OrchestratorInputType.NON_STREAMING.value,
             },
             containers=message.containers,
             message=message,
@@ -235,6 +244,7 @@ class Orchestrator:
                     json={
                         "source": OrchestratorInputSource.OFFCHAIN.value,
                         "data": message.data,
+                        "type": OrchestratorInputType.STREAMING.value,
                     },
                     timeout=180,
                 ) as response:
