@@ -24,7 +24,7 @@ class ContainerInput:
     source: int  # JobLocation
     destination: int  # JobLocation
     data: Any
-    type: int  # OrchestratorInputType
+    type: int  # JobOutputType
 
 
 @dataclass(frozen=True)
@@ -53,7 +53,7 @@ class JobInput:
     source: int  # JobLocation
     destination: int  # JobLocation
     data: Any
-    type: int  # OrchestratorInputType
+    type: int  # JobOutputType
 
 
 JobStatus = Literal["running", "success", "failed"]
