@@ -470,11 +470,11 @@ class RESTServer(AsyncTask):
                     case "success":
                         self._store.set_success(parsed, [])
                         for container in data["containers"]:
-                            self._store.track_container(container)
+                            self._store.track_container_status(container, "success")
                     case "failed":
                         self._store.set_failed(parsed, [])
                         for container in data["containers"]:
-                            self._store.track_container(container)
+                            self._store.track_container_status(container, "failed")
                     case "running":
                         self._store.set_running(parsed)
                     case _:

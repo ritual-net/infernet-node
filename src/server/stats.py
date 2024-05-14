@@ -182,13 +182,17 @@ class StatSender(AsyncTask):
     async def _get_node_stats(self: StatSender) -> dict[str, Any]:
         """Collect boot stats"""
 
-        counters = self._store.pop_total_counters()
+        job_counters = self._store.counters.pop_job_counters()
+        container_counters = self._store.counters.pop_container_counters()
 
         return {
             "uid": self._uid,
             "address": None if self._wallet is None else self._wallet.address,
             "containers": self._guardian.restrictions,
-            "jobs_completed": {key: dict(counters[key]) for key in counters},
+            "counters": {
+                "jobs": job_counters,
+                "containers": container_counters,
+            },
             "ip": await StatCollector.get_ip(),
             "resources": await StatCollector.get_resources(),
             "uptime": await StatCollector.get_uptime(),
