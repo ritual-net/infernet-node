@@ -8,23 +8,16 @@ class JobLocation(Enum):
 
     ONCHAIN = 0
     OFFCHAIN = 1
-
-
-class JobOutputType(Enum):
-    """Job output type"""
-
-    NON_STREAMING = 0
-    STREAMING = 1
+    STREAM = 2
 
 
 @dataclass(frozen=True)
 class ContainerInput:
     """Container source, destination, and data"""
 
-    source: int  # JobLocation
-    destination: int  # JobLocation
+    source: int  # JobLocation (ONCHAIN or OFFCHAIN)
+    destination: int  # JobLocation (ONCHAIN or OFFCHAIN or STREAM)
     data: Any
-    type: int  # JobOutputType
 
 
 @dataclass(frozen=True)
@@ -50,10 +43,9 @@ ContainerResult = Union[ContainerError, ContainerOutput]
 class JobInput:
     """Job source, destination, and data"""
 
-    source: int  # JobLocation
-    destination: int  # JobLocation
+    source: int  # JobLocation (ONCHAIN or OFFCHAIN)
+    destination: int  # JobLocation (ONCHAIN or OFFCHAIN or STREAM)
     data: Any
-    type: int  # JobOutputType
 
 
 JobStatus = Literal["running", "success", "failed"]

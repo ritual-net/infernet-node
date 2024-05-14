@@ -7,7 +7,7 @@ from typing import Any, AsyncGenerator, Optional
 from aiohttp import ClientSession
 
 from shared import ContainerError, ContainerOutput, ContainerResult
-from shared.job import ContainerInput, JobInput, JobLocation, JobOutputType
+from shared.job import ContainerInput, JobInput, JobLocation
 from shared.message import OffchainJobMessage
 from utils import log
 
@@ -96,7 +96,6 @@ class Orchestrator:
                 else JobLocation.OFFCHAIN.value
             ),
             data=job_input.data,
-            type=JobOutputType.NON_STREAMING.value,
         )
 
         # Call container chain
@@ -128,7 +127,6 @@ class Orchestrator:
                                 else JobLocation.OFFCHAIN.value
                             ),
                             data=output,
-                            type=JobOutputType.NON_STREAMING.value,
                         )
 
                 except JSONDecodeError:
@@ -204,7 +202,6 @@ class Orchestrator:
                 source=JobLocation.OFFCHAIN.value,
                 destination=JobLocation.OFFCHAIN.value,
                 data=message.data,
-                type=JobOutputType.NON_STREAMING.value,
             ),
             containers=message.containers,
             message=message,
@@ -252,9 +249,8 @@ class Orchestrator:
                     url,
                     json=JobInput(
                         source=JobLocation.OFFCHAIN.value,
-                        destination=JobLocation.OFFCHAIN.value,
+                        destination=JobLocation.STREAM.value,
                         data=message.data,
-                        type=JobOutputType.STREAMING.value,
                     ),
                     timeout=180,
                 ) as response:
