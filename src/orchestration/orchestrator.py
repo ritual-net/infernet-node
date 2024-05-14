@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import asdict
 from json import JSONDecodeError
 from os import environ
 from typing import Any, AsyncGenerator, Optional
@@ -110,7 +111,7 @@ class Orchestrator:
 
                 try:
                     async with session.post(
-                        url, json=input_data, timeout=180
+                        url, json=asdict(input_data), timeout=180
                     ) as response:
                         # Handle JSON response
                         output = await response.json()
