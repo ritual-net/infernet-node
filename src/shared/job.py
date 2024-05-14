@@ -3,19 +3,26 @@ from enum import Enum
 from typing import Any, Literal, Optional, Union
 
 
-class ChainLocation(Enum):
-    """Chain location"""
+class JobLocation(Enum):
+    """Job location"""
 
     ONCHAIN = 0
     OFFCHAIN = 1
+
+
+class JobOutputType(Enum):
+    """Job output type"""
+
+    NON_STREAMING = 0
+    STREAMING = 1
 
 
 @dataclass(frozen=True)
 class ContainerInput:
     """Container source, destination, and data"""
 
-    source: int  # ChainLocation
-    destination: int  # ChainLocation
+    source: int  # JobLocation
+    destination: int  # JobLocation
     data: Any
     type: int  # OrchestratorInputType
 
@@ -43,8 +50,8 @@ ContainerResult = Union[ContainerError, ContainerOutput]
 class JobInput:
     """Job source, destination, and data"""
 
-    source: int  # ChainLocation
-    destination: int  # ChainLocation
+    source: int  # JobLocation
+    destination: int  # JobLocation
     data: Any
     type: int  # OrchestratorInputType
 

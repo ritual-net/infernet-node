@@ -16,12 +16,14 @@ from eth_typing import HexStr
 from chain.coordinator import Coordinator, CoordinatorSignatureParams
 from chain.rpc import RPC
 from chain.wallet import Wallet
-from orchestration.orchestrator import (
-    Orchestrator,
-    OrchestratorInputSource,
-    OrchestratorInputType,
+from orchestration.orchestrator import Orchestrator
+from shared.job import (
+    ContainerError,
+    ContainerOutput,
+    JobInput,
+    JobLocation,
+    JobOutputType,
 )
-from shared.job import ChainLocation, ContainerError, ContainerOutput, JobInput
 from shared.message import (
     DelegatedSubscriptionMessage,
     MessageType,
@@ -617,10 +619,10 @@ class ChainProcessor(AsyncTask):
         if delegated:
             # Setup off-chain inputs
             container_input = JobInput(
-                source=ChainLocation.OFFCHAIN.value,
-                destination=ChainLocation.ONCHAIN.value,
+                source=JobLocation.OFFCHAIN.value,
+                destination=JobLocation.ONCHAIN.value,
                 data=parsed_params[1],
-                type=OrchestratorInputType.NON_STREAMING.value,
+                type=JobOutputType.NON_STREAMING.value,
             )
         else:
             # Setup on-chain inputs
@@ -631,10 +633,10 @@ class ChainProcessor(AsyncTask):
                 caller=self._wallet.address,
             )
             container_input = JobInput(
-                source=ChainLocation.ONCHAIN.value,
-                destination=ChainLocation.ONCHAIN.value,
+                source=JobLocation.ONCHAIN.value,
+                destination=JobLocation.ONCHAIN.value,
                 data=chain_input.hex(),
-                type=OrchestratorInputType.NON_STREAMING.value,
+                type=JobOutputType.NON_STREAMING.value,
             )
         log.debug(
             "Setup container input",

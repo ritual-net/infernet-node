@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from enum import Enum
 from json import JSONDecodeError
 from os import environ
 from typing import Any, AsyncGenerator, Optional
@@ -8,26 +7,12 @@ from typing import Any, AsyncGenerator, Optional
 from aiohttp import ClientSession
 
 from shared import ContainerError, ContainerOutput, ContainerResult
-from shared.job import ChainLocation, ContainerInput, JobInput
+from shared.job import ContainerInput, JobInput, JobLocation, JobOutputType
 from shared.message import OffchainJobMessage
 from utils import log
 
 from .docker import ContainerManager
 from .store import DataStore
-
-
-class OrchestratorInputSource(Enum):
-    """Orchestrator input source"""
-
-    ONCHAIN = 0
-    OFFCHAIN = 1
-
-
-class OrchestratorInputType(Enum):
-    """Orchestrator input type"""
-
-    NON_STREAMING = 0
-    STREAMING = 1
 
 
 class Orchestrator:
@@ -108,9 +93,10 @@ class Orchestrator:
             destination=(
                 job_input.destination
                 if len(containers) == 1
-                else ChainLocation.OFFCHAIN.value
+                else JobLocation.OFFCHAIN.value
             ),
             data=job_input.data,
+            type=JobOutputType.NON_STREAMING.value,
         )
 
         # Call container chain
@@ -135,14 +121,14 @@ class Orchestrator:
                         # job destination. Otherwise, set destination to off-chain
                         # (i.e. chaining containers together)
                         input_data = ContainerInput(
-                            source=ChainLocation.OFFCHAIN.value,
+                            source=JobLocation.OFFCHAIN.value,
                             destination=(
                                 job_input.destination
                                 if index == len(containers) - 2
-                                else ChainLocation.OFFCHAIN.value
+                                else JobLocation.OFFCHAIN.value
                             ),
                             data=output,
-                            type=OrchestratorInputType.NON_STREAMING.value,
+                            type=JobOutputType.NON_STREAMING.value,
                         )
 
                 except JSONDecodeError:
@@ -215,10 +201,10 @@ class Orchestrator:
         await self._run_job(
             job_id=message.id,
             job_input=JobInput(
-                source=ChainLocation.OFFCHAIN.value,
-                destination=ChainLocation.OFFCHAIN.value,
+                source=JobLocation.OFFCHAIN.value,
+                destination=JobLocation.OFFCHAIN.value,
                 data=message.data,
-                type=OrchestratorInputType.NON_STREAMING.value,
+                type=JobOutputType.NON_STREAMING.value,
             ),
             containers=message.containers,
             message=message,
@@ -264,11 +250,12 @@ class Orchestrator:
             try:
                 async with session.post(
                     url,
-                    json={
-                        "source": OrchestratorInputSource.OFFCHAIN.value,
-                        "data": message.data,
-                        "type": OrchestratorInputType.STREAMING.value,
-                    },
+                    json=JobInput(
+                        source=JobLocation.OFFCHAIN.value,
+                        destination=JobLocation.OFFCHAIN.value,
+                        data=message.data,
+                        type=JobOutputType.STREAMING.value,
+                    ),
                     timeout=180,
                 ) as response:
                     # Raises exception if status code is not 200
