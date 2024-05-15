@@ -40,6 +40,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 - `NODE_INTERVAL` for forwarding node metrics is now `900` seconds.
+- Job and container counts are now reported separately via metric sender. The REST port is also reported.
 
 ### Fixed
 - Sample config `rpc_ws` should be `rpc_url` in `config.sample.json`.
