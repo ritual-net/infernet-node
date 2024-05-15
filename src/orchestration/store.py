@@ -1,3 +1,16 @@
+"""
+This module contains the following classes:
+
+1. KeyFormatter: Key formatter for Redis. Formats keys for Redis using the pattern
+    <address>:<id>.
+
+2. DataStoreCounters: Manages job-related counters for onchain and offchain jobs. Also
+    tracks container statuses.
+
+3. DataStore: Stores and retrieve job results to / from Redis. Stores pending jobs in a
+    different Redis database than completed jobs for efficient retrieval.
+"""
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -67,7 +80,7 @@ class DataStoreCounters:
 
     Job counters track the number of jobs by status (success, failed) and location
     (onchain, offchain).
-    
+
     Container counters track the number of container runs by status (success, failed).
 
     Public methods:
@@ -101,8 +114,8 @@ class DataStoreCounters:
         """Default value for job counters"""
 
         return {
-            "success": {"offchain": 0, "onchain": 0},
-            "failed": {"offchain": 0, "onchain": 0},
+            "offchain": {"success": 0, "failed": 0},
+            "onchain": {"success": 0, "failed": 0},
         }
 
     def pop_job_counters(self: DataStoreCounters) -> dict[str, dict[str, int]]:
@@ -149,7 +162,7 @@ class DataStoreCounters:
             status (JobStatus): Job status
             location (str): Job location
         """
-        self.job_counters[status][location] += 1
+        self.job_counters[location][status] += 1
 
     def increment_container_counter(
         self: DataStoreCounters,
