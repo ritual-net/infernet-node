@@ -9,7 +9,9 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - Forward fatal errors via metric sender at shutdown for better error diagnosing (only if forwarding stats is enabled.)
-- Support for streaming offchain job responses, via the `/api/jobs/stream` endpoint.
+- OpenAPI spec for the REST server.
+- Support for streaming offchain job responses, via the `POST /api/jobs/stream` endpoint.
+- Support for CIDR ranges in container-level firewalls (`"allowed_ips"`).
 
 ### Changed
 - Limit restarts within time window in `docker-compose.yaml`.
@@ -18,6 +20,7 @@ All notable changes to this project will be documented in this file.
 - Increased metric sender intervals to combat outbound data rate limits.
   - `NODE_INTERVAL` for node metrics is now `3600` seconds.
   - `LIVE_INTERVAL` for live metrics is now `60` seconds.
+- Moved `snapshot_sync` under the `chain` section of `config.json`.
 
 ### Fixed
 - Orchestrator now works in dev mode (outside of docker), previously `host.docker.internal` was hardcoded.
@@ -27,7 +30,7 @@ All notable changes to this project will be documented in this file.
 
 ### Security
 - Bumped `aiohttp` version to `3.9.4`.
-- Only allow `localhost` to call endpoint `PUT /api/status`.
+- Only `localhost` allowed to make calls to `PUT /api/status`.
 
 ## [0.2.0] - 2024-03-21
 
