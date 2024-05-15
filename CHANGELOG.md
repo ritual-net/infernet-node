@@ -13,7 +13,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 - Limit restarts within time window in `docker-compose.yaml`.
-- Consolidated `/chain/enabled` and `/chain/address` endpoints into `/info`.
+- Consolidated `GET /chain/enabled` and `GET /chain/address` endpoints into `GET /info`.
 - Refactored node entrypoint (`main.py`) into a class.
 - Increased metric sender intervals to combat outbound data rate limits.
   - `NODE_INTERVAL` for node metrics is now `3600` seconds.
@@ -27,6 +27,7 @@ All notable changes to this project will be documented in this file.
 
 ### Security
 - Bumped `aiohttp` version to `3.9.4`.
+- Only allow `localhost` to call endpoint `PUT /api/status`.
 
 ## [0.2.0] - 2024-03-21
 
