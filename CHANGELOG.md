@@ -22,6 +22,7 @@ All notable changes to this project will be documented in this file.
   - `NODE_INTERVAL` for node metrics is now `3600` seconds.
   - `LIVE_INTERVAL` for live metrics is now `60` seconds.
 - Moved `snapshot_sync` under the `chain` section of `config.json`.
+- Snapshot syncing retries now include exponential backoff when syncing chain state.
 
 ### Fixed
 - Orchestrator now works in dev mode (outside of docker), previously `host.docker.internal` was hardcoded.
