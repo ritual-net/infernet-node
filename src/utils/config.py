@@ -54,6 +54,7 @@ class ConfigContainer(TypedDict):
     allowed_delegate_addresses: list[str]
     external: bool
     gpu: Optional[bool]
+    volumes: Optional[list[str]]
 
 
 class ConfigRedis(TypedDict):
