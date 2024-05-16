@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from enum import Enum
+from dataclasses import asdict
 from json import JSONDecodeError
 from os import environ
 from typing import Any, AsyncGenerator, Optional
@@ -8,25 +8,12 @@ from typing import Any, AsyncGenerator, Optional
 from aiohttp import ClientSession
 
 from shared import ContainerError, ContainerOutput, ContainerResult
+from shared.job import ContainerInput, JobInput, JobLocation
 from shared.message import OffchainJobMessage
 from utils import log
 
 from .docker import ContainerManager
 from .store import DataStore
-
-
-class OrchestratorInputSource(Enum):
-    """Orchestrator input source"""
-
-    ONCHAIN = 0
-    OFFCHAIN = 1
-
-
-class OrchestratorInputType(Enum):
-    """Orchestrator input type"""
-
-    NON_STREAMING = 0
-    STREAMING = 1
 
 
 class Orchestrator:
@@ -71,7 +58,7 @@ class Orchestrator:
     async def _run_job(
         self: Orchestrator,
         job_id: Any,
-        initial_input: dict[Any, Any],
+        job_input: JobInput,
         containers: list[str],
         message: Optional[OffchainJobMessage],
     ) -> list[ContainerResult]:
@@ -84,7 +71,7 @@ class Orchestrator:
 
         Args:
             job_id (Any): job identifier
-            initial_input (dict[Any, Any]): initial input to first container
+            job_input (JobInput): initial input to first container
             containers (list[str]): ordered list of containers to execute
             message (Optional[OffchainJobMessage]): optional offchain job message to
                 track state in store
@@ -98,11 +85,23 @@ class Orchestrator:
 
         # Setup input and results
         results: list[ContainerResult] = []
-        input_data = initial_input
+
+        # If only one container, destination of first container is destination of job
+        # Otherwise, destination of first container is off-chain, and source of next
+        # container is off-chain (i.e. chaining containers together)
+        input_data = ContainerInput(
+            source=job_input.source,
+            destination=(
+                job_input.destination
+                if len(containers) == 1
+                else JobLocation.OFFCHAIN.value
+            ),
+            data=job_input.data,
+        )
 
         # Call container chain
         async with ClientSession() as session:
-            for container in containers:
+            for index, container in enumerate(containers):
                 # Track container count
                 self._store.track_container(container)
 
@@ -112,16 +111,24 @@ class Orchestrator:
 
                 try:
                     async with session.post(
-                        url, json=input_data, timeout=180
+                        url, json=asdict(input_data), timeout=180
                     ) as response:
                         # Handle JSON response
                         output = await response.json()
                         results.append(ContainerOutput(container, output))
-                        input_data = {
-                            "source": OrchestratorInputSource.OFFCHAIN.value,
-                            "data": output,
-                            "type": OrchestratorInputType.NON_STREAMING.value,
-                        }
+
+                        # If next container is the last container, set destination to
+                        # job destination. Otherwise, set destination to off-chain
+                        # (i.e. chaining containers together)
+                        input_data = ContainerInput(
+                            source=JobLocation.OFFCHAIN.value,
+                            destination=(
+                                job_input.destination
+                                if index == len(containers) - 2
+                                else JobLocation.OFFCHAIN.value
+                            ),
+                            data=output,
+                        )
 
                 except JSONDecodeError:
                     # Handle non-JSON response as error
@@ -162,14 +169,14 @@ class Orchestrator:
     async def process_chain_processor_job(
         self: Orchestrator,
         job_id: Any,
-        initial_input: dict[Any, Any],
+        job_input: JobInput,
         containers: list[str],
     ) -> list[ContainerResult]:
         """Processes arbitrary job from ChainProcessor
 
         Args:
             job_id (Any): job identifier
-            initial_input (dict[Any, Any]): initial input to first container
+            job_input (JobInput): initial input to first container
             containers (list[str]): ordered list of containers to execute
 
         Returns:
@@ -177,7 +184,7 @@ class Orchestrator:
         """
         return await self._run_job(
             job_id=job_id,
-            initial_input=initial_input,
+            job_input=job_input,
             containers=containers,
             message=None,
         )
@@ -192,11 +199,11 @@ class Orchestrator:
         """
         await self._run_job(
             job_id=message.id,
-            initial_input={
-                "source": OrchestratorInputSource.OFFCHAIN.value,
-                "data": message.data,
-                "type": OrchestratorInputType.NON_STREAMING.value,
-            },
+            job_input=JobInput(
+                source=JobLocation.OFFCHAIN.value,
+                destination=JobLocation.OFFCHAIN.value,
+                data=message.data,
+            ),
             containers=message.containers,
             message=message,
         )
@@ -241,11 +248,11 @@ class Orchestrator:
             try:
                 async with session.post(
                     url,
-                    json={
-                        "source": OrchestratorInputSource.OFFCHAIN.value,
-                        "data": message.data,
-                        "type": OrchestratorInputType.STREAMING.value,
-                    },
+                    json=JobInput(
+                        source=JobLocation.OFFCHAIN.value,
+                        destination=JobLocation.STREAM.value,
+                        data=message.data,
+                    ),
                     timeout=180,
                 ) as response:
                     # Raises exception if status code is not 200
