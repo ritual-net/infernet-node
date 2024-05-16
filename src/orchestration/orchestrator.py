@@ -6,7 +6,6 @@ from os import environ
 from typing import Any, AsyncGenerator, Optional
 
 from aiohttp import ClientSession
-
 from shared import ContainerError, ContainerOutput, ContainerResult
 from shared.job import ContainerInput, JobInput, JobLocation
 from shared.message import OffchainJobMessage
@@ -50,9 +49,7 @@ class Orchestrator:
 
         # Set host based on runtime environment
         self._host = (
-            "host.docker.internal"
-            if environ.get("RUNTIME") == "docker"
-            else "localhost"
+            "host.docker.internal" if environ.get("RUNTIME") == "docker" else "localhost"
         )
 
     async def _run_job(
@@ -246,13 +243,14 @@ class Orchestrator:
 
         async with ClientSession() as session:
             try:
+                job_input = JobInput(
+                    source=JobLocation.OFFCHAIN.value,
+                    destination=JobLocation.STREAM.value,
+                    data=message.data,
+                )
                 async with session.post(
                     url,
-                    json=JobInput(
-                        source=JobLocation.OFFCHAIN.value,
-                        destination=JobLocation.STREAM.value,
-                        data=message.data,
-                    ),
+                    json=asdict(job_input),
                     timeout=180,
                 ) as response:
                     # Raises exception if status code is not 200
