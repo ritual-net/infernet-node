@@ -6,6 +6,7 @@ from os import environ
 from typing import Any, AsyncGenerator, Optional
 
 from aiohttp import ClientSession
+
 from shared import ContainerError, ContainerOutput, ContainerResult
 from shared.job import ContainerInput, JobInput, JobLocation
 from shared.message import OffchainJobMessage
@@ -49,7 +50,9 @@ class Orchestrator:
 
         # Set host based on runtime environment
         self._host = (
-            "host.docker.internal" if environ.get("RUNTIME") == "docker" else "localhost"
+            "host.docker.internal"
+            if environ.get("RUNTIME") == "docker"
+            else "localhost"
         )
 
     async def _run_job(
