@@ -1,0 +1,62 @@
+version: '3'
+
+services:
+  node:
+    image: ritualnetwork/infernet-node:latest-gpu
+    ports:
+      - "0.0.0.0:4000:4000"
+    volumes:
+      - ./config.json:/app/config.json
+      - node-logs:/logs
+      - /var/run/docker.sock:/var/run/docker.sock
+    tty: true
+    networks:
+      - network
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]
+    depends_on:
+      - redis
+    restart:
+      on-failure
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    stop_grace_period: 1m
+
+  redis:
+    image: redis:latest
+    expose:
+      - "6379"
+    networks:
+      - network
+    volumes:
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+      - redis-data:/data
+    restart:
+      on-failure
+
+  fluentbit:
+    image: fluent/fluent-bit:latest
+    expose:
+      - "24224"
+    environment:
+      - FLUENTBIT_CONFIG_PATH=/fluent-bit/etc/fluent-bit.conf
+    volumes:
+      - ./fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf
+      - /var/log:/var/log:ro
+    networks:
+      - network
+    restart:
+      on-failure
+
+networks:
+  network:
+
+
+volumes:
+  node-logs:
+  redis-data:

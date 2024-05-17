@@ -1,11 +1,7 @@
 # syntax=docker/dockerfile:1
 
-# Comments are provided throughout this file to help you get started.
-# If you need more help, visit the Dockerfile reference guide at
-# https://docs.docker.com/engine/reference/builder/
-
-ARG PYTHON_VERSION=3.11
-FROM python:${PYTHON_VERSION}-slim as base
+# Base image with NVIDIA CUDA
+FROM nvidia/cuda:12.4.1-base-ubuntu20.04 as base
 
 # Prevents Python from writing pyc files.
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -17,8 +13,21 @@ ENV RUNTIME docker
 
 WORKDIR /app
 
-RUN apt-get update
-RUN apt-get install -y curl
+# Install software-properties-common to add PPAs
+RUN apt-get update && apt-get install -y software-properties-common && \
+    add-apt-repository ppa:deadsnakes/ppa
+
+# Install Python, pip and other necessary packages
+RUN apt-get install -y \
+    python3.11 \
+    python3-pip \
+    curl \
+    && ln -s /usr/bin/python3.11 /usr/bin/python \
+    && rm -rf /var/lib/apt/lists/*
+
+# Make Python 3.11 the default Python version
+RUN ln -sf /usr/bin/python3.11 /usr/bin/python3 && \
+    ln -sf /usr/bin/python3.11 /usr/bin/python
 
 # Install UV
 ADD --chmod=755 https://astral.sh/uv/install.sh /install.sh
