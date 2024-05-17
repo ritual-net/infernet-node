@@ -90,7 +90,7 @@ docker compose up -d
 
 ### Locally via Docker (GPU-enabled)
 
-The GPU-enabled version of the image comes pre-installed with the [NVIDIA CUDA Toolkit](https://developer.nvidia.com/cuda-toolkit?ref=blog.kobus.me). Using this image on your GPU-enabled machine enabled the node to interact with the attached accelerators for diagnostic and purposes, such as heartbeat checks and utilization reports.
+The GPU-enabled version of the image comes pre-installed with the [NVIDIA CUDA Toolkit](https://developer.nvidia.com/cuda-toolkit?ref=blog.kobus.me). Using this image on your GPU-enabled machine enables the node to interact with the attached accelerators for diagnostic and purposes, such as heartbeat checks and utilization reports.
 
 ```bash
 # Set tag

@@ -17,18 +17,6 @@ ENV RUNTIME docker
 
 WORKDIR /app
 
-# Create a non-privileged user that the frenrug will run under.
-# See https://docs.docker.com/develop/develop-images/dockerfile_best-practices/#user
-ARG UID=10001
-RUN adduser \
-    --disabled-password \
-    --gecos "" \
-    --home "/nonexistent" \
-    --shell "/sbin/nologin" \
-    --no-create-home \
-    --uid "${UID}" \
-    appuser
-
 RUN apt-get update
 RUN apt-get install -y curl
 
