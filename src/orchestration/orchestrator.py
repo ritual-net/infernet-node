@@ -246,13 +246,14 @@ class Orchestrator:
 
         async with ClientSession() as session:
             try:
+                job_input = JobInput(
+                    source=JobLocation.OFFCHAIN.value,
+                    destination=JobLocation.STREAM.value,
+                    data=message.data,
+                )
                 async with session.post(
                     url,
-                    json=JobInput(
-                        source=JobLocation.OFFCHAIN.value,
-                        destination=JobLocation.STREAM.value,
-                        data=message.data,
-                    ),
+                    json=asdict(job_input),
                     timeout=180,
                 ) as response:
                     # Raises exception if status code is not 200
