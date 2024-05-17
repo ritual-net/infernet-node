@@ -12,6 +12,8 @@ All notable changes to this project will be documented in this file.
 - OpenAPI spec for the REST server.
 - Support for streaming offchain job responses, via the `POST /api/jobs/stream` endpoint.
 - Support for CIDR ranges in container-level firewalls (`"allowed_ips"`).
+- New `destination` field to container inputs, to decouple job input source from output destination.
+- Support for streaming offchain job responses, via the `/api/jobs/stream` endpoint.
 
 ### Changed
 - Limit restarts within time window in `docker-compose.yaml`.
