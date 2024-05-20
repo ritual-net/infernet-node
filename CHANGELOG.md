@@ -9,10 +9,11 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - Forward fatal errors via metric sender at shutdown for better error diagnosing (only if forwarding stats is enabled.)
+- New `destination` field to container inputs, to decouple job input source from output destination.
 - OpenAPI spec for the REST server.
 - Support for streaming offchain job responses, via the `POST /api/jobs/stream` endpoint.
 - Support for CIDR ranges in container-level firewalls (`"allowed_ips"`).
-- New `destination` field to container inputs, to decouple job input source from output destination.
+- Support for volume mounts to managed containers.
 - Support for streaming offchain job responses, via the `/api/jobs/stream` endpoint.
 - Added files `Dockerfile-gpu` and `docker-compose-gpu.yaml` for building and deploying GPU-enabled node with access to all local GPUs.
 
@@ -24,6 +25,7 @@ All notable changes to this project will be documented in this file.
   - `NODE_INTERVAL` for node metrics is now `3600` seconds.
   - `LIVE_INTERVAL` for live metrics is now `60` seconds.
 - Moved `snapshot_sync` under the `chain` section of `config.json`.
+- Snapshot syncing retries now include exponential backoff when syncing chain state.
 
 ### Fixed
 - Orchestrator now works in dev mode (outside of docker), previously `host.docker.internal` was hardcoded.

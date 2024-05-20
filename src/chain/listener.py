@@ -15,6 +15,7 @@ from typing import Optional, cast
 
 from eth_abi.abi import decode
 from eth_typing import BlockNumber
+from reretry import retry  # type: ignore
 from web3.types import LogReceipt
 
 from chain.coordinator import Coordinator, CoordinatorEvent
@@ -180,25 +181,32 @@ class ChainListener(AsyncTask):
         # self._snapshot_sync_batch_size, to throttle, sleeps self._snapshot_sync_sleep
         # seconds between each batch
 
-        if head_id == 1:
-            # if there are no subscriptions, don't sync anything
-            batches = []
-        elif head_id <= self._snapshot_sync_batch_size:
-            # if there are less subscriptions than the batch size, sync all in one batch
-            batches = [range(1, head_id + 1)]
-        else:
-            batches = [
-                range(i, i + self._snapshot_sync_batch_size)
-                for i in range(1, head_id + 1, self._snapshot_sync_batch_size)
-            ]
+        @retry(delay=self._snapshot_sync_sleep, backoff=2)  # type: ignore
+        async def _sync_subscription_with_retry(batch: range) -> None:
+            """Sync subscriptions in batch with retry and exponential backoff"""
+            try:
+                await asyncio.gather(
+                    *(
+                        self._sync_subscription_creation(id, head_block, None)
+                        for id in batch
+                    )
+                )
+            except Exception as e:
+                log.error(
+                    f"Error syncing subscription batch {batch}. Retrying...",
+                    batch=batch,
+                    err=e,
+                )
+                raise e
+
+        batches = [
+            range(i, i + self._snapshot_sync_batch_size)
+            for i in range(1, head_id + 1, self._snapshot_sync_batch_size)
+        ]
         for batch in batches:
             # sync for this batch
-            await asyncio.gather(
-                *(
-                    self._sync_subscription_creation(id, head_block, None)
-                    for id in batch
-                )
-            )
+            await _sync_subscription_with_retry(batch)
+
             # sleep between batches to avoid getting rate-limited by the RPC
             await asyncio.sleep(self._snapshot_sync_sleep)
 

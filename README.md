@@ -56,6 +56,7 @@ vim config.json
     - **allowed_delegate_addresses** (`array[string]`). Container-level firewall. Only specified addresses allowed to request execution of this container, with request originating from on-chain contract but via off-chain delegate subscription (with this address corresponding to the delegate subscription `owner`).
       - _Leave empty for no restrictions_.
     - **gpu** (`boolean`). Whether this should be a GPU-enabled container. Host must also be GPU-enabled.
+    - **volumes** (`array[string]`). The volume mounts for this container.
 
 ### Sane default configuration parameters
 
