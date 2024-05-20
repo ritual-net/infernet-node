@@ -4,8 +4,11 @@ import time
 from dataclasses import dataclass
 from functools import cache
 
+import structlog
 from eth_account.messages import SignableMessage, encode_structured_data
 from eth_typing import ChecksumAddress
+
+log = structlog.get_logger()
 
 
 class Subscription:
@@ -96,7 +99,17 @@ class Subscription:
         Returns:
             bool: True if subscription is active, else False
         """
-        return int(time.time()) > self._active_at
+        return time.time() > self._active_at
+
+    @property
+    def past_last_interval(self: Subscription) -> int:
+        """Returns whether a subscription is past its last interval
+
+        Returns:
+            bool: True if subscription is past last interval, else False
+        """
+
+        return self.interval > self._frequency
 
     @property
     def interval(self: Subscription) -> int:
@@ -133,7 +146,7 @@ class Subscription:
         if not self.active:
             return False
 
-        return self.interval == self._frequency
+        return self.interval >= self._frequency
 
     @property
     def completed(self: Subscription) -> bool:
@@ -176,6 +189,33 @@ class Subscription:
         # Else, return expected interval
         diff = timestamp - self._active_at
         return diff // self._period
+
+    def increment_response_count(self: Subscription, interval: int) -> None:
+        """Increments response count for a subscription interval
+
+        Args:
+            interval (int): subscription interval to increment
+
+        Raises:
+            RuntimeError: Thrown if incrementing response count for inactive subscription
+            RuntimeError: Thrown if incrementing response count for a future interval
+        """
+
+        # Throw if incrementing response count for inactive subscription
+        if not self.active:
+            raise RuntimeError(
+                "Cannot increment response count for inactive subscription"
+            )
+
+        # Throw if incrementing response count for a future interval
+        if interval > self.interval:
+            raise RuntimeError("Cannot increment response count for future interval")
+
+        # Increment response count
+        if interval not in self._responses:
+            self._responses[interval] = 1
+        else:
+            self._responses[interval] += 1
 
     def get_response_count(self: Subscription, interval: int) -> int:
         """Returns response count by subscription interval

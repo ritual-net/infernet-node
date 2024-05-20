@@ -47,6 +47,7 @@ Examples:
 
 from __future__ import annotations
 
+import asyncio
 from functools import cache
 from typing import Any, Sequence, cast
 
@@ -209,6 +210,25 @@ class RPC:
             BlockNumber: head block number
         """
         return await self._web3.eth.get_block_number()
+
+    async def get_tx_success_with_retries(
+        self: RPC, tx_hash: HexStr, retries: int = 10, sleep: float = 0.1
+    ) -> tuple[bool, bool]:
+        """Collects tx success status by tx_hash with retries
+
+        Args:
+            tx_hash (HexStr): transaction hash to check
+            retries (int): number of retries
+
+        Returns:
+            tuple[bool, bool]: (transaction found, transaction success status)
+        """
+        for i in range(retries):
+            tx_found, tx_success = await self.get_tx_success(tx_hash)
+            if tx_found:
+                return (tx_found, tx_success)
+            await asyncio.sleep(sleep)
+        return (False, False)
 
     async def get_tx_success(self: RPC, tx_hash: HexStr) -> tuple[bool, bool]:
         """Collects tx success status by tx_hash

@@ -15,4 +15,4 @@ ruff==0.1.8
 structlog==23.2.0
 types-redis==4.6.0.11
 validators==0.22.0
-web3==6.11.0
+web3==6.18.0

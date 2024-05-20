@@ -59,7 +59,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from functools import cache
-from typing import Any, Iterable, cast
+from typing import Any, Iterable, Optional, cast
 
 from eth_abi import encode  # type: ignore
 from eth_account import Account
@@ -406,7 +406,7 @@ class Coordinator:
         """
         return cast(
             int,
-            await self._contract.functions.id().call(block_identifier=block_number),
+            await self._contract.functions.id().call(block_identifier=block_number) - 1,
         )
 
     async def get_subscription_by_id(
@@ -529,7 +529,7 @@ class Coordinator:
         self: Coordinator,
         subscription_id: int,
         interval: int,
-        block_number: BlockNumber,
+        block_number: Optional[BlockNumber] = None,
     ) -> int:
         """Collects count(subscription responses) by ID for interval at block number
 
@@ -541,6 +541,8 @@ class Coordinator:
         Returns:
             int: number of fulfilled responses in interval (redundancy)
         """
+        if block_number is None:
+            block_number = await self._rpc.get_head_block_number()
 
         # Encode `redundancyCount` mapping key
         key = encode(["uint32", "uint32"], [subscription_id, interval])
@@ -565,6 +567,13 @@ class Coordinator:
         Returns:
             list[LogReceipt]: collected logs
         """
+        log.info(
+            "Setting filter params",
+            address=self._checksum_address,
+            fromBlock=start_block,
+            toBlock=end_block,
+            topics=[list(cast(TopicType, self.get_event_hashes().values()))],
+        )
 
         # Setup filter parameters
         params = FilterParams(

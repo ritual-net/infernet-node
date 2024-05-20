@@ -520,6 +520,9 @@ class RESTServer(AsyncTask):
         """Stops the RESTServer."""
         log.info("Stopping REST webserver")
 
+        log.info("skipiping shutdown")
+        return
+
         # Set shutdown event to stop server
         self._shutdown_event.set()
 

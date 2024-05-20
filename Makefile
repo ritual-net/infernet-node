@@ -45,11 +45,22 @@ register-node:
 activate-node:
 	@PYTHONPATH=$$PYTHONPATH:src python3.11 scripts/activate_node.py
 
-tag ?= streaming
+tag ?= no-filter
 image_id = ritualnetwork/infernet-node-internal:$(tag)
 
 build:
 	docker build -t $(image_id) .
+
+run-node:
+	docker-compose -f deploy/docker-compose.yaml up
+
+service := echo
+
+stop-node:
+	docker-compose -f deploy/docker-compose.yaml kill || true
+	docker-compose -f deploy/docker-compose.yaml rm -f || true
+	docker kill $(service) || true
+	docker rm $(service) || true
 
 # You may need to set up a docker builder, to do so run:
 # docker buildx create --name mybuilder --bootstrap --use

@@ -32,6 +32,19 @@ from utils import log
 
 SNAPSHOT_SYNC_BATCH_SIZE = 200
 SNAPSHOT_SYNC_BATCH_SLEEP_S = 1.0
+SUBSCRIPTION_SYNC_BATCH_SIZE = 20
+
+
+def get_batches(start: int, end: int, batch_size: int) -> list[tuple[int, int]]:
+    if start == end:
+        return [(start, start + 1)]
+    if end - start + 1 <= batch_size:
+        return [(start, end + 1)]
+    else:
+        return [
+            (i, min(i + batch_size - 1, end) + 1)
+            for i in range(start, end + 1, batch_size)
+        ]
 
 
 class ChainListener(AsyncTask):
@@ -109,7 +122,7 @@ class ChainListener(AsyncTask):
         block_number: BlockNumber,
         tx_hash: Optional[str],
     ) -> None:
-        """Syncs net-new subscriptions
+        """Syncs net-new subscriptions created in a block
 
         Consumed by:
             1. Snapshot sync when initially syncing subscriptions
@@ -167,36 +180,32 @@ class ChainListener(AsyncTask):
 
         Process:
             1. Collect highest subscription ID from Coordinator at head block
-            2. From 1..highest subscription ID, _sync_subscription_creation
+            2. From _last_subscription_id + 1 -> head_sub_id, _sync_subscription_creation
         """
 
         # Get highest subscription ID at head block
-        head_id = await self._coordinator.get_head_subscription_id(head_block)
-        log.info("Collected highest subscription id", id=head_id)
+        head_sub_id = await self._coordinator.get_head_subscription_id(head_block)
+        log.info(
+            "Collected highest subscription id", id=head_sub_id, head_block=head_block
+        )
 
         # Subscription indexes are 1-indexed at contract level
         # For subscriptions 1 -> head, sync subscription creation
         # sync is happening in parallel in batches of size
         # self._snapshot_sync_batch_size, to throttle, sleeps self._snapshot_sync_sleep
         # seconds between each batch
+        start = self._last_subscription_id + 1
 
-        if head_id == 1:
-            # if there are no subscriptions, don't sync anything
-            batches = []
-        elif head_id <= self._snapshot_sync_batch_size:
-            # if there are less subscriptions than the batch size, sync all in one batch
-            batches = [range(1, head_id + 1)]
-        else:
-            batches = [
-                range(i, i + self._snapshot_sync_batch_size)
-                for i in range(1, head_id + 1, self._snapshot_sync_batch_size)
-            ]
+        batches = get_batches(start, head_sub_id, self._snapshot_sync_batch_size)
+
+        log.info("Syncing subscriptions in batches", batches=batches)
+
         for batch in batches:
             # sync for this batch
             await asyncio.gather(
                 *(
-                    self._sync_subscription_creation(id, head_block, None)
-                    for id in batch
+                    self._sync_subscription_creation(_id, head_block, None)
+                    for _id in range(*batch)
                 )
             )
             # sleep between batches to avoid getting rate-limited by the RPC
@@ -336,6 +345,10 @@ class ChainListener(AsyncTask):
 
         # Get head block
         head_block = await self._rpc.get_head_block_number() - self._trail_head_blocks
+        # Update last synced block
+        self._last_block = head_block
+        self._last_subscription_id = 0
+
         log.info(
             "Started snapshot sync",
             head=head_block,
@@ -345,8 +358,6 @@ class ChainListener(AsyncTask):
         # Snapshot sync subscriptions
         await self._snapshot_sync(cast(BlockNumber, head_block))
 
-        # Update last synced block
-        self._last_synced = head_block
         log.info("Finished snapshot sync", new_head=head_block)
 
     async def run_forever(self: ChainListener) -> None:
@@ -361,45 +372,68 @@ class ChainListener(AsyncTask):
             3. Else, if chain head block <= latest locally synced block, sleeps for 500ms
         """
 
-        log.info("Started ChainListener lifecycle", last_synced=self._last_synced)
+        log.info("Started ChainListener lifecycle", last_synced=self._last_block)
+
         while not self._shutdown:
             # Collect chain head block
-            head_block = (
-                cast(int, await self._rpc.get_head_block_number())
-                - self._trail_head_blocks
+            head_block = cast(
+                BlockNumber,
+                (
+                    cast(int, await self._rpc.get_head_block_number())
+                    - self._trail_head_blocks
+                ),
             )
 
             # Check if latest locally synced block < chain head block
-            if self._last_synced < head_block:
+            if self._last_block < head_block:
                 # Setup number of blocks to sync
-                num_blocks_to_sync = min(head_block - self._last_synced, 100)
+                num_blocks_to_sync = min(head_block - self._last_block, 100)
                 # Setup target block (last + diff inclusive)
-                target_block = self._last_synced + num_blocks_to_sync
-
-                # Collect all Coordinator emitted event logs in range
-                event_logs = await self._coordinator.get_event_logs(
-                    cast(BlockNumber, self._last_synced + 1),
-                    cast(BlockNumber, target_block),
+                target_block = self._last_block + num_blocks_to_sync
+                head_sub_id = await self._coordinator.get_head_subscription_id(
+                    head_block
+                )
+                num_subs_to_sync = min(
+                    head_sub_id - self._last_subscription_id,
+                    SUBSCRIPTION_SYNC_BATCH_SIZE,
                 )
 
-                # Process collected event logs
-                await self._process_event_logs(event_logs)
+                # Collect all Coordinator emitted event logs in range
+                log.info(
+                    "Checking subscriptions",
+                    last_sub_id=self._last_subscription_id,
+                    head_sub_id=head_sub_id,
+                    num_subs_to_sync=num_subs_to_sync,
+                    head_block=head_block,
+                )
+
+                # event_logs = await self._coordinator.get_event_logs(
+                #     cast(BlockNumber, self._last_synced + 1),
+                #     cast(BlockNumber, target_block),
+                # )
+
+                # # Process collected event logs
+                # await self._process_event_logs(event_logs)
+
+                # sync new subscriptions
+                await self._snapshot_sync(head_block)
 
                 # Update last synced block
-                self._last_synced = target_block
+                self._last_block = target_block
+                self._last_subscription_id = head_sub_id
+
                 log.info(
-                    "Checked new blocks for events",
-                    num_blocks=num_blocks_to_sync,
-                    log_count=len(event_logs),
-                    new_synced=self._last_synced,
-                    behind=self._trail_head_blocks,
+                    "Checked for new subscriptions",
+                    last_synced=self._last_block,
+                    last_sub_id=self._last_subscription_id,
+                    head_sub_id=head_sub_id,
                 )
             else:
                 # Else, if already synced to head, sleep
                 log.debug(
                     "No new blocks, sleeping for 500ms",
                     head=head_block,
-                    synced=self._last_synced,
+                    synced=self._last_block,
                     behind=self._trail_head_blocks,
                 )
                 await sleep(0.5)

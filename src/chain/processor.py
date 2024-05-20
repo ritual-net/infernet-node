@@ -32,6 +32,7 @@ from shared.message import (
 )
 from shared.service import AsyncTask
 from shared.subscription import Subscription
+from utils.constants import ZERO_ADDRESS
 from utils.logging import log
 
 # Blocked tx
@@ -209,7 +210,7 @@ class ChainProcessor(AsyncTask):
             for (id, _), tx_hash in self._pending.items():
                 if tx_hash == msg.tx_hash:
                     # If tx_hash does exist, we know that this is the tx confirmation
-                    # of an tx that we sent out. Because it is a creation event, we
+                    # of a tx that we sent out. Because it is a creation event, we
                     # must have sent a corresponding delegate subscription that
                     # when confirmed on-chain, created a subscription. Now, because we
                     # track the actual subscription, we can remove the delegate.
@@ -228,7 +229,7 @@ class ChainProcessor(AsyncTask):
             msg (SubscriptionCancelledMessage): subscription cancellation message
         """
         if msg.subscription_id in self._subscriptions:
-            del self._subscriptions[msg.subscription_id]
+            self.delete_subscription(msg.subscription_id)
             log.info(
                 "Tracked subscription cancellation",
                 id=msg.subscription_id,
@@ -245,7 +246,7 @@ class ChainProcessor(AsyncTask):
         Process:
             1. Checks if fulfillment message is relevant (is for a tracked subscription)
             2. Calculates subscription interval from timestamp
-            3. Checks if fulillment was our own
+            3. Checks if fulfillment was our own
                 3.1. If so, removes tx from _pending
                 3.2. Updates our own node as having responded
             4. Updates subscription fulfillment in subscription in _subscriptions
@@ -275,7 +276,12 @@ class ChainProcessor(AsyncTask):
                 log.info("Removed completed tx", tx_hash=tx_hash)
             else:
                 # Else, log error if we did not track pending tx
-                log.info(
+                # arshan: even in case of a delegated subscription it doesn't make sense
+                # that the tx would not be in pending. Let's say we create & fulfil a
+                # delegated subscription in the same block, even in the case where the
+                # fulfilment event is parsed before the creation event, the tx hash
+                # should still be in pending.
+                log.error(
                     "Tx not found in pending (potentially delegate)",
                     id=subscription.id,
                     interval=interval,
@@ -296,7 +302,7 @@ class ChainProcessor(AsyncTask):
 
         # If subscription completed, remove from _subscriptions
         if subscription.completed:
-            del self._subscriptions[subscription.id]
+            self.delete_subscription(subscription.id)
             log.info(
                 "Evicted completed subscription",
                 id=subscription.id,
@@ -337,9 +343,11 @@ class ChainProcessor(AsyncTask):
             block_number=head_block,
         )
 
-        # If subscription exists
+        # If delegate subscription already exists on-chain
         if exists:
-            # Check if subscription is tracked locally
+            # Check if subscription is tracked locally, this can happen if the
+            # user made a delegated subscription request again through the rest API,
+            # or if another node had already created the same delegated subscription
             tracked = id in self._subscriptions
             log.info("Delegated subscription exists on-chain", id=id, tracked=tracked)
 
@@ -479,6 +487,30 @@ class ChainProcessor(AsyncTask):
                     retries=attempt_count,
                 )
 
+    def delete_subscription(
+        self: ChainProcessor, subscription_id: SubscriptionID
+    ) -> None:
+        """Deletes subscription by ID
+
+        Args:
+            subscription_id (SubscriptionID): subscription ID
+        """
+        if subscription_id in self._subscriptions:
+            del self._subscriptions[subscription_id]
+            log.info(
+                "Stopped tracking subscription",
+                id=subscription_id,
+                total=len(self._subscriptions.keys()),
+            )
+        for key in list(self._pending.keys()):
+            if key[0] == subscription_id:
+                del self._pending[key]
+                log.debug(
+                    "Deleted pending transactions being checked",
+                    id=subscription_id,
+                    interval=key[1],
+                )
+
     def _has_subscription_tx_pending_in_interval(
         self: ChainProcessor,
         subscription_id: UnionID,
@@ -532,6 +564,7 @@ class ChainProcessor(AsyncTask):
         Returns:
             tuple[bytes, bytes, bytes]: (input, output, proof)
         """
+        log.info("Serializing container output", output=output)
 
         # Check if all 5 keys are present in container output
         output_keys = output.output.keys()
@@ -567,6 +600,55 @@ class ChainProcessor(AsyncTask):
             bytes("", "utf-8"),
         )
 
+    async def check_sub_cancelled(self: ChainProcessor, sub_id: int) -> bool:
+        """
+        Check if the subscription has been cancelled
+
+        Args:
+            sub_id (int): subscription ID
+
+        Returns:
+            bool: True if subscription has been cancelled, else False
+        """
+        sub: Subscription = await self._coordinator.get_subscription_by_id(
+            sub_id, await self._rpc.get_head_block_number()
+        )
+        if sub.containers == [""] and sub.owner == ZERO_ADDRESS:
+            log.info("Subscription cancelled", id=sub_id)
+            self.delete_subscription(sub_id)
+            return True
+        return False
+
+    async def check_already_completed(
+        self: ChainProcessor, subscription: Subscription
+    ) -> bool:
+        _id, interval = subscription.id, subscription.interval
+        response_count = await self._coordinator.get_subscription_response_count(
+            _id, interval
+        )
+        subscription.set_response_count(interval, response_count)
+        if subscription.completed:
+            log.info(
+                "Subscription already completed",
+                id=subscription.id,
+                interval=subscription.interval,
+            )
+            self.delete_subscription(subscription.id)
+            return True
+        return False
+
+    def check_passed_deadline(self: ChainProcessor, subscription: Subscription) -> bool:
+        if subscription.past_last_interval:
+            log.info(
+                "Subscription expired",
+                id=subscription.id,
+                interval=subscription.interval,
+            )
+            # delete the subscription
+            self.delete_subscription(subscription.id)
+            return True
+        return False
+
     async def _process_subscription(
         self: ChainProcessor,
         id: UnionID,
@@ -597,12 +679,18 @@ class ChainProcessor(AsyncTask):
 
         # Setup processing interval
         interval = subscription.interval
+
         log.info(
             "Processing subscription",
             id=id,
             interval=interval,
             delegated=delegated,
         )
+
+        # # check if we missed the subscription deadline
+
+        if self.check_passed_deadline(subscription):
+            return
 
         # Block pending execution
         self._pending[(id, interval)] = BLOCKED
@@ -716,6 +804,9 @@ class ChainProcessor(AsyncTask):
             tx_hash=tx_hash.hex(),
         )
 
+        # kick off tracking completion
+        create_task(self.check_transaction_completion(subscription.id))
+
     async def track(self: ChainProcessor, msg: OnchainMessage) -> None:
         """Tracks incoming message by type
 
@@ -739,6 +830,34 @@ class ChainProcessor(AsyncTask):
     async def setup(self: ChainProcessor) -> None:
         """No async setup necessary"""
         pass
+
+    async def check_transaction_completion(self: ChainProcessor, subId: int) -> None:
+        subscription = self._subscriptions[subId]
+        interval = subscription.interval
+        tx_hash = self._pending.get((subId, interval))
+        log.info("checking transaction completion", id=subId, tx_hash=tx_hash)
+
+        found, success = await self._rpc.get_tx_success_with_retries(
+            cast(HexStr, tx_hash)
+        )
+
+        if found and not success:
+            log.info(
+                "Subscription tx found on-chain but it was not successful",
+                id=subId,
+                interval=subscription.interval,
+                tx_hash=tx_hash,
+            )
+
+        if found and success:
+            log.info(
+                "Subscription tx found on-chain AND it was successful",
+                id=subId,
+                interval=subscription.interval,
+                tx_hash=tx_hash,
+            )
+            subscription.set_node_replied(interval)
+            subscription.increment_response_count(interval)
 
     async def run_forever(self: ChainProcessor) -> None:
         """Core ChainProcessor event loop
@@ -764,6 +883,19 @@ class ChainProcessor(AsyncTask):
             for subId, subscription in subscriptions_copy.items():
                 # Skips if subscription is not active
                 if not subscription.active:
+                    log.debug(
+                        "Ignored inactive subscription",
+                        id=subId,
+                        diff=subscription._active_at - time.time(),
+                    )
+                    continue
+                if await self.check_sub_cancelled(subId):
+                    continue
+
+                if await self.check_already_completed(subscription):
+                    continue
+
+                if self.check_passed_deadline(subscription):
                     continue
 
                 # Check if subscription needs processing
@@ -781,7 +913,10 @@ class ChainProcessor(AsyncTask):
                             )
                         )
 
-            for delegateSubId, params in self._delegate_subscriptions.items():
+            # Make deep copy to avoid mutation during iteration
+            delegate_subscriptions_copy = deepcopy(self._delegate_subscriptions)
+
+            for delegateSubId, params in delegate_subscriptions_copy.items():
                 # Skips if subscription is not active
                 if not params[0].active:
                     continue
@@ -802,8 +937,8 @@ class ChainProcessor(AsyncTask):
                         )
                     )
 
-            # Sleep loop for 500ms
-            await sleep(0.5)
+            # Sleep loop for 100ms
+            await sleep(0.1)
 
     async def cleanup(self: ChainProcessor) -> None:
         """Stateless task, no cleanup necessary"""

@@ -5,6 +5,7 @@ On-chain transaction handling.
 
 from __future__ import annotations
 
+import time
 from typing import Optional, cast
 
 from eth_account import Account
@@ -215,15 +216,41 @@ class Wallet:
             )
         )
 
+        start = time.time()
         try:
-            # simulate transaction first
+            # while i < 3:
+            #     # simulate transaction first
+            #     try:
+            #         await fn.call({"from": self._account.address})
+            #     except ContractCustomError as e:
+            #         log.warn(
+            #             "Failed to simulate transaction, retrying after 0.5s", error=e
+            #         )
+            #         await sleep(0.5)
+            #         i += 1
             await fn.call({"from": self._account.address})
         except ContractCustomError as e:
-            if is_infernet_error(e, subscription):
-                # returning early since we know the error, no need to retry
-                return None
-            log.error("Failed to simulate transaction", error=e)
-            return None
+            duration = time.time() - start
+            log.warn(
+                "Failed to simulate transaction",
+                error=e,
+                duration=duration,
+                subscription=subscription,
+            )
+            is_infernet_error(e, subscription)
+            # log.info(
+            #     "repeatedly failed to simulate transaction",
+            #     error=e,
+            #     duration=duration,
+            #     subscription=subscription,
+            # )
+            # if is_infernet_error(e, subscription):
+            #     # returning early since we know the error, no need to retry
+            #     return None
+            # log.error("Failed to simulate transaction", error=e)
+            # return None
+
+        await self._collect_nonce()
 
         coordinator_params = CoordinatorTxParams(
             nonce=self._nonce,
@@ -253,7 +280,7 @@ class Wallet:
         output: bytes,
         proof: bytes,
     ) -> Optional[bytes]:
-        """Sends Coordinator.deliverComputeDelegatee() tx, retrying failed txs thrice
+        """Senjkk Coordinator.deliverComputeDelegatee() tx, retrying failed txs thrice
 
         Args:
             subscription (Subscription): Subscription to respond to
