@@ -146,6 +146,7 @@ class StatSender(AsyncTask):
     Attributes:
         _uid (str): A unique machine ID
         _version (str): The version of the node
+        _port (int): The port of the local REST server
         _guardian (Guardian): The guardian instance
         _store (DataStore): The data store instance
         _wallet (Optional[Wallet]): Optional wallet instance, if chain enabled
@@ -155,6 +156,7 @@ class StatSender(AsyncTask):
     def __init__(
         self: StatSender,
         version: str,
+        port: int,
         guardian: Guardian,
         store: DataStore,
         wallet: Optional[Wallet],
@@ -163,12 +165,14 @@ class StatSender(AsyncTask):
 
         Args:
             version (str): The version of the node
+            port (int): The port of the local REST server
             guardian (Guardian): The guardian instance
             store (DataStore): The data store instance
             wallet (Optional[Wallet]): Optional wallet instance, if chain enabled
         """
         super().__init__()
         self._version = version
+        self._port = port
         self._guardian = guardian
         self._store = store
         self._wallet = wallet
@@ -182,14 +186,19 @@ class StatSender(AsyncTask):
     async def _get_node_stats(self: StatSender) -> dict[str, Any]:
         """Collect boot stats"""
 
-        counters = self._store.pop_total_counters()
+        job_counters = self._store.counters.pop_job_counters()
+        container_counters = self._store.counters.pop_container_counters()
 
         return {
             "uid": self._uid,
             "address": None if self._wallet is None else self._wallet.address,
             "containers": self._guardian.restrictions,
-            "jobs_completed": {key: dict(counters[key]) for key in counters},
+            "counters": {
+                "jobs": job_counters,
+                "containers": container_counters,
+            },
             "ip": await StatCollector.get_ip(),
+            "port": self._port,
             "resources": await StatCollector.get_resources(),
             "uptime": await StatCollector.get_uptime(),
             "version": self._version,

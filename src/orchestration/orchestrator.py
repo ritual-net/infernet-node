@@ -102,9 +102,6 @@ class Orchestrator:
         # Call container chain
         async with ClientSession() as session:
             for index, container in enumerate(containers):
-                # Track container count
-                self._store.track_container(container)
-
                 # Get container port and URL
                 port = self._manager.get_port(container)
                 url = f"http://{self._host}:{port}/service_output"
@@ -116,6 +113,12 @@ class Orchestrator:
                         # Handle JSON response
                         output = await response.json()
                         results.append(ContainerOutput(container, output))
+
+                        # Track container success
+                        self._store.track_container_status(
+                            container,
+                            "success",
+                        )
 
                         # If next container is the last container, set destination to
                         # job destination. Otherwise, set destination to off-chain
@@ -145,6 +148,13 @@ class Orchestrator:
 
                     # Track job failure
                     self._store.set_failed(message, results)
+
+                    # Track container failure
+                    self._store.track_container_status(
+                        container,
+                        "failed",
+                    )
+
                     return results
 
                 except Exception as e:
@@ -159,6 +169,13 @@ class Orchestrator:
 
                     # Track job failure
                     self._store.set_failed(message, results)
+
+                    # Track container failure
+                    self._store.track_container_status(
+                        container,
+                        "failed",
+                    )
+
                     return results
 
         # Track job success
@@ -239,7 +256,6 @@ class Orchestrator:
 
         # Start job and track container
         self._store.set_running(message)
-        self._store.track_container(container)
 
         # Hold chunks in memory to store final results in Redis
         chunks = []
@@ -270,9 +286,21 @@ class Orchestrator:
                     [ContainerOutput(container, dict({"output": final_result}))],
                 )
 
+                # Track container success
+                self._store.track_container_status(
+                    container,
+                    "success",
+                )
+
             except Exception as e:
                 # Track job failure
                 log.error(
                     "Container error", id=message.id, container=container, error=str(e)
                 )
                 self._store.set_failed(message, [ContainerError(container, str(e))])
+
+                # Track container failure
+                self._store.track_container_status(
+                    container,
+                    "failed",
+                )

@@ -122,7 +122,9 @@ class NodeLifecycle:
 
         # Forward stats to Fluentbit, if enabled
         if config["forward_stats"]:
-            self._stat_sender = StatSender(__version__, guardian, store, wallet)
+            self._stat_sender = StatSender(
+                __version__, config["server"]["port"], guardian, store, wallet
+            )
             self._tasks.append(self._stat_sender)
 
     async def _lifecycle_setup(self: NodeLifecycle) -> None:
