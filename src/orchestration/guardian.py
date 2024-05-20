@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import asdict, dataclass
+from ipaddress import IPv4Network, IPv6Network, ip_address, ip_network
 from typing import Any, Union, cast
 
 from shared.message import (
@@ -23,7 +24,7 @@ from utils.logging import log
 class ContainerRestrictions:
     """Container restrictions"""
 
-    allowed_ips: list[str]
+    allowed_ips: list[Union[IPv4Network, IPv6Network]]
     allowed_addresses: list[str]
     allowed_delegate_addresses: list[str]
     external: bool
@@ -75,7 +76,9 @@ class Guardian:
         # Initialize container restrictions
         self._restrictions: dict[str, ContainerRestrictions] = {
             container["id"]: ContainerRestrictions(
-                allowed_ips=container["allowed_ips"],
+                allowed_ips=[
+                    ip_network(ip, strict=False) for ip in container["allowed_ips"]
+                ],
                 allowed_addresses=list(map(str.lower, container["allowed_addresses"])),
                 allowed_delegate_addresses=list(
                     map(str.lower, container["allowed_delegate_addresses"])
@@ -120,7 +123,11 @@ class Guardian:
         # If no specified IPs, allow all
         if len(self._restrictions[container].allowed_ips) == 0:
             return True
-        return address in self._restrictions[container].allowed_ips
+
+        return any(
+            ip_address(address) in network
+            for network in self._restrictions[container].allowed_ips
+        )
 
     def _is_allowed_address(
         self: Guardian, container: str, address: str, onchain: bool

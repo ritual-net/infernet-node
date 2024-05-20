@@ -440,9 +440,13 @@ class RESTServer(AsyncTask):
                 return jsonify(data), 200
 
         @self._app.route("/api/status", methods=["PUT"])
-        @rate_limit(60, timedelta(seconds=60))
         async def store_job_status() -> Tuple[Response, int]:
             """Stores job status in data store"""
+
+            # Only allow localhost to store job status
+            if request.remote_addr not in ["127.0.0.1", "::1"]:
+                return jsonify({"error": "Unauthorized"}), 403
+
             try:
                 # Collect JSON body
                 data = await request.get_json(force=True)

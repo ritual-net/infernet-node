@@ -34,12 +34,12 @@ vim config.json
   - **wallet** (`object`). _if enabled_:
     - **max_gas_limit** (`integer`). Maximum gas limit per node transaction
     - **private_key** (`string`). Node wallet private key
+  - **snapshot_sync** (`object`, Optional). Snapshot sync configurations.
+    - **sleep** (`float`, Optional).  Number of seconds to sleep between snapshot syncs. Defaults to `1.0`.
+    - **batch_size** (`int`, Optional). Number of subscriptions to sync in each batch. Defaults to `200`.
 - **docker** (`object`, optional). Docker credentials to pull private containers with
   - **username** (`string`). The Dockerhub username.
   - **password** (`string`). The Dockerhub [Personal Access Token](https://docs.docker.com/security/for-developers/access-tokens/) (PAT).
-- **snapshot_sync** (`object`, Optional). Snapshot sync configurations.
-  - **sleep** (`float`, Optional).  Number of seconds to sleep between snapshot syncs. Defaults to `1.0`.
-  - **batch_size** (`int`, Optional). Number of subscriptions to sync in each batch. Defaults to `200`.
 - **containers** (`array[container_spec]`). Array of supported container specifications.
   - **container_spec** (`object`). Specification of supported container.
     - **id** (`string`). **Must be unique**. ID of supported service.
@@ -49,7 +49,7 @@ vim config.json
     - **port** (`integer`). Local port to expose this container on.
     - **external** (`boolean`). Whether this container can be the first container in a [JobRequest](https://docs.ritual.net/infernet/node/api#jobrequest).
     - **description** (`string`, optional). Description of service provided by this container.
-    - **allowed_ips** (`array[string]`). Container-level firewall. Only specified IPs allowed to request execution of this container.
+    - **allowed_ips** (`array[string]`). Container-level firewall. Only specified IPs and/or [CIDR blocks](https://www.ipaddressguide.com/cidr) allowed to request execution of this container.
       - _Leave empty for no restrictions_.
     - **allowed_addresses** (`array[string]`). Container-level firewall. Only specified addresses allowed to request execution of this container, with request originating from on-chain contract.
       - _Leave empty for no restrictions_.

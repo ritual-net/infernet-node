@@ -9,17 +9,21 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - Forward fatal errors via metric sender at shutdown for better error diagnosing (only if forwarding stats is enabled.)
+- OpenAPI spec for the REST server.
+- Support for streaming offchain job responses, via the `POST /api/jobs/stream` endpoint.
+- Support for CIDR ranges in container-level firewalls (`"allowed_ips"`).
 - New `destination` field to container inputs, to decouple job input source from output destination.
 - Support for streaming offchain job responses, via the `/api/jobs/stream` endpoint.
 - Added files `Dockerfile-gpu` and `docker-compose-gpu.yaml` for building and deploying GPU-enabled node with access to all local GPUs.
 
 ### Changed
 - Limit restarts within time window in `docker-compose.yaml`.
-- Consolidated `/chain/enabled` and `/chain/address` endpoints into `/info`.
+- Consolidated `GET /chain/enabled` and `GET /chain/address` endpoints into `GET /info`.
 - Refactored node entrypoint (`main.py`) into a class.
 - Increased metric sender intervals to combat outbound data rate limits.
   - `NODE_INTERVAL` for node metrics is now `3600` seconds.
   - `LIVE_INTERVAL` for live metrics is now `60` seconds.
+- Moved `snapshot_sync` under the `chain` section of `config.json`.
 
 ### Fixed
 - Orchestrator now works in dev mode (outside of docker), previously `host.docker.internal` was hardcoded.
@@ -27,6 +31,9 @@ All notable changes to this project will be documented in this file.
 - Don't return job IDs for Delegated Subscriptions (misleading, since results can only be fetched on-chain).
 - Added pending job TTL (loose upper bound) to prevent jobs from being in a pending state indefinitely (due crashes and / or incorrect use of the /status endpoint)
 
+### Security
+- Bumped `aiohttp` version to `3.9.4`.
+- Only `localhost` allowed to make calls to `PUT /api/status`.
 
 ## [0.2.0] - 2024-03-21
 

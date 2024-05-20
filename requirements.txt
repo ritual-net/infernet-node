@@ -1,4 +1,4 @@
-aiohttp==3.9.2
+aiohttp==3.9.4
 async-lru==2.0.4
 dacite==1.8.1
 docker==6.1.3

@@ -1,0 +1,455 @@
+openapi: 3.0.0
+info:
+  title: Infernet Node Client
+  version: 0.0.3
+  contact:
+    name: Stelios Rousoglou
+    email: stelios@ritual.net
+  license:
+    name: BSD-3-Clause
+    url: https://opensource.org/licenses/BSD-3-Clause
+servers:
+  - url: '{baseUrl}'
+    variables:
+      baseUrl:
+        default: http://localhost:4000
+        description: Base server URL
+paths:
+  /health:
+    get:
+      summary: Server health check
+      description: Checks if the server is healthy.
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthInfo'
+  /info:
+    get:
+      summary: Server information
+      description: Returns information about the server.
+      responses:
+        '200':
+          description: Server information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NodeInfo'
+
+  /api/jobs:
+    get:
+      summary: Retrieves job results
+      description: |
+        Fetches job results for a list of job IDs if specified. If no IDs are provided,
+        returns a list of all job IDs for the client, optionally filtered by their completion status.
+      parameters:
+        - name: id
+          in: query
+          description: The list of job IDs to retrieve results for.
+          required: false
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/JobID'
+          style: form
+          explode: true
+        - name: intermediate
+          in: query
+          description: Whether to return intermediate results (only applicable for jobs involving multiple containers).
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - name: pending
+          in: query
+          description: Filter job IDs by their completion status. True for only pending, false for only completed, and omit for all.
+          required: false
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Successfully retrieved job results.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  oneOf:
+                    - type: array
+                      items:
+                        $ref: '#/components/schemas/JobResult'
+                    - type: array
+                      items:
+                        $ref: '#/components/schemas/JobID'
+
+    post:
+      summary: Request a job
+      description: |
+        Request an asynchronous job, either onchain (via a DelegatedSubscriptionRequest) or
+        offchain (via a JobRequest).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/JobRequest'
+                - $ref: '#/components/schemas/DelegatedSubscriptionRequest'
+      responses:
+        '200':
+          description: Job request initiated
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/JobResponse'
+                  - $ref: '#/components/schemas/DelegatedSubscriptionResponse'
+                description: |
+                  The response is either a JobResponse or a DelegatedSubscriptionResponse,
+                  depending on the request type.
+        '405':
+          description: Guardian error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error processing job request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/jobs/batch:
+    post:
+      summary: Request jobs in batch
+      description: Request asynchronous jobs in batch, either onchain or offchain.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                oneOf:
+                  - $ref: '#/components/schemas/JobRequest'
+                  - $ref: '#/components/schemas/DelegatedSubscriptionRequest'
+                description: Each item in the list is either a JobRequest or a DelegatedSubscriptionRequest.
+      responses:
+        '200':
+          description: Batch job request initiated
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  oneOf:
+                    - $ref: '#/components/schemas/JobResponse'
+                    - $ref: '#/components/schemas/DelegatedSubscriptionResponse'
+                    - $ref: '#/components/schemas/ErrorResponse'
+                description: |
+                  Each item in the list is either a JobResponse, a DelegatedSubscriptionResponse
+                  or an ErrorResponse, in the same order as the input list.
+        '500':
+          description: Error processing batch job request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/jobs/stream:
+    post:
+      summary: Starts a streaming job
+      description: |
+        Sends a request to start a streaming job. The server responds with a stream
+        where the first message is the job ID, followed by the job output, streamed
+        as raw bytes.
+      requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobRequest'
+      responses:
+        '200':
+          description: Stream of job ID followed by job output.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '405':
+            description: Guardian error
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error processing job request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/status:
+    put:
+      summary: Manually records the status of a job
+      description: |
+        Updates and records the status of a specified job. Use with caution as incorrect usage can lead to inconsistencies.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - id
+                - status
+                - containers
+                - data
+              properties:
+                id:
+                  $ref: '#/components/schemas/JobID'
+                status:
+                  $ref: '#/components/schemas/JobStatus'
+                containers:
+                  type: array
+                  items:
+                    type: string
+                data:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: The job status was recorded successfully.
+
+components:
+  schemas:
+    HealthInfo:
+      type: object
+      properties:
+        status:
+          type: string
+          description: Health status of the server
+          enum:
+            - healthy
+            - unhealthy
+
+    ChainInfo:
+      type: object
+      description: Chain information for the node.
+      properties:
+        address:
+          type: string
+          description: The blockchain address associated with the node.
+        enabled:
+          type: boolean
+          description: Indicates whether the chain is enabled.
+
+    Container:
+      type: object
+      description: Container information.
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the container.
+        description:
+          type: string
+          description: Description of the container's purpose.
+        external:
+          type: boolean
+          description: Flag indicating whether the container is externally accessible.
+        image:
+          type: string
+          description: Container image identifier.
+
+    PendingJobInfo:
+      type: object
+      description: Pending job information.
+      properties:
+        offchain:
+          type: integer
+          description: Number of pending offchain jobs.
+        onchain:
+          type: integer
+          description: Number of pending onchain jobs.
+
+    NodeInfo:
+      type: object
+      description: Node information.
+      properties:
+        version:
+          type: string
+          description: Node version.
+        chain:
+          $ref: '#/components/schemas/ChainInfo'
+        containers:
+          type: array
+          items:
+            $ref: '#/components/schemas/Container'
+        pending_jobs:
+          $ref: '#/components/schemas/PendingJobInfo'
+
+    ContainerOutput:
+      type: object
+      description: Container output.
+      properties:
+        container:
+          type: string
+          description: Identifier of the container.
+        output:
+          description: The output from the container, can be of any type.
+          type: object
+          additionalProperties: true
+
+    ContainerError:
+      type: object
+      description: Container error.
+      properties:
+        container:
+          type: string
+          description: Identifier of the container.
+        error:
+          type: string
+          description: Error message describing the failure within the container.
+
+    ContainerResult:
+      type: object
+      description: Result from a container which could either be an output or an error.
+      oneOf:
+        - $ref: '#/components/schemas/ContainerOutput'
+        - $ref: '#/components/schemas/ContainerError'
+
+    JobRequest:
+      type: object
+      description: Job request.
+      properties:
+        containers:
+          type: array
+          items:
+            type: string
+          description: List of container identifiers to be used in the job.
+        data:
+          type: object
+          additionalProperties: true
+          description: Arbitrary data to be processed or used by the containers.
+
+    JobID:
+      type: string
+      description: A unique identifier for a job.
+
+    JobResponse:
+      type: object
+      description: Job response for asynchronous job requests.
+      properties:
+        id:
+          $ref: '#/components/schemas/JobID'
+
+    JobStatus:
+      type: string
+      description: The current status of the job.
+      enum:
+        - success
+        - failure
+        - running
+
+    JobResult:
+      type: object
+      description: Result of a job request.
+      properties:
+        id:
+          $ref: '#/components/schemas/JobID'
+        status:
+          $ref: '#/components/schemas/JobStatus'
+        result:
+          $ref: '#/components/schemas/ContainerResult'
+          nullable: true
+        intermediate:
+          $ref: '#/components/schemas/ContainerResult'
+          nullable: true
+
+    ErrorResponse:
+      type: object
+      description: Error response.
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message explaining what went wrong.
+        params:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Additional parameters to help understand the error.
+
+    Signature:
+      type: object
+      description: ECDSA signature object. See https://docs.ritual.net/infernet/sdk/reference/EIP712Coordinator for more information.
+      properties:
+        nonce:
+          type: integer
+          format: int64
+        expiry:
+          type: integer
+          format: int64
+        v:
+          type: integer
+          format: int64
+        r:
+          type: integer
+          format: int64
+        s:
+          type: integer
+          format: int64
+
+    Subscription:
+      type: object
+      description: An Infernet SDK subscription. See https://docs.ritual.net/infernet/sdk/architecture#subscriptions-in-definition for more information.
+      properties:
+        owner:
+          type: string
+        active_at:
+          type: integer
+          format: int64
+        period:
+          type: integer
+          format: int64
+        frequency:
+          type: integer
+          format: int64
+        redundancy:
+          type: integer
+          format: int16
+        max_gas_price:
+          type: integer
+          format: int64
+        max_gas_limit:
+          type: integer
+          format: int64
+        container_id:
+          type: string
+        inputs:
+          type: string
+          format: byte
+
+    DelegatedSubscriptionRequest:
+      type: object
+      description: A request to create a delegated subscription onchain.
+      properties:
+        signature:
+          $ref: '#/components/schemas/Signature'
+        subscription:
+          $ref: '#/components/schemas/Subscription'
+        data:
+          type: object
+          additionalProperties: true
+
+    DelegatedSubscriptionResponse:
+      type: object
+      description: |
+        Response to a delegated subscription request. Since results are obtained on-chain,
+        there is no offchain Job ID, thus this is empty.
+      additionalProperties: false
