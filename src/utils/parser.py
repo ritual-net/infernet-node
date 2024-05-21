@@ -33,8 +33,9 @@ def from_union(type_or_union: Union[Type[Any], Any], data: dict[Any, Any]) -> An
                 dacite.exceptions.MissingValueError,
             ):
                 continue
-        raise dacite.exceptions.WrongTypeError(
-            f"Could not parse data into any type of the Union: {type_or_union}"
+        raise dacite.exceptions.UnionMatchError(
+            feld_type=type_or_union,
+            value=data,
         )
     else:
         # Base case: not a Union, just try with the provided type
