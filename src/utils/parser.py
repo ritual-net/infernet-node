@@ -28,9 +28,14 @@ def from_union(type_or_union: Union[Type[Any], Any], data: dict[Any, Any]) -> An
         for union_type in get_args(type_or_union):
             try:
                 return dacite.from_dict(data_class=union_type, data=data)
-            except (dacite.exceptions.WrongTypeError, dacite.exceptions.MissingValueError):
+            except (
+                dacite.exceptions.WrongTypeError,
+                dacite.exceptions.MissingValueError,
+            ):
                 continue
-        raise dacite.exceptions.WrongTypeError(f"Could not parse data into any type of the Union: {type_or_union}")
+        raise dacite.exceptions.WrongTypeError(
+            f"Could not parse data into any type of the Union: {type_or_union}"
+        )
     else:
         # Base case: not a Union, just try with the provided type
         return dacite.from_dict(data_class=type_or_union, data=data)
