@@ -8,14 +8,17 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Added files `Dockerfile-gpu` and `docker-compose-gpu.yaml` for building and deploying GPU-enabled node with access to all local GPUs.
+- Better error-checking and handling for all infernet-related on-chain transaction errors.
 - Forward fatal errors via metric sender at shutdown for better error diagnosing (only if forwarding stats is enabled.)
 - New `destination` field to container inputs, to decouple job input source from output destination.
+- New flag `"type"` to infernet container inputs, to distinguish between streaming and non-streaming jobs.
 - OpenAPI spec for the REST server.
+- Simulation of transactions before submitting them to the chain, to prevent submitting invalid transactions, resulting in wasted gas.
 - Support for streaming offchain job responses, via the `POST /api/jobs/stream` endpoint.
 - Support for CIDR ranges in container-level firewalls (`"allowed_ips"`).
 - Support for volume mounts to managed containers.
 - Support for streaming offchain job responses, via the `/api/jobs/stream` endpoint.
-- Added files `Dockerfile-gpu` and `docker-compose-gpu.yaml` for building and deploying GPU-enabled node with access to all local GPUs.
 
 ### Changed
 - Limit restarts within time window in `docker-compose.yaml`.
@@ -26,6 +29,7 @@ All notable changes to this project will be documented in this file.
   - `LIVE_INTERVAL` for live metrics is now `60` seconds.
 - Moved `snapshot_sync` under the `chain` section of `config.json`.
 - Snapshot syncing retries now include exponential backoff when syncing chain state.
+- Job and container counts are now reported separately via metric sender. The REST port is also reported.
 
 ### Fixed
 - Orchestrator now works in dev mode (outside of docker), previously `host.docker.internal` was hardcoded.
@@ -44,13 +48,9 @@ All notable changes to this project will be documented in this file.
 - Option to specify alternate `config.json` file name / path via environment variable `INFERNET_CONFIG_PATH`.
 - Batch-syncing support for snapshot-sync, along with batch-sync configuration in the `config.json` file.
 - New endpoint `/api/status` for "independent" (i.e. non-conforming) containers to manually register status of jobs by ID with the node.
-- Simulation of transactions before submitting them to the chain, to prevent submitting invalid transactions, resulting in wasted gas.
-- Better error-checking and handling for all infernet-related on-chain transaction errors.
-- New flag `"type"` to infernet container inputs, to distinguish between streaming and non-streaming jobs.
 
 ### Changed
 - `NODE_INTERVAL` for forwarding node metrics is now `900` seconds.
-- Job and container counts are now reported separately via metric sender. The REST port is also reported.
 
 ### Fixed
 - Sample config `rpc_ws` should be `rpc_url` in `config.sample.json`.
