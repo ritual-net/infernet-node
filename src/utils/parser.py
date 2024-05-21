@@ -34,7 +34,7 @@ def from_union(type_or_union: Union[Type[Any], Any], data: dict[Any, Any]) -> An
             ):
                 continue
         raise dacite.exceptions.UnionMatchError(
-            feld_type=type_or_union,
+            field_type=type_or_union,
             value=data,
         )
     else:
