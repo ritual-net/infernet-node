@@ -24,12 +24,13 @@ def from_union(type_or_union: Union[Type[Any], Any], data: dict[Any, Any]) -> An
             type_or_union or any of its subtypes
     """
     if hasattr(type_or_union, "__origin__") and type_or_union.__origin__ is Union:
-        # Union, recurse on each type
+        # Union, try parsing with each type
         for union_type in get_args(type_or_union):
-            output = from_union(union_type, data)
-            if output:
-                return output
-
+            try:
+                return dacite.from_dict(data_class=union_type, data=data)
+            except (dacite.exceptions.WrongTypeError, dacite.exceptions.MissingValueError):
+                continue
+        raise dacite.exceptions.WrongTypeError(f"Could not parse data into any type of the Union: {type_or_union}")
     else:
         # Base case: not a Union, just try with the provided type
         return dacite.from_dict(data_class=type_or_union, data=data)
