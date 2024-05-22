@@ -108,6 +108,8 @@ class Subscription:
         Returns:
             bool: True if subscription is past last interval, else False
         """
+        if not self.active:
+            return False
 
         return self.interval > self._frequency
 
@@ -158,8 +160,7 @@ class Subscription:
         """
         if (
             # If subscription is on its last interval
-            self.past_last_interval
-            or self.last_interval
+            (self.past_last_interval or self.last_interval)
             # And, subscription has received its max redundancy responses
             and self.get_response_count(self._frequency) == self._redundancy
         ):
