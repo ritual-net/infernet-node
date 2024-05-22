@@ -315,6 +315,24 @@ class Coordinator:
             data.proof,
         )
 
+    def get_deliver_compute_delegatee_tx_contract_function(
+        self: Coordinator,
+        data: CoordinatorDeliveryParams,
+        signature: CoordinatorSignatureParams,
+    ) -> AsyncContractFunction:
+        return self._contract.functions.deliverComputeDelegatee(
+            signature.nonce,
+            signature.expiry,
+            data.subscription.get_tx_inputs(),
+            signature.v,
+            signature.r.to_bytes(32, "big"),
+            signature.s.to_bytes(32, "big"),
+            data.interval,
+            data.input,
+            data.output,
+            data.proof,
+        )
+
     async def get_deliver_compute_delegatee_tx(
         self: Coordinator,
         data: CoordinatorDeliveryParams,
@@ -331,17 +349,9 @@ class Coordinator:
         Returns:
             TxParams: built transaction params
         """
-        return await self._contract.functions.deliverComputeDelegatee(
-            signature.nonce,
-            signature.expiry,
-            data.subscription.get_tx_inputs(),
-            signature.v,
-            signature.r.to_bytes(32, "big"),
-            signature.s.to_bytes(32, "big"),
-            data.interval,
-            data.input,
-            data.output,
-            data.proof,
+        return await self.get_deliver_compute_delegatee_tx_contract_function(
+            data=data,
+            signature=signature,
         ).build_transaction(
             {
                 "nonce": cast(Nonce, tx_params.nonce),

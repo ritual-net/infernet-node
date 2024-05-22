@@ -5,13 +5,14 @@ On-chain transaction handling.
 
 from __future__ import annotations
 
-import time
 from typing import Optional, cast
 
 from eth_account import Account
 from eth_account.datastructures import SignedTransaction
 from eth_typing import ChecksumAddress
-from web3.exceptions import ContractCustomError
+from reretry import retry  # type: ignore
+from web3.contract.async_contract import AsyncContractFunction
+from web3.exceptions import ContractCustomError, ContractLogicError
 from web3.types import Nonce, TxParams
 
 from chain.coordinator import (
@@ -57,6 +58,7 @@ class Wallet:
         coordinator: Coordinator,
         private_key: str,
         max_gas_limit: int,
+        allowed_errors: Optional[list[str]],
     ) -> None:
         """Initialize Wallet
 
@@ -65,6 +67,8 @@ class Wallet:
             coordinator (Coordinator): Coodinator instance
             private_key (str): 0x-prefixed private key
             max_gas_limit (int): Wallet-enforced max gas limit per tx
+            allowed_errors (Optional[list[str]]): List of allowed errors to ignore when
+                simulating transactions.
 
         Raises:
             ValueError: Throws if private key is not 0x-prefixed
@@ -81,6 +85,8 @@ class Wallet:
         # Initialize account
         self._account = Account.from_key(private_key)
         self._nonce: Optional[int] = None
+        self.allowed_errors = allowed_errors or []
+
         log.info("Initialized Wallet", address=self._account.address)
 
     @property
@@ -172,6 +178,50 @@ class Wallet:
         """
         return await self.__send_tx_retries(tx, retries, 0)
 
+    async def simulation_passed(
+        self: Wallet, fn: AsyncContractFunction, subscription: Subscription
+    ) -> bool:
+        """Simulate the function call and check if it passes
+
+        Args:
+            fn (AsyncContractFunction): Function to simulate
+            subscription (Subscription): Subscription to check
+
+        Returns:
+            bool: True if simulation passed, False otherwise
+        """
+        try:
+
+            @retry(
+                exceptions=(ContractCustomError, ContractLogicError), tries=3, delay=0.5
+            )  # type: ignore
+            async def _sim() -> None:
+                try:
+                    await fn.call({"from": self._account.address})
+                except Exception as e:
+                    for err in self.allowed_errors:
+                        if err in str(e):
+                            return
+                    raise e
+
+            await _sim()
+            return True
+        except ContractCustomError as e:
+            log.error(
+                "Failed to simulate transaction",
+                error=e,
+                subscription=subscription,
+            )
+            is_infernet_error(e, subscription)
+            return False
+        except ContractLogicError as e:
+            log.warn(
+                "Contract logic error while simulating",
+                error=e,
+                subscription=subscription,
+            )
+            return False
+
     async def deliver_compute(
         self: Wallet,
         subscription: Subscription,
@@ -216,39 +266,8 @@ class Wallet:
             )
         )
 
-        start = time.time()
-        try:
-            # while i < 3:
-            #     # simulate transaction first
-            #     try:
-            #         await fn.call({"from": self._account.address})
-            #     except ContractCustomError as e:
-            #         log.warn(
-            #             "Failed to simulate transaction, retrying after 0.5s", error=e
-            #         )
-            #         await sleep(0.5)
-            #         i += 1
-            await fn.call({"from": self._account.address})
-        except ContractCustomError as e:
-            duration = time.time() - start
-            log.warn(
-                "Failed to simulate transaction",
-                error=e,
-                duration=duration,
-                subscription=subscription,
-            )
-            is_infernet_error(e, subscription)
-            # log.info(
-            #     "repeatedly failed to simulate transaction",
-            #     error=e,
-            #     duration=duration,
-            #     subscription=subscription,
-            # )
-            # if is_infernet_error(e, subscription):
-            #     # returning early since we know the error, no need to retry
-            #     return None
-            # log.error("Failed to simulate transaction", error=e)
-            # return None
+        if not await self.simulation_passed(fn, subscription):
+            return None
 
         await self._collect_nonce()
 
@@ -308,7 +327,7 @@ class Wallet:
             raise RuntimeError("Could not collect nonce")
 
         # Build Coordinator tx
-        tx_params = await self._coordinator.get_deliver_compute_delegatee_tx(
+        fn = self._coordinator.get_deliver_compute_delegatee_tx_contract_function(
             data=CoordinatorDeliveryParams(
                 subscription=subscription,
                 interval=subscription.interval,
@@ -316,16 +335,30 @@ class Wallet:
                 output=output,
                 proof=proof,
             ),
-            tx_params=CoordinatorTxParams(
-                nonce=self._nonce,
-                sender=self.address,
-                gas_limit=min(subscription.max_gas_limit, self._max_gas_limit),
-            ),
             signature=signature,
         )
 
+        if not await self.simulation_passed(fn, subscription):
+            return None
+
+        await self._collect_nonce()
+
+        coordinator_params = CoordinatorTxParams(
+            nonce=self._nonce,
+            sender=self.address,
+            gas_limit=min(subscription.max_gas_limit, self._max_gas_limit),
+        )
+
+        tx = await fn.build_transaction(
+            {
+                "nonce": cast(Nonce, coordinator_params.nonce),
+                "from": coordinator_params.sender,
+                "gas": coordinator_params.gas_limit,
+            }
+        )
+
         # Sign coordinator tx
-        signed_tx = self._sign_tx_params(tx_params)
+        signed_tx = self._sign_tx_params(tx)
 
         # Send tx, retrying submission thrice
         return await self._send_tx_retries(signed_tx, 3)

@@ -13,6 +13,7 @@ class ConfigWallet(TypedDict):
 
     max_gas_limit: int
     private_key: str
+    allowed_errors: Optional[list[str]]
 
 
 class ConfigChain(TypedDict):

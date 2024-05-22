@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Optional, Union
-
-from eth_typing import ChecksumAddress
+from typing import Any, Union
 
 from chain.coordinator import CoordinatorSignatureParams
 from shared.subscription import SerializedSubscription, Subscription
@@ -14,8 +12,6 @@ class MessageType(Enum):
     OffchainJob = 0
     DelegatedSubscription = 1
     SubscriptionCreated = 2
-    SubscriptionCancelled = 3
-    SubscriptionFulfilled = 4
 
 
 @dataclass(frozen=True)
@@ -49,38 +45,15 @@ class DelegatedSubscriptionMessage(BaseMessage):
 class SubscriptionCreatedMessage:
     """On-chain subscription creation event"""
 
-    tx_hash: Optional[str]
     subscription: Subscription
     type: MessageType = MessageType.SubscriptionCreated
-
-
-@dataclass(frozen=True)
-class SubscriptionCancelledMessage:
-    """On-chain subscription cancellation event"""
-
-    subscription_id: int
-    type: MessageType = MessageType.SubscriptionCancelled
-
-
-@dataclass(frozen=True)
-class SubscriptionFulfilledMessage:
-    """On-chain subscription fulfillment event"""
-
-    subscription_id: int
-    node: ChecksumAddress
-    timestamp: int
-    type: MessageType = MessageType.SubscriptionFulfilled
 
 
 # Type alias for off-chain originating message
 OffchainMessage = Union[OffchainJobMessage, DelegatedSubscriptionMessage]
 
 # Type alias for coordinator event messages
-CoordinatorMessage = Union[
-    SubscriptionCreatedMessage,
-    SubscriptionCancelledMessage,
-    SubscriptionFulfilledMessage,
-]
+CoordinatorMessage = Union[SubscriptionCreatedMessage,]
 
 # Type alias for filtered event message
 FilteredMessage = Union[OffchainMessage, CoordinatorMessage]

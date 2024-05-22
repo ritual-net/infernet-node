@@ -11,9 +11,7 @@ from shared.message import (
     MessageType,
     OffchainJobMessage,
     PrefilterMessage,
-    SubscriptionCancelledMessage,
     SubscriptionCreatedMessage,
-    SubscriptionFulfilledMessage,
 )
 from utils.config import ConfigContainer
 from utils.logging import log
@@ -53,10 +51,6 @@ class Guardian:
         _process_delegated_subscription_message: Filters delegated Subscription messages
         _process_coordinator_created_message: Filters on-chain Coordinator subscription
             creation messages
-        _process_coordinator_cancelled_message: Filters on-chain Coordinator subscription
-            cancellation messages
-        _process_coordinator_fulfilled_message: Filters on-chain Coordinator subscription
-            fulfillment messages
     """
 
     def __init__(
@@ -348,42 +342,6 @@ class Guardian:
 
         return message
 
-    def _process_coordinator_cancelled_message(
-        self: Guardian, message: SubscriptionCancelledMessage
-    ) -> Union[GuardianError, SubscriptionCancelledMessage]:
-        """Filters on-chain Coordinator subscription cancellation messages
-
-        Filters: Filtering unnecessary since replaying a cancellation event for
-            a subscription that is irrelevant/untracked has no side effects.
-
-        Args:
-            message (SubscriptionCancelledMessage): raw message
-
-        Returns:
-            Union[GuardianError, SubscriptionCancelledMessage]: Error message if
-                filtering fails, otherwise parsed message to be processed
-        """
-
-        return message
-
-    def _process_coordinator_fulfilled_message(
-        self: Guardian, message: SubscriptionFulfilledMessage
-    ) -> Union[GuardianError, SubscriptionFulfilledMessage]:
-        """Filters on-chain Coordinator subscription fulfillment messages
-
-        Filters: Filtering unnecessary since replaying a fulfillment event for
-            a subscription that is irrelevant/untracked has no side effects.
-
-        Args:
-            message (SubscriptionFulfilledMessage): raw message
-
-        Returns:
-            Union[GuardianError, SubscriptionFulfilledMessage]: Error message if
-                filtering fails, otherwise parsed message to be processed
-        """
-
-        return message
-
     def process_message(
         self: Guardian, message: PrefilterMessage
     ) -> Union[GuardianError, FilteredMessage]:
@@ -408,13 +366,5 @@ class Guardian:
             case MessageType.SubscriptionCreated:
                 return self._process_coordinator_created_message(
                     cast(SubscriptionCreatedMessage, message)
-                )
-            case MessageType.SubscriptionCancelled:
-                return self._process_coordinator_cancelled_message(
-                    cast(SubscriptionCancelledMessage, message)
-                )
-            case MessageType.SubscriptionFulfilled:
-                return self._process_coordinator_fulfilled_message(
-                    cast(SubscriptionFulfilledMessage, message)
                 )
         return self._error(message, "Not supported", raw=message)

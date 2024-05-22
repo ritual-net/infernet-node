@@ -212,7 +212,7 @@ class RPC:
         return await self._web3.eth.get_block_number()
 
     async def get_tx_success_with_retries(
-        self: RPC, tx_hash: HexStr, retries: int = 10, sleep: float = 0.1
+        self: RPC, tx_hash: HexStr, retries: int = 10, sleep: float = 0.2
     ) -> tuple[bool, bool]:
         """Collects tx success status by tx_hash with retries
 

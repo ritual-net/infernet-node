@@ -1,6 +1,15 @@
 from typing import Any, Type, Union, get_args
 
 import dacite
+import structlog
+
+log = structlog.get_logger()
+
+
+class ParseException(Exception):
+    """Exception raised when a parsing error occurs."""
+
+    pass
 
 
 def from_union(type_or_union: Union[Type[Any], Any], data: dict[Any, Any]) -> Any:
@@ -20,15 +29,23 @@ def from_union(type_or_union: Union[Type[Any], Any], data: dict[Any, Any]) -> An
         Any: Parsed dataclass
 
     Raises:
-        dacite.exceptions.WrongTypeError: If the data cannot be recursively parsed into
-            type_or_union or any of its subtypes
+        ParseException: If the data could not be parsed into any of the types in the
+        Union.
     """
     if hasattr(type_or_union, "__origin__") and type_or_union.__origin__ is Union:
         # Union, recurse on each type
+        errors = []
         for union_type in get_args(type_or_union):
-            output = from_union(union_type, data)
-            if output:
-                return output
+            try:
+                output = from_union(union_type, data)
+                if output:
+                    return output
+            except Exception as e:
+                errors.append(e)
+                continue
+        raise ParseException(
+            f"Could not parse data into any of the types in the Union: {errors}"
+        )
 
     else:
         # Base case: not a Union, just try with the provided type
