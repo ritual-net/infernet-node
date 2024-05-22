@@ -92,7 +92,7 @@ class NodeLifecycle:
                 coordinator,
                 config["chain"]["wallet"]["private_key"],
                 config["chain"]["wallet"]["max_gas_limit"],
-                config["chain"]["wallet"].get("allowed_errors"),
+                config["chain"]["wallet"].get("allowed_sim_errors"),
             )
             processor = ChainProcessor(rpc, coordinator, wallet, orchestrator)
             listener = ChainListener(

@@ -34,6 +34,7 @@ vim config.json
   - **wallet** (`object`). _if enabled_:
     - **max_gas_limit** (`integer`). Maximum gas limit per node transaction
     - **private_key** (`string`). Node wallet private key
+    - **allowed_sim_errors** (`array[string]`). Allowed error messages to ignore when simulating transactions. Checks for inclusion in error message. Case-insensitive. i.e. `["out of gas"]` matches `"Contract reverted: Out of gas"`.
   - **snapshot_sync** (`object`, Optional). Snapshot sync configurations.
     - **sleep** (`float`, Optional).  Number of seconds to sleep between snapshot syncs. Defaults to `1.0`.
     - **batch_size** (`int`, Optional). Number of subscriptions to sync in each batch. Defaults to `200`.

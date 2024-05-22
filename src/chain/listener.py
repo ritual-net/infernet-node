@@ -15,7 +15,6 @@ from asyncio import create_task, sleep
 from typing import Optional, cast
 
 from eth_typing import BlockNumber
-from reretry import retry  # type: ignore
 
 from chain.coordinator import Coordinator
 from chain.processor import ChainProcessor

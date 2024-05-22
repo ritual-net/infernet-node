@@ -39,7 +39,7 @@ async def register_node() -> None:
         coordinator,
         config["chain"]["wallet"]["private_key"],
         config["chain"]["wallet"]["max_gas_limit"],
-        config["chain"]["wallet"].get("allowed_errors"),
+        config["chain"]["wallet"].get("allowed_sim_errors"),
     )
 
     # Check node status from Coordinator

@@ -9,11 +9,16 @@ all: install
 
 # Install dependencies
 install:
-	@pip install -r requirements.txt
+	@uv venv && \
+	source .venv/bin/activate && \
+	uv pip install -r requirements.lock
 
-# Save dependencies
-deps:
-	@pip-chill > requirements.txt
+# Update dependencies & generate new lockfile
+update-lockfile:
+	@uv venv && \
+	source .venv/bin/activate && \
+	uv pip install -r requirements.txt && \
+	uv pip freeze > requirements.lock
 
 # Lint code
 lint:
@@ -45,7 +50,7 @@ register-node:
 activate-node:
 	@PYTHONPATH=$$PYTHONPATH:src python3.11 scripts/activate_node.py
 
-tag ?= no-filter
+tag ?= no-filter-postmerge
 image_id = ritualnetwork/infernet-node-internal:$(tag)
 
 build:

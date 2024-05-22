@@ -58,7 +58,7 @@ class Wallet:
         coordinator: Coordinator,
         private_key: str,
         max_gas_limit: int,
-        allowed_errors: Optional[list[str]],
+        allowed_sim_errors: Optional[list[str]],
     ) -> None:
         """Initialize Wallet
 
@@ -67,8 +67,10 @@ class Wallet:
             coordinator (Coordinator): Coodinator instance
             private_key (str): 0x-prefixed private key
             max_gas_limit (int): Wallet-enforced max gas limit per tx
-            allowed_errors (Optional[list[str]]): List of allowed errors to ignore when
-                simulating transactions.
+            allowed_sim_errors (Optional[list[str]]): List of allowed error messages to
+                ignore when simulating transactions. Checks for inclusion in error
+                message, case-insensitive. i.e. ["bad input"] will match
+                error message: "Contract reverted with error: Bad input.
 
         Raises:
             ValueError: Throws if private key is not 0x-prefixed
@@ -85,7 +87,7 @@ class Wallet:
         # Initialize account
         self._account = Account.from_key(private_key)
         self._nonce: Optional[int] = None
-        self.allowed_errors = allowed_errors or []
+        self.allowed_sim_errors = allowed_sim_errors or []
 
         log.info("Initialized Wallet", address=self._account.address)
 
@@ -199,20 +201,20 @@ class Wallet:
                 try:
                     await fn.call({"from": self._account.address})
                 except Exception as e:
-                    for err in self.allowed_errors:
-                        if err in str(e):
+                    for err in self.allowed_sim_errors:
+                        if err.lower() in str(e).lower():
                             return
                     raise e
 
             await _sim()
             return True
         except ContractCustomError as e:
-            log.error(
-                "Failed to simulate transaction",
-                error=e,
-                subscription=subscription,
-            )
-            is_infernet_error(e, subscription)
+            if not is_infernet_error(e, subscription):
+                log.error(
+                    "Failed to simulate transaction",
+                    error=e,
+                    subscription=subscription,
+                )
             return False
         except ContractLogicError as e:
             log.warn(

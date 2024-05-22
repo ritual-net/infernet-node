@@ -51,7 +51,7 @@ All notable changes to this project will be documented in this file.
 - Simulation of transactions before submitting them to the chain, to prevent submitting invalid transactions, resulting in wasted gas.
 - Better error-checking and handling for all infernet-related on-chain transaction errors.
 - New flag `"type"` to infernet container inputs, to distinguish between streaming and non-streaming jobs.
-- New flag `"allowed_errors"` in the `config.json` file to specify which error messages are allowed to be ignored by the node when simulating transactions.
+- New flag `"allowed_sim_errors"` in the `config.json` file to specify which error messages are allowed to be ignored by the node when simulating transactions.
 
 ### Changed
 - `NODE_INTERVAL` for forwarding node metrics is now `900` seconds.

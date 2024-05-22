@@ -38,8 +38,8 @@ RUN /install.sh && rm /install.sh
 # Leverage a bind mount to requirements to avoid having to copy them into
 # into this layer.
 RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=requirements.txt,target=requirements.txt \
-    /root/.cargo/bin/uv pip install --system -r requirements.txt
+    --mount=type=bind,source=requirements.lock,target=requirements.lock \
+    /root/.cargo/bin/uv pip install --system -r requirements.lock
 
 # Install some executables
 RUN apt-get update \
