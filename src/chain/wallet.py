@@ -87,7 +87,7 @@ class Wallet:
         # Initialize account
         self._account = Account.from_key(private_key)
         self._nonce: Optional[int] = None
-        self.allowed_sim_errors = allowed_sim_errors or []
+        self._allowed_sim_errors = allowed_sim_errors or []
 
         log.info("Initialized Wallet", address=self._account.address)
 
@@ -201,7 +201,7 @@ class Wallet:
                 try:
                     await fn.call({"from": self._account.address})
                 except Exception as e:
-                    for err in self.allowed_sim_errors:
+                    for err in self._allowed_sim_errors:
                         if err.lower() in str(e).lower():
                             return
                     raise e
