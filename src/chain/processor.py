@@ -399,7 +399,7 @@ class ChainProcessor(AsyncTask):
                 in the next cycle of the loop in: self.check_max_attempts
                 """
                 attempt_count = self._attempts[key]
-                log.info("attempt count", count=attempt_count, key=key)
+                log.debug("attempt count", count=attempt_count, key=key)
                 if attempt_count < 3:
                     self._pending.pop(key)
                     log.info(
@@ -500,7 +500,6 @@ class ChainProcessor(AsyncTask):
         Returns:
             tuple[bytes, bytes, bytes]: (input, output, proof)
         """
-        log.info("Serializing container output", output=output)
 
         # Check if all 5 keys are present in container output
         output_keys = output.output.keys()

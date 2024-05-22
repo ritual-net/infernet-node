@@ -219,6 +219,7 @@ class RPC:
         Args:
             tx_hash (HexStr): transaction hash to check
             retries (int): number of retries
+            sleep (float): sleep time between retries
 
         Returns:
             tuple[bool, bool]: (transaction found, transaction success status)
@@ -278,5 +279,5 @@ class RPC:
         try:
             return await self._web3.eth.send_raw_transaction(tx.rawTransaction)
         except Exception as e:
-            print(f"rpc.send_transaction failsed: {e}")
+            log.debug("rpc.send_transaction failed", error=str(e))
             raise

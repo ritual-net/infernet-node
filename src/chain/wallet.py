@@ -43,6 +43,7 @@ class Wallet:
         _increment_nonce: Increments local self._nonce
         __send_tx_retries: Counterpart to _send_tx_retries
         _send_tx_retries: Attempts to send tx with N times
+        _simulation_passed: Simulates function call and checks if it passes
 
     Private attributes:
         _rpc (RPC): RPC instance
@@ -180,10 +181,17 @@ class Wallet:
         """
         return await self.__send_tx_retries(tx, retries, 0)
 
-    async def simulation_passed(
+    async def _simulation_passed(
         self: Wallet, fn: AsyncContractFunction, subscription: Subscription
     ) -> bool:
-        """Simulate the function call and check if it passes
+        """Simulate the function call and check if it passes.
+        * In case of a failed simulation, it retries 3 times, with a delay of 0.5
+            seconds.
+        * Simulation errors may be bypassed if they are in the `allowed_sim_errors` list.
+            In which case, the simulation is considered to have passed.
+        * For infernet-specific errors, more verbose logging is provided.
+        * Handles ContractCustomError and ContractLogicError exceptions, for other
+            exceptions, it bubbles up.
 
         Args:
             fn (AsyncContractFunction): Function to simulate
@@ -231,7 +239,11 @@ class Wallet:
         output: bytes,
         proof: bytes,
     ) -> Optional[bytes]:
-        """Sends Coordinator.deliverCompute() tx, retrying failed txs thrice
+        """Sends Coordinator.deliverCompute() tx.
+        Transactions are first simulated using `.call()` to prevent submission of invalid
+        transactions that result in the user's gas being wasted.
+
+        If a simulation passes & transaction still fails, it will be retried thrice.
 
         Args:
             subscription (Subscription): Subscription to respond to
@@ -268,7 +280,7 @@ class Wallet:
             )
         )
 
-        if not await self.simulation_passed(fn, subscription):
+        if not await self._simulation_passed(fn, subscription):
             return None
 
         await self._collect_nonce()
@@ -301,7 +313,11 @@ class Wallet:
         output: bytes,
         proof: bytes,
     ) -> Optional[bytes]:
-        """Senjkk Coordinator.deliverComputeDelegatee() tx, retrying failed txs thrice
+        """Send Coordinator.deliverComputeDelegatee() tx.
+        Transactions are first simulated using `.call()` to prevent submission of invalid
+        transactions that result in the user's gas being wasted.
+
+        If a simulation passes & transaction still fails, it will be retried thrice.
 
         Args:
             subscription (Subscription): Subscription to respond to
@@ -340,7 +356,8 @@ class Wallet:
             signature=signature,
         )
 
-        if not await self.simulation_passed(fn, subscription):
+        if not await self._simulation_passed(fn, subscription):
+            # if simulation of the transaction fails, we'll skip sending it.
             return None
 
         await self._collect_nonce()
@@ -351,6 +368,7 @@ class Wallet:
             gas_limit=min(subscription.max_gas_limit, self._max_gas_limit),
         )
 
+        # building the raw unsigned transaction
         tx = await fn.build_transaction(
             {
                 "nonce": cast(Nonce, coordinator_params.nonce),

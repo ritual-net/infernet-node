@@ -30,6 +30,10 @@ All notable changes to this project will be documented in this file.
 - Moved `snapshot_sync` under the `chain` section of `config.json`.
 - Snapshot syncing retries now include exponential backoff when syncing chain state.
 - Job and container counts are now reported separately via metric sender. The REST port is also reported.
+- New flag `"allowed_sim_errors"` in the `config.json` file to specify which error messages are allowed to be ignored by the node when simulating transactions.
+- `chain/processor.py` & `chain/listener.py` are extensively refactored to remove the dependency on on-chain events. `SubscriptionCreated` is now caught by repeatedly
+checking the latest `sub_id` & syncing all subscriptions since the last sync. `SubscriptionCancelled` is now caught by checking if the `owner` & `containers` fields
+are set to be empty. `SubscriptionFulfilled` is now checked instead by reading the `redundancyCount` from the coordinator contract.
 
 ### Fixed
 - Orchestrator now works in dev mode (outside of docker), previously `host.docker.internal` was hardcoded.
@@ -50,8 +54,6 @@ All notable changes to this project will be documented in this file.
 - New endpoint `/api/status` for "independent" (i.e. non-conforming) containers to manually register status of jobs by ID with the node.
 - Simulation of transactions before submitting them to the chain, to prevent submitting invalid transactions, resulting in wasted gas.
 - Better error-checking and handling for all infernet-related on-chain transaction errors.
-- New flag `"type"` to infernet container inputs, to distinguish between streaming and non-streaming jobs.
-- New flag `"allowed_sim_errors"` in the `config.json` file to specify which error messages are allowed to be ignored by the node when simulating transactions.
 
 ### Changed
 - `NODE_INTERVAL` for forwarding node metrics is now `900` seconds.

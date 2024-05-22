@@ -321,7 +321,6 @@ class Guardian:
 
         # Filter out containers that are not supported
         for container in message.subscription.containers:
-            log.info(f"Container: {container}, supported: {supported_containers}")
             if container not in supported_containers:
                 return self._error(
                     message, "Container not supported", container=container

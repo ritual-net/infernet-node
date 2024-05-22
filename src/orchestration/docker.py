@@ -265,10 +265,6 @@ class ContainerManager(AsyncTask):
             log.info("Skipping container manager stop, containers are not managed")
             return
 
-        log.info("skip stopping containers")
-        # TODO: remove this
-        return
-
         log.info("Stopping containers")
 
         self._shutdown = True

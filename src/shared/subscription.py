@@ -146,7 +146,7 @@ class Subscription:
         if not self.active:
             return False
 
-        return self.interval >= self._frequency
+        return self.interval == self._frequency
 
     @property
     def completed(self: Subscription) -> bool:
@@ -158,64 +158,16 @@ class Subscription:
         """
         if (
             # If subscription is on its last interval
-            self.last_interval
+            self.past_last_interval
+            or self.last_interval
             # And, subscription has received its max redundancy responses
-            and self.get_response_count(self.interval) == self._redundancy
+            and self.get_response_count(self._frequency) == self._redundancy
         ):
             # Return completed
             return True
 
         # Else, return incomplete
         return False
-
-    @cache
-    def get_interval_by_timestamp(self: Subscription, timestamp: int) -> int:
-        """Returns expected subscription interval given response timestamp
-
-        Args:
-            timestamp (int): response timestamp
-
-        Returns:
-            int: expected subscription interval
-        """
-        if timestamp < self._active_at:
-            raise RuntimeError("Cannot get interval prior to activation")
-
-        # If timestamp >= timestamp for last interval, return last interval
-        last_interval_ts = self._active_at + (self._period * (self._frequency - 1))
-        if timestamp >= last_interval_ts:
-            return self._frequency
-
-        # Else, return expected interval
-        diff = timestamp - self._active_at
-        return diff // self._period
-
-    def increment_response_count(self: Subscription, interval: int) -> None:
-        """Increments response count for a subscription interval
-
-        Args:
-            interval (int): subscription interval to increment
-
-        Raises:
-            RuntimeError: Thrown if incrementing response count for inactive subscription
-            RuntimeError: Thrown if incrementing response count for a future interval
-        """
-
-        # Throw if incrementing response count for inactive subscription
-        if not self.active:
-            raise RuntimeError(
-                "Cannot increment response count for inactive subscription"
-            )
-
-        # Throw if incrementing response count for a future interval
-        if interval > self.interval:
-            raise RuntimeError("Cannot increment response count for future interval")
-
-        # Increment response count
-        if interval not in self._responses:
-            self._responses[interval] = 1
-        else:
-            self._responses[interval] += 1
 
     def get_response_count(self: Subscription, interval: int) -> int:
         """Returns response count by subscription interval
