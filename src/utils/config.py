@@ -16,6 +16,13 @@ class ConfigWallet(TypedDict):
     allowed_errors: Optional[list[str]]
 
 
+class ConfigSnapshotSync(TypedDict):
+    """Expected config[snapshot_sync] format"""
+
+    sleep: float
+    batch_size: int
+
+
 class ConfigChain(TypedDict):
     """Expected config[chain] format"""
 
@@ -24,6 +31,7 @@ class ConfigChain(TypedDict):
     trail_head_blocks: int
     coordinator_address: str
     wallet: ConfigWallet
+    snapshot_sync: Optional[ConfigSnapshotSync]
 
 
 class ConfigDocker(TypedDict):
@@ -47,6 +55,7 @@ class ConfigContainer(TypedDict):
     allowed_delegate_addresses: list[str]
     external: bool
     gpu: Optional[bool]
+    volumes: Optional[list[str]]
 
 
 class ConfigRedis(TypedDict):
@@ -54,13 +63,6 @@ class ConfigRedis(TypedDict):
 
     host: str
     port: int
-
-
-class ConfigSnapshotSync(TypedDict):
-    """Expected config[snapshot_sync] format"""
-
-    sleep: float
-    batch_size: int
 
 
 class ConfigDict(TypedDict):
@@ -75,7 +77,6 @@ class ConfigDict(TypedDict):
     containers: list[ConfigContainer]
     forward_stats: bool
     startup_wait: Optional[float]
-    snapshot_sync: Optional[ConfigSnapshotSync]
 
 
 class ValidationItem(NamedTuple):

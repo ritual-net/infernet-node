@@ -1,4 +1,4 @@
-aiohttp==3.9.2
+aiohttp==3.9.4
 async-lru==2.0.4
 dacite==1.8.1
 fluent-logger==0.10.0
@@ -12,9 +12,12 @@ quart-rate-limiter==0.9.0
 redis==5.0.1
 rich==13.7.0
 pyfiglet==1.0.2
+requests==2.31.0
+reretry==0.11.8
 ruff==0.1.8
 structlog==23.2.0
 types-redis==4.6.0.11
+types-requests==2.31.0
 validators==0.22.0
 web3==6.18.0
 reretry==0.11.8

@@ -450,9 +450,13 @@ class RESTServer(AsyncTask):
                 return jsonify(data), 200
 
         @self._app.route("/api/status", methods=["PUT"])
-        @rate_limit(60, timedelta(seconds=60))
         async def store_job_status() -> Tuple[Response, int]:
             """Stores job status in data store"""
+
+            # Only allow localhost to store job status
+            if request.remote_addr not in ["127.0.0.1", "::1"]:
+                return jsonify({"error": "Unauthorized"}), 403
+
             try:
                 # Collect JSON body
                 data = await request.get_json(force=True)
@@ -480,11 +484,11 @@ class RESTServer(AsyncTask):
                     case "success":
                         self._store.set_success(parsed, [])
                         for container in data["containers"]:
-                            self._store.track_container(container)
+                            self._store.track_container_status(container, "success")
                     case "failed":
                         self._store.set_failed(parsed, [])
                         for container in data["containers"]:
-                            self._store.track_container(container)
+                            self._store.track_container_status(container, "failed")
                     case "running":
                         self._store.set_running(parsed)
                     case _:

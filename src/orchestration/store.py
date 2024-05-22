@@ -1,10 +1,23 @@
+"""
+This module contains the following classes:
+
+1. KeyFormatter: Key formatter for Redis. Formats keys for Redis using the pattern
+    <address>:<id>.
+
+2. DataStoreCounters: Manages job-related counters for onchain and offchain jobs. Also
+    tracks container statuses.
+
+3. DataStore: Stores and retrieve job results to / from Redis. Stores pending jobs in a
+    different Redis database than completed jobs for efficient retrieval.
+"""
+
 from __future__ import annotations
 
-from collections import Counter
+from collections import defaultdict
 from dataclasses import asdict
 from datetime import timedelta
 from json import dumps, loads
-from typing import Dict, Optional
+from typing import Optional
 
 import redis
 
@@ -62,22 +75,126 @@ class KeyFormatter:
         return f"{address}:*"
 
 
+class DataStoreCounters:
+    """Class to store and retrieve job-related counters
+
+    Job counters track the number of jobs by status (success, failed) and location
+    (onchain, offchain).
+
+    Container counters track the number of container runs by status (success, failed).
+
+    Public methods:
+        pop_job_counters: Returns job counters and resets them
+        pop_container_counters: Returns container counters and resets them
+        increment_job_counter: Increment job counter
+        increment_container_counter: Increment container counter
+
+    Private methods:
+        _default_job_counters: Default value for job counters
+        _default_container_counters: Default value for container counters
+
+    Attributes:
+        job_counters (dict[str, dict[str, int]]): Job counters
+        container_counters (dict[str, dict[str, int]]): Container counters
+    """
+
+    def __init__(self: DataStoreCounters) -> None:
+        """Initialize the counters"""
+
+        # Job counters
+        self.job_counters = DataStoreCounters._default_job_counters()
+
+        # Container counters
+        self.container_counters: defaultdict[str, dict[str, int]] = defaultdict(
+            DataStoreCounters._default_container_counters
+        )
+
+    @staticmethod
+    def _default_job_counters() -> dict[str, dict[str, int]]:
+        """Default value for job counters"""
+
+        return {
+            "offchain": {"success": 0, "failed": 0},
+            "onchain": {"success": 0, "failed": 0},
+        }
+
+    def pop_job_counters(self: DataStoreCounters) -> dict[str, dict[str, int]]:
+        """Returns job counters and resets them
+
+        Returns:
+             dict[str, dict[str, int]]: Job counters
+        """
+        job_counters = self.job_counters
+        self.job_counters = DataStoreCounters._default_job_counters()
+        return job_counters
+
+    @staticmethod
+    def _default_container_counters() -> dict[str, int]:
+        """Default value for container counters"""
+
+        return {
+            "success": 0,
+            "failed": 0,
+        }
+
+    def pop_container_counters(
+        self: DataStoreCounters,
+    ) -> defaultdict[str, dict[str, int]]:
+        """Returns container counters and resets them
+
+        Returns:
+            defaultdict[str, dict[str, int]]: Container counters
+        """
+        container_counters = self.container_counters
+        self.container_counters = defaultdict(
+            DataStoreCounters._default_container_counters
+        )
+        return container_counters
+
+    def increment_job_counter(
+        self: DataStoreCounters,
+        status: JobStatus,
+        location: str,
+    ) -> None:
+        """Increment job counter
+
+        Args:
+            status (JobStatus): Job status
+            location (str): Job location
+        """
+        self.job_counters[location][status] += 1
+
+    def increment_container_counter(
+        self: DataStoreCounters,
+        status: JobStatus,
+        container: str,
+    ) -> None:
+        """Increment container counter
+
+        Args:
+            status (JobStatus): Container status
+            container (str): Container ID
+        """
+        self.container_counters[container][status] += 1
+
+
 class DataStore:
     """Data store for jobs
 
     Stores and retrieves job results as JSON string to / from Redis. Stores pending
     jobs in a different Redis database for efficient retrieval.
 
-    Also tracks total number of jobs for each status, both onchain and offchain.
+    Also tracks total number of jobs by status, both onchain and offchain, as well as
+    individual container statuses and counts.
 
     Public methods:
         get: Get job data
         get_job_ids: Get all job IDs for given address
         get_pending_counters: Returns pending counters
-        pop_total_counters: Returns total counters and resets them
         set_running: Track running job, store in pending jobs cache if offchain
         set_success: Track successful job, store in completed jobs cache if offchain
         set_failed: Track failed job, store in completed jobs cache if offchain
+        track_container_status: Track container status
 
     Private methods:
         _set: Private method to set job data
@@ -103,11 +220,7 @@ class DataStore:
         """
 
         # Initialize counters
-        self.total_counters: Dict[str, Counter[str]] = {
-            "offchain": Counter(),
-            "onchain": Counter(),
-            "container": Counter(),
-        }
+        self.counters = DataStoreCounters()
 
         # Counter for pending on-chain jobs. Off-chain jobs are tracked in Redis.
         self._onchain_pending = 0
@@ -129,20 +242,6 @@ class DataStore:
             )
 
         log.info("Initialized Redis client", host=host, port=port)
-
-    def pop_total_counters(self: DataStore) -> dict[str, Counter[str]]:
-        """Returns total counters and resets them
-
-        Returns:
-            dict[str, Counter]: Total counters
-        """
-        total_counters = self.total_counters
-        self.total_counters = {
-            "offchain": Counter(),
-            "onchain": Counter(),
-            "container": Counter(),
-        }
-        return total_counters
 
     def get_pending_counters(self: DataStore) -> dict[str, int]:
         """Returns pending counters for onchain and offchain jobs
@@ -299,10 +398,10 @@ class DataStore:
         """
         if message:
             self._set(message, "success", results)
-            self.total_counters["offchain"]["success"] += 1
+            self.counters.increment_job_counter("success", "offchain")
         else:
             self._onchain_pending -= 1
-            self.total_counters["onchain"]["success"] += 1
+            self.counters.increment_job_counter("success", "onchain")
 
     def set_failed(
         self: DataStore,
@@ -317,17 +416,20 @@ class DataStore:
         """
         if message:
             self._set(message, "failed", results)
-            self.total_counters["offchain"]["failed"] += 1
+            self.counters.increment_job_counter("failed", "offchain")
         else:
             self._onchain_pending -= 1
-            self.total_counters["onchain"]["failed"] += 1
+            self.counters.increment_job_counter("failed", "onchain")
 
-    def track_container(self: DataStore, container: str) -> None:
-        """Track container
-
-        Increments container counter
+    def track_container_status(
+        self: DataStore,
+        container: str,
+        status: JobStatus,
+    ) -> None:
+        """Track container status
 
         Args:
             container (str): Container ID
+            status (JobStatus): Container status
         """
-        self.total_counters["container"][container] += 1
+        self.counters.increment_container_counter(status, container)

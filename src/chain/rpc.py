@@ -276,7 +276,7 @@ class RPC:
             bytes: transaction hash
         """
         try:
-            return await self._web3.eth.send_raw_transaction(tx.rawTransaction)
+            return await self._web3.eth.send_raw_transaction(tx.raw_transaction)
         except Exception as e:
             print(f"rpc.send_transaction failsed: {e}")
             raise

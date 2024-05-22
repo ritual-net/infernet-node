@@ -81,7 +81,7 @@ class NodeLifecycle:
         processor: Optional[ChainProcessor] = None
         wallet: Optional[Wallet] = None
         snapshot_sync: dict[str, int] = cast(
-            dict[str, int], config.get("snapshot_sync", {})
+            dict[str, int], config["chain"].get("snapshot_sync", {})
         )
 
         if config["chain"]["enabled"]:
@@ -123,7 +123,9 @@ class NodeLifecycle:
 
         # Forward stats to Fluentbit, if enabled
         if config["forward_stats"]:
-            self._stat_sender = StatSender(__version__, guardian, store, wallet)
+            self._stat_sender = StatSender(
+                __version__, config["server"]["port"], guardian, store, wallet
+            )
             self._tasks.append(self._stat_sender)
 
     async def _lifecycle_setup(self: NodeLifecycle) -> None:

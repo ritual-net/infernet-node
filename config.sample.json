@@ -12,11 +12,11 @@
     "wallet": {
       "max_gas_limit": 5000000,
       "private_key": "0x..."
+    },
+    "snapshot_sync": {
+      "sleep": 1.5,
+      "batch_size": 200
     }
-  },
-  "snapshot_sync": {
-    "sleep": 1.5,
-    "batch_size": 200
   },
   "docker": {
     "username": "username",
@@ -38,7 +38,8 @@
       "allowed_addresses": [],
       "allowed_ips": [],
       "command": "--bind=0.0.0.0:3000 --workers=2",
-      "env": {}
+      "env": {},
+      "volumes": []
     }
   ]
 }

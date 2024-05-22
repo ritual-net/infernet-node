@@ -418,5 +418,6 @@ class ContainerManager(AsyncTask):
                         "MaximumRetryCount": 5,
                     },
                     device_requests=device_requests,
+                    volumes=config.get("volumes", []),
                 )
                 log.info(f"Created and started new container: {id}")

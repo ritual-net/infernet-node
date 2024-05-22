@@ -17,12 +17,8 @@ from eth_typing import HexStr
 from chain.coordinator import Coordinator, CoordinatorSignatureParams
 from chain.rpc import RPC
 from chain.wallet import Wallet
-from orchestration.orchestrator import (
-    Orchestrator,
-    OrchestratorInputSource,
-    OrchestratorInputType,
-)
-from shared.job import ContainerError, ContainerOutput
+from orchestration.orchestrator import Orchestrator
+from shared.job import ContainerError, ContainerOutput, JobInput, JobLocation
 from shared.message import (
     DelegatedSubscriptionMessage,
     MessageType,
@@ -760,11 +756,11 @@ class ChainProcessor(AsyncTask):
 
         if delegated:
             # Setup off-chain inputs
-            container_input = {
-                "source": OrchestratorInputSource.OFFCHAIN.value,
-                "data": parsed_params[1],
-                "type": OrchestratorInputType.NON_STREAMING.value,
-            }
+            container_input = JobInput(
+                source=JobLocation.OFFCHAIN.value,
+                destination=JobLocation.ONCHAIN.value,
+                data=parsed_params[1],
+            )
         else:
             # Setup on-chain inputs
             chain_input = await self._coordinator.get_container_inputs(
@@ -773,13 +769,12 @@ class ChainProcessor(AsyncTask):
                 timestamp=int(time.time()),
                 caller=self._wallet.address,
             )
-            container_input = {
-                "source": OrchestratorInputSource.ONCHAIN.value,
-                "data": chain_input.hex(),
-                "type": OrchestratorInputType.NON_STREAMING.value,
-            }
-
-        log.info(
+            container_input = JobInput(
+                source=JobLocation.ONCHAIN.value,
+                destination=JobLocation.ONCHAIN.value,
+                data=chain_input.hex(),
+            )
+        log.debug(
             "Setup container input",
             id=id,
             interval=interval,
@@ -789,7 +784,7 @@ class ChainProcessor(AsyncTask):
         # Execute containers
         container_results = await self._orchestrator.process_chain_processor_job(
             job_id=id,
-            initial_input=container_input,
+            job_input=container_input,
             containers=subscription.containers,
         )
 

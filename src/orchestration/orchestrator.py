@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import asdict
 from enum import Enum
 from json import JSONDecodeError
 from os import environ
@@ -8,6 +9,7 @@ from typing import Any, AsyncGenerator, Optional
 from aiohttp import ClientSession
 
 from shared import ContainerError, ContainerOutput, ContainerResult
+from shared.job import ContainerInput, JobInput, JobLocation
 from shared.message import OffchainJobMessage
 from utils import log
 
@@ -71,7 +73,7 @@ class Orchestrator:
     async def _run_job(
         self: Orchestrator,
         job_id: Any,
-        initial_input: dict[Any, Any],
+        job_input: JobInput,
         containers: list[str],
         message: Optional[OffchainJobMessage],
     ) -> list[ContainerResult]:
@@ -84,7 +86,7 @@ class Orchestrator:
 
         Args:
             job_id (Any): job identifier
-            initial_input (dict[Any, Any]): initial input to first container
+            job_input (JobInput): initial input to first container
             containers (list[str]): ordered list of containers to execute
             message (Optional[OffchainJobMessage]): optional offchain job message to
                 track state in store
@@ -98,21 +100,30 @@ class Orchestrator:
 
         # Setup input and results
         results: list[ContainerResult] = []
-        input_data = initial_input
+
+        # If only one container, destination of first container is destination of job
+        # Otherwise, destination of first container is off-chain, and source of next
+        # container is off-chain (i.e. chaining containers together)
+        input_data = ContainerInput(
+            source=job_input.source,
+            destination=(
+                job_input.destination
+                if len(containers) == 1
+                else JobLocation.OFFCHAIN.value
+            ),
+            data=job_input.data,
+        )
 
         # Call container chain
         async with ClientSession() as session:
-            for container in containers:
-                # Track container count
-                self._store.track_container(container)
-
+            for index, container in enumerate(containers):
                 # Get container port and URL
                 port = self._manager.get_port(container)
                 url = f"http://{self._host}:{port}/service_output"
 
                 try:
                     async with session.post(
-                        url, json=input_data, timeout=180
+                        url, json=asdict(input_data), timeout=180
                     ) as response:
                         # Handle JSON response
                         output = await response.json()
@@ -138,6 +149,13 @@ class Orchestrator:
 
                     # Track job failure
                     self._store.set_failed(message, results)
+
+                    # Track container failure
+                    self._store.track_container_status(
+                        container,
+                        "failed",
+                    )
+
                     return results
 
                 except Exception as e:
@@ -152,6 +170,13 @@ class Orchestrator:
 
                     # Track job failure
                     self._store.set_failed(message, results)
+
+                    # Track container failure
+                    self._store.track_container_status(
+                        container,
+                        "failed",
+                    )
+
                     return results
 
         # Track job success
@@ -162,14 +187,14 @@ class Orchestrator:
     async def process_chain_processor_job(
         self: Orchestrator,
         job_id: Any,
-        initial_input: dict[Any, Any],
+        job_input: JobInput,
         containers: list[str],
     ) -> list[ContainerResult]:
         """Processes arbitrary job from ChainProcessor
 
         Args:
             job_id (Any): job identifier
-            initial_input (dict[Any, Any]): initial input to first container
+            job_input (JobInput): initial input to first container
             containers (list[str]): ordered list of containers to execute
 
         Returns:
@@ -177,7 +202,7 @@ class Orchestrator:
         """
         return await self._run_job(
             job_id=job_id,
-            initial_input=initial_input,
+            job_input=job_input,
             containers=containers,
             message=None,
         )
@@ -232,13 +257,17 @@ class Orchestrator:
 
         # Start job and track container
         self._store.set_running(message)
-        self._store.track_container(container)
 
         # Hold chunks in memory to store final results in Redis
         chunks = []
 
         async with ClientSession() as session:
             try:
+                job_input = JobInput(
+                    source=JobLocation.OFFCHAIN.value,
+                    destination=JobLocation.STREAM.value,
+                    data=message.data,
+                )
                 async with session.post(
                     url,
                     json={
@@ -262,9 +291,21 @@ class Orchestrator:
                     [ContainerOutput(container, dict({"output": final_result}))],
                 )
 
+                # Track container success
+                self._store.track_container_status(
+                    container,
+                    "success",
+                )
+
             except Exception as e:
                 # Track job failure
                 log.error(
                     "Container error", id=message.id, container=container, error=str(e)
                 )
                 self._store.set_failed(message, [ContainerError(container, str(e))])
+
+                # Track container failure
+                self._store.track_container_status(
+                    container,
+                    "failed",
+                )

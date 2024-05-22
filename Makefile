@@ -50,6 +50,7 @@ image_id = ritualnetwork/infernet-node-internal:$(tag)
 
 build:
 	docker build -t $(image_id) .
+	docker build -t $(image_id)-gpu -f Dockerfile-gpu .
 
 run-node:
 	docker-compose -f deploy/docker-compose.yaml up
@@ -67,3 +68,4 @@ stop-node:
 # refer to https://docs.docker.com/build/building/multi-platform/#building-multi-platform-images for more info
 build-multiplatform:
 	docker buildx build --platform linux/amd64,linux/arm64 -t $(image_id) --push .
+	docker buildx build --platform linux/amd64,linux/arm64 -t $(image_id)-gpu -f Dockerfile-gpu --push .
