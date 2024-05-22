@@ -202,19 +202,29 @@ class ChainListener(AsyncTask):
         log.info("Syncing new subscriptions", batches=batches)
 
         @retry(delay=self._snapshot_sync_sleep, backoff=2)  # type: ignore
-        async def _sync_with_retries():
-            for batch in batches:
-                # sync for this batch
+        async def _sync_subscription_batch_with_retry(batch: tuple[int, int]) -> None:
+            """Sync subscriptions in batch with retry and exponential backoff"""
+            try:
                 await asyncio.gather(
                     *(
                         self._sync_subscription_creation(_id, head_block)
                         for _id in range(*batch)
                     )
                 )
-                # sleep between batches to avoid getting rate-limited by the RPC
-                await asyncio.sleep(self._snapshot_sync_sleep)
+            except Exception as e:
+                log.error(
+                    f"Error syncing subscription batch {batch}. Retrying...",
+                    batch=batch,
+                    err=e,
+                )
+                raise e
 
-        await _sync_with_retries()
+        for _batch in batches:
+            # sync for this batch
+            await _sync_subscription_batch_with_retry(_batch)
+
+            # sleep between batches to avoid getting rate-limited by the RPC
+            await asyncio.sleep(self._snapshot_sync_sleep)
 
     async def setup(self: ChainListener) -> None:
         """ChainListener startup
