@@ -21,7 +21,7 @@ RUN apt-get update
 RUN apt-get install -y curl
 
 # Install UV
-RUN curl -LsSf https://astral.sh/uv/0.1.45/install.sh | sh
+RUN curl -LsSf https://astral.sh/uv/0.2.1/install.sh | sh
 
 # Download dependencies as a separate step to take advantage of Docker's caching.
 # Leverage a cache mount to /root/.cache/uv to speed up subsequent builds.
