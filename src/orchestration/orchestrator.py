@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from enum import Enum
 from json import JSONDecodeError
 from os import environ
 from typing import Any, AsyncGenerator, Optional
@@ -15,20 +14,6 @@ from utils import log
 
 from .docker import ContainerManager
 from .store import DataStore
-
-
-class OrchestratorInputSource(Enum):
-    """Orchestrator input source"""
-
-    ONCHAIN = 0
-    OFFCHAIN = 1
-
-
-class OrchestratorInputType(Enum):
-    """Orchestrator input type"""
-
-    NON_STREAMING = 0
-    STREAMING = 1
 
 
 class Orchestrator:
@@ -128,11 +113,25 @@ class Orchestrator:
                         # Handle JSON response
                         output = await response.json()
                         results.append(ContainerOutput(container, output))
-                        input_data = {
-                            "source": OrchestratorInputSource.OFFCHAIN.value,
-                            "data": output,
-                            "type": OrchestratorInputType.NON_STREAMING.value,
-                        }
+
+                        # Track container success
+                        self._store.track_container_status(
+                            container,
+                            "success",
+                        )
+
+                        # If next container is the last container, set destination to
+                        # job destination. Otherwise, set destination to off-chain
+                        # (i.e. chaining containers together)
+                        input_data = ContainerInput(
+                            source=JobLocation.OFFCHAIN.value,
+                            destination=(
+                                job_input.destination
+                                if index == len(containers) - 2
+                                else JobLocation.OFFCHAIN.value
+                            ),
+                            data=output,
+                        )
 
                 except JSONDecodeError:
                     # Handle non-JSON response as error
@@ -217,11 +216,11 @@ class Orchestrator:
         """
         await self._run_job(
             job_id=message.id,
-            initial_input={
-                "source": OrchestratorInputSource.OFFCHAIN.value,
-                "data": message.data,
-                "type": OrchestratorInputType.NON_STREAMING.value,
-            },
+            job_input=JobInput(
+                source=JobLocation.OFFCHAIN.value,
+                destination=JobLocation.OFFCHAIN.value,
+                data=message.data,
+            ),
             containers=message.containers,
             message=message,
         )
@@ -270,11 +269,7 @@ class Orchestrator:
                 )
                 async with session.post(
                     url,
-                    json={
-                        "source": OrchestratorInputSource.OFFCHAIN.value,
-                        "data": message.data,
-                        "type": OrchestratorInputType.STREAMING.value,
-                    },
+                    json=asdict(job_input),
                     timeout=180,
                 ) as response:
                     # Raises exception if status code is not 200
