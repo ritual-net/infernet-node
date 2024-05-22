@@ -113,10 +113,10 @@ class ChainListener(AsyncTask):
 
     async def _sync_subscription_creation(
         self: ChainListener,
-        id: int,
+        sub_id: int,
         block_number: BlockNumber,
     ) -> None:
-        """Syncs net-new subscriptions created in a block
+        """Syncs a subscription with sub id: sub_id
 
         Consumed by:
             1. Snapshot sync when initially syncing subscriptions
@@ -130,13 +130,13 @@ class ChainListener(AsyncTask):
             4. If validated, forward subscriptions to ChainProcessor
 
         Args:
-            id (int): subscription ID
+            sub_id (int): subscription ID
             block_number (BlockNumber): block number to collect at (TOCTTOU)
         """
 
         # Collect subscription
         subscription = await self._coordinator.get_subscription_by_id(
-            subscription_id=id, block_number=block_number
+            subscription_id=sub_id, block_number=block_number
         )
 
         # If subscription is on last interval
@@ -144,7 +144,7 @@ class ChainListener(AsyncTask):
             # Collect and set response count for interval (always last)
             interval = subscription.interval
             response_count = await self._coordinator.get_subscription_response_count(
-                subscription_id=id,
+                subscription_id=sub_id,
                 interval=interval,
                 block_number=block_number,
             )
@@ -158,16 +158,14 @@ class ChainListener(AsyncTask):
 
         if isinstance(filtered, GuardianError):
             # If filtered out by guardian, message is irrelevant
-            log.info("Ignored subscription creation", id=id, err=filtered.error)
+            log.info("Ignored subscription creation", id=sub_id, err=filtered.error)
             return
 
         # Pass filtered message to ChainProcessor
         create_task(self._processor.track(msg))
-        log.info("Relayed subscription creation", id=id)
+        log.info("Relayed subscription creation", id=sub_id)
 
-    async def _snapshot_sync_with_retries(
-        self: ChainListener, head_block: BlockNumber
-    ) -> None:
+    async def _snapshot_sync(self: ChainListener, head_block: BlockNumber) -> None:
         """Snapshot syncs subscriptions from Coordinator up to the latest subscription
         read at the head block. Retries on failure, with exponential backoff. Since
         `ChainProcessor` keeps track of subscriptions indexed by their ID, this method
@@ -181,30 +179,30 @@ class ChainListener(AsyncTask):
             2. From _last_subscription_id + 1 -> head_sub_id, _sync_subscription_creation
         """
 
+        # Get the highest subscription ID at the head block
+        head_sub_id = await self._coordinator.get_head_subscription_id(head_block)
+        log.info(
+            "Collected highest subscription id",
+            id=head_sub_id,
+            head_block=head_block,
+        )
+
+        # Subscription indexes are 1-indexed at contract level. For
+        # subscriptions 1 -> head, sync subscription creation sync is happening
+        # in parallel in batches of size self._snapshot_sync_batch_size. To throttle,
+        # sleeps self._snapshot_sync_sleep seconds between each batch
+        start = self._last_subscription_id + 1
+
+        batches = get_batches(start, head_sub_id, self._snapshot_sync_batch_size)
+
+        if len(batches) == 1 and batches[0][0] == batches[0][1]:
+            # no new subscriptions to sync
+            return
+
+        log.info("Syncing new subscriptions", batches=batches)
+
         @retry(delay=self._snapshot_sync_sleep, backoff=2)  # type: ignore
-        async def _sync():
-            # Get the highest subscription ID at the head block
-            head_sub_id = await self._coordinator.get_head_subscription_id(head_block)
-            log.info(
-                "Collected highest subscription id",
-                id=head_sub_id,
-                head_block=head_block,
-            )
-
-            # Subscription indexes are 1-indexed at contract level. For
-            # subscriptions 1 -> head, sync subscription creation sync is happening
-            # in parallel in batches of size self._snapshot_sync_batch_size. To throttle,
-            # sleeps self._snapshot_sync_sleep seconds between each batch
-            start = self._last_subscription_id + 1
-
-            batches = get_batches(start, head_sub_id, self._snapshot_sync_batch_size)
-
-            if len(batches) == 1 and batches[0][0] == batches[0][1]:
-                # no new subscriptions to sync
-                return
-
-            log.info("Syncing new subscriptions", batches=batches)
-
+        async def _sync_with_retries():
             for batch in batches:
                 # sync for this batch
                 await asyncio.gather(
@@ -216,7 +214,7 @@ class ChainListener(AsyncTask):
                 # sleep between batches to avoid getting rate-limited by the RPC
                 await asyncio.sleep(self._snapshot_sync_sleep)
 
-        await _sync()
+        await _sync_with_retries()
 
     async def setup(self: ChainListener) -> None:
         """ChainListener startup
@@ -240,7 +238,7 @@ class ChainListener(AsyncTask):
         )
 
         # Snapshot sync subscriptions
-        await self._snapshot_sync_with_retries(cast(BlockNumber, head_block))
+        await self._snapshot_sync(cast(BlockNumber, head_block))
 
         log.info("Finished snapshot sync", new_head=head_block)
 
@@ -292,7 +290,7 @@ class ChainListener(AsyncTask):
                 )
 
                 # sync new subscriptions
-                await self._snapshot_sync_with_retries(head_block)
+                await self._snapshot_sync(head_block)
 
                 # Update last synced block
                 self._last_block = target_block
