@@ -12,13 +12,13 @@ All notable changes to this project will be documented in this file.
 - Better error-checking and handling for all infernet-related on-chain transaction errors.
 - Forward fatal errors via metric sender at shutdown for better error diagnosing (only if forwarding stats is enabled.)
 - New `destination` field to container inputs, to decouple job input source from output destination.
-- New flag `"type"` to infernet container inputs, to distinguish between streaming and non-streaming jobs.
 - OpenAPI spec for the REST server.
 - Simulation of transactions before submitting them to the chain, to prevent submitting invalid transactions, resulting in wasted gas.
 - Support for streaming offchain job responses, via the `POST /api/jobs/stream` endpoint.
 - Support for CIDR ranges in container-level firewalls (`"allowed_ips"`).
 - Support for volume mounts to managed containers.
 - Support for streaming offchain job responses, via the `/api/jobs/stream` endpoint.
+- New flag `"allowed_sim_errors"` in the `config.json` file to specify which error messages are allowed to be ignored by the node when simulating transactions.
 
 ### Changed
 - Limit restarts within time window in `docker-compose.yaml`.
@@ -30,7 +30,6 @@ All notable changes to this project will be documented in this file.
 - Moved `snapshot_sync` under the `chain` section of `config.json`.
 - Snapshot syncing retries now include exponential backoff when syncing chain state.
 - Job and container counts are now reported separately via metric sender. The REST port is also reported.
-- New flag `"allowed_sim_errors"` in the `config.json` file to specify which error messages are allowed to be ignored by the node when simulating transactions.
 - `chain/processor.py` & `chain/listener.py` are extensively refactored to remove the dependency on on-chain events. `SubscriptionCreated` is now caught by repeatedly
 checking the latest `sub_id` & syncing all subscriptions since the last sync. `SubscriptionCancelled` is now caught by checking if the `owner` & `containers` fields
 are set to be empty. `SubscriptionFulfilled` is now checked instead by reading the `redundancyCount` from the coordinator contract.
