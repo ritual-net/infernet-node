@@ -178,6 +178,9 @@ class RESTServer(AsyncTask):
 
                     # Parse message data, inject uuid and client IP
                     job_id = str(uuid4())  # Generate a unique job ID
+                    log.info(
+                        "Received new off-chain raw message", msg=data, job_id=job_id
+                    )
                     parsed: OffchainMessage = from_union(
                         OffchainMessage,
                         {"id": job_id, "ip": client_ip, **data},
@@ -233,6 +236,13 @@ class RESTServer(AsyncTask):
                     return_obj = {"id": str(message.id)}
 
                 elif message.type == MessageType.DelegatedSubscription:
+                    log.info(
+                        "Received delegated subscription request",
+                        endpoint=request.path,
+                        method=request.method,
+                        status=200,
+                        id=str(message.id),
+                    )
                     message = cast(DelegatedSubscriptionMessage, message)
 
                     # Should only reach this point if chain is enabled (else, filtered

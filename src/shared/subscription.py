@@ -4,8 +4,11 @@ import time
 from dataclasses import dataclass
 from functools import cache
 
+import structlog
 from eth_account.messages import SignableMessage, encode_typed_data
 from eth_typing import ChecksumAddress
+
+log = structlog.get_logger()
 
 
 class Subscription:
@@ -96,7 +99,19 @@ class Subscription:
         Returns:
             bool: True if subscription is active, else False
         """
-        return int(time.time()) > self._active_at
+        return time.time() > self._active_at
+
+    @property
+    def past_last_interval(self: Subscription) -> int:
+        """Returns whether a subscription is past its last interval
+
+        Returns:
+            bool: True if subscription is past last interval, else False
+        """
+        if not self.active:
+            return False
+
+        return self.interval > self._frequency
 
     @property
     def interval(self: Subscription) -> int:
@@ -145,37 +160,15 @@ class Subscription:
         """
         if (
             # If subscription is on its last interval
-            self.last_interval
+            (self.past_last_interval or self.last_interval)
             # And, subscription has received its max redundancy responses
-            and self.get_response_count(self.interval) == self._redundancy
+            and self.get_response_count(self._frequency) == self._redundancy
         ):
             # Return completed
             return True
 
         # Else, return incomplete
         return False
-
-    @cache
-    def get_interval_by_timestamp(self: Subscription, timestamp: int) -> int:
-        """Returns expected subscription interval given response timestamp
-
-        Args:
-            timestamp (int): response timestamp
-
-        Returns:
-            int: expected subscription interval
-        """
-        if timestamp < self._active_at:
-            raise RuntimeError("Cannot get interval prior to activation")
-
-        # If timestamp >= timestamp for last interval, return last interval
-        last_interval_ts = self._active_at + (self._period * (self._frequency - 1))
-        if timestamp >= last_interval_ts:
-            return self._frequency
-
-        # Else, return expected interval
-        diff = timestamp - self._active_at
-        return diff // self._period
 
     def get_response_count(self: Subscription, interval: int) -> int:
         """Returns response count by subscription interval

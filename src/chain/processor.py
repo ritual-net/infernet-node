@@ -5,10 +5,11 @@ Handles processing of on-chain delivered subscriptions.
 
 from __future__ import annotations
 
+import asyncio
 import time
 from asyncio import create_task, sleep
 from copy import deepcopy
-from typing import Any, Optional, cast
+from typing import Any, Optional, Tuple, cast
 
 from eth_abi import encode  # type: ignore
 from eth_typing import HexStr
@@ -22,16 +23,15 @@ from shared.message import (
     DelegatedSubscriptionMessage,
     MessageType,
     OnchainMessage,
-    SubscriptionCancelledMessage,
     SubscriptionCreatedMessage,
-    SubscriptionFulfilledMessage,
 )
 from shared.service import AsyncTask
 from shared.subscription import Subscription
+from utils.constants import ZERO_ADDRESS
 from utils.logging import log
 
 # Blocked tx
-BLOCKED = "blocked"
+BLOCKED: HexStr = cast(HexStr, "0xblocked")
 
 # Container response keys
 RESPONSE_KEYS = [
@@ -45,7 +45,7 @@ RESPONSE_KEYS = [
 # Type aliases
 Interval = int
 SubscriptionID = int
-DelegateSubscriptionID = tuple[str, int]  # (owner address, nonce)
+DelegateSubscriptionID = Tuple[HexStr, int]  # in the format of f"{owner}-{nonce}"
 UnionID = SubscriptionID | DelegateSubscriptionID
 DelegateSubscriptionData = tuple[
     Subscription, CoordinatorSignatureParams, dict[Any, Any]
@@ -56,25 +56,10 @@ class ChainProcessor(AsyncTask):
     """Handles processing of on-chain delivered subscriptions.
 
     Process:
-        1. Receives messages to track via `process()`
+        1. Receives messages to track via `track()`
         2. Tracks messages (+ included subscriptions) according to type:
             2.1. SubscriptionCreatedMessage:
-                2.1.1. Adds subscription to _subscriptions, indexed by ID
-                2.1.2. If message originated in a tracked tx_hash (delegate subscription
-                 being created), evict delegate subscription from
-                 self._delegate_subscriptions
-            2.2. SubscriptionCancelledMessage:
-                2.2.1. Deletes ID key from _subscriptions, if exists
-            2.3. SubscriptionFulfilledMessage:
-                2.3.1. Checks if fufillment message is relevant (id tracked in
-                  _subscriptions; note, runs after creation message so delegate
-                  subscriptions will be tracked accordingly)
-                2.3.2. If fulfillment was our own, removes from _pending
-                    2.3.2.1. Updates our node as having responded to
-                      (subscription, interval)
-                2.3.3. Updates subscription fulfillment in _subscriptions
-                    2.3.3.1. Checks subscription completion and removes from
-                      _subscriptions if so
+                Adds subscription to _subscriptions, indexed by ID
             2.4. DelegatedSubscriptionMessage:
                 2.4.1. Checks if delegated subscription already exists on-chain
                   (by owner, nonce)
@@ -83,14 +68,30 @@ class ChainProcessor(AsyncTask):
                 2.4.4. Verifies that recovered signer == delegated signer
                 2.4.5. If verified, adds subscription to _delegate_subscriptions
                   indexed by str(owner-nonce)
-        3. At each interval (default: every 500ms):
+        3. At each interval (default: every 100ms):
             3.1. Prune pending txs that have failed to allow for re-processing
                 (successful txs pruned during event replay)
-            3.2. Check for subscriptions + delegated subscriptions that are active
-                3.2.1. Filter out ones with pending transactions emitted for current
-                  interval
-                3.2.2. Filter out ones where node has already submitted on-chain tx
-                  for current interval
+            3.2. Check for subscriptions
+                3.2.1. Skip the inactive subscriptions
+                3.2.2. Check subscriptions that have been cancelled, and stop tracking
+                3.2.3. Check if the subscription has already been completed, and stop
+                    tracking
+                3.2.4 Check if the subscription has passed the deadline, and stop
+                    tracking
+                3.2.5. Check if the subscription's transaction failure has exceeded the
+                    maximum number of attempts, and if so, stop tracking
+                3.2.6. Filter out ones where node has already submitted on-chain tx
+                  for current interval, or has a pending tx submitted
+                3.2.7. Queue for processing
+            3.3. Check for delegated subscriptions that are tracked
+                3.3.1. Skip the inactive subscriptions
+                3.3.2. Check if the delegated subscription has already been completed,
+                    and stop tracking
+                3.3.3. Check if the delegated subscription's transaction failure has
+                    exceeded the maximum number of attempts, and if so, stop tracking
+                3.3.4. Filter out ones where node has a pending tx submitted
+                3.3.5. Queue for processing
+
             3.3. Process:
                 3.3.1. Toggle pending execution for interval by blocking self._pending
                 3.3.2. Collect latest input parameters, if needed, from chain
@@ -108,18 +109,26 @@ class ChainProcessor(AsyncTask):
 
     Private methods:
         _track_created_message: Handles event replayed SubscriptionCreatedMessage(s)
-        _track_cancelled_message: Handles event replayed SubscriptionCancelledMessage(s)
-        _track_fulfilled_message: Handles event replayed SubscriptionFulfilledMessage(s)
         _track_delegated_message: Handles event replayed DelegatedSubscriptionMessage(s)
         _has_responded_onchain_in_interval: Checks if local node wallet has responded
             on-chain for (subscription ID, interval)
+        _prune_failed_txs: Prunes pending txs that have failed to allow for re-processing
+        _stop_tracking: Stops tracking subscription (or delegated subscription)
         _has_subscription_tx_pending_in_interval: Checks if a tx is pending for
             (subscription ID, interval)
-        _prune_failed_txs: Prunes pending txs that have failed to allow for re-processing
         _serialize_param: Serializes single container output param (consumed by
             _serialize_container_output)
         _serialize_container_output: Serializes orchestrator container output for
             on-chain consumption
+        _stop_tracking_if_cancelled: Checks if subscription has been cancelled on-chain
+        _stop_tracking_delegated_sub_if_completed: Checks if delegated subscription has
+            already been completed, if so, stops tracking
+        _stop_tracking_sub_if_completed: Checks if subscription has already been
+            completed. If so, stops tracking
+        _stop_tracking_if_maximum_retries_reached: Checks if subscription has exceeded
+            the maximum number of attempts, if so, stops tracking.
+        _stop_tracking_sub_if_missed_deadline: Checks if subscription has missed
+            deadline, if so, stops tracking.
         _process_subscription: Handles subscription processing lifecycle
 
     Private attributes:
@@ -134,6 +143,7 @@ class ChainProcessor(AsyncTask):
             (subscription ID, delivery interval) => tx hash
         _attempts (dict[tuple[UnionID, Interval], int]):
             (subscription ID, delivery interval) => number of failed tx attempts
+        _attempts_lock (asyncio.Lock): Lock for _attempts dict
     """
 
     def __init__(
@@ -170,11 +180,12 @@ class ChainProcessor(AsyncTask):
         ] = {}
 
         # (Union subscription ID, interval) => tx_hash
-        self._pending: dict[tuple[UnionID, Interval], str] = {}
+        self._pending: dict[tuple[UnionID, Interval], HexStr] = {}
 
         # (Union subscription ID, interval) => attempts
         self._attempts: dict[tuple[UnionID, Interval], int] = {}
         log.info("Initialized ChainProcessor")
+        self._attempts_lock = asyncio.Lock()
 
     def _track_created_message(
         self: ChainProcessor, msg: SubscriptionCreatedMessage
@@ -183,8 +194,6 @@ class ChainProcessor(AsyncTask):
 
         Process:
             1. Adds subscription to tracked _subscriptions
-            2. Checks if subscription was created for a tracked tx
-                2.1. If so, evicts delegate subscription
 
         Args:
             msg (SubscriptionCreatedMessage): subscription creation message
@@ -193,111 +202,10 @@ class ChainProcessor(AsyncTask):
         # Add subscription to tracked _subscriptions
         self._subscriptions[msg.subscription.id] = msg.subscription
         log.info(
-            "Tracked new subscription",
+            "Tracked new subscription!",
             id=msg.subscription.id,
             total=len(self._subscriptions.keys()),
         )
-
-        # If message has an associated tx_hash
-        # We know this message came from event replay
-        if msg.tx_hash:
-            # Check if tx_hash exists in pending transactions
-            for (id, _), tx_hash in self._pending.items():
-                if tx_hash == msg.tx_hash:
-                    # If tx_hash does exist, we know that this is the tx confirmation
-                    # of an tx that we sent out. Because it is a creation event, we
-                    # must have sent a corresponding delegate subscription that
-                    # when confirmed on-chain, created a subscription. Now, because we
-                    # track the actual subscription, we can remove the delegate.
-                    del self._delegate_subscriptions[cast(DelegateSubscriptionID, id)]
-                    log.info("Evicted created delegated subscription", id=id)
-
-    def _track_cancelled_message(
-        self: ChainProcessor, msg: SubscriptionCancelledMessage
-    ) -> None:
-        """Tracks SubscriptionCancelledMessage
-
-        Process:
-            1. Removes subscription by ID from tracked _subscriptions, if exists
-
-        Args:
-            msg (SubscriptionCancelledMessage): subscription cancellation message
-        """
-        if msg.subscription_id in self._subscriptions:
-            del self._subscriptions[msg.subscription_id]
-            log.info(
-                "Tracked subscription cancellation",
-                id=msg.subscription_id,
-                total=len(self._subscriptions.keys()),
-            )
-        else:
-            log.debug("Ignored irrelevant cancellation", id=msg.subscription_id)
-
-    def _track_fulfilled_message(
-        self: ChainProcessor, msg: SubscriptionFulfilledMessage
-    ) -> None:
-        """Tracks SubscriptionFulfilledMessage
-
-        Process:
-            1. Checks if fulfillment message is relevant (is for a tracked subscription)
-            2. Calculates subscription interval from timestamp
-            3. Checks if fulillment was our own
-                3.1. If so, removes tx from _pending
-                3.2. Updates our own node as having responded
-            4. Updates subscription fulfillment in subscription in _subscriptions
-            5. Checks subscription completion and removes from _subscriptions if so
-
-        Args:
-            msg (SubscriptionFulfilledMessage): subscription fulfillment message
-        """
-
-        # Return if fulfillment message is irrelevant
-        if msg.subscription_id not in self._subscriptions:
-            log.debug("Ignored irrelevant fulfillment", id=msg.subscription_id)
-            return
-
-        # Calculate subscription interval
-        subscription = self._subscriptions[msg.subscription_id]
-        interval = subscription.get_interval_by_timestamp(msg.timestamp)
-
-        # If fulfillment is our own
-        if msg.node == self._wallet.address:
-            key = (subscription.id, interval)
-
-            # Check if we tracked the pending tx
-            if key in self._pending:
-                # If so, remove pending tx and log removal
-                tx_hash = self._pending.pop(key)
-                log.info("Removed completed tx", tx_hash=tx_hash)
-            else:
-                # Else, log error if we did not track pending tx
-                log.info(
-                    "Tx not found in pending (potentially delegate)",
-                    id=subscription.id,
-                    interval=interval,
-                )
-
-            # Update node as having responded
-            subscription.set_node_replied(interval)
-
-        # Update subscription fulfillment
-        existing_count = subscription.get_response_count(interval)
-        subscription.set_response_count(interval, existing_count + 1)
-        log.info(
-            "Tracked subscription fulfillment",
-            id=subscription.id,
-            interval=interval,
-            count=existing_count + 1,
-        )
-
-        # If subscription completed, remove from _subscriptions
-        if subscription.completed:
-            del self._subscriptions[subscription.id]
-            log.info(
-                "Evicted completed subscription",
-                id=subscription.id,
-                total=len(self._subscriptions.keys()),
-            )
 
     async def _track_delegated_message(
         self: ChainProcessor, msg: DelegatedSubscriptionMessage
@@ -306,8 +214,8 @@ class ChainProcessor(AsyncTask):
 
         Process:
             1. Checks if delegated subscription already exists on-chain
-                1.1. If so, evicts relevant run from pending and attempts
-                    to allow forced re-execution
+                1.1. If so, evicts relevant run from pending and attempts to allow
+                forced re-execution
             2. Collects recovered signer from signature
             3. Collects delegated signer from chain
             4. Verifies that recovered signer == delegated signer
@@ -319,7 +227,7 @@ class ChainProcessor(AsyncTask):
         """
 
         # Collect message inputs
-        subscription = msg.subscription.deserialize()
+        subscription: Subscription = msg.subscription.deserialize()
         signature = msg.signature
 
         # Check if delegated subscription already exists on-chain
@@ -333,21 +241,27 @@ class ChainProcessor(AsyncTask):
             block_number=head_block,
         )
 
-        # If subscription exists
+        # If delegate subscription already exists on-chain
         if exists:
-            # Check if subscription is tracked locally
+            # Check if subscription is tracked locally, this can happen if the
+            # user made a delegated subscription request again through the rest API,
+            # or if another node had already created the same delegated subscription
             tracked = id in self._subscriptions
             log.info("Delegated subscription exists on-chain", id=id, tracked=tracked)
 
             # Evict current delegate runs from pending and attempts
             # Allows reprocessing failed delegate subscriptions, if they exist
-            key = ((subscription.owner, signature.nonce), subscription.interval)
-            if key in self._pending:
-                self._pending.pop(key)
-                log.info("Evicted past pending subscription tx", run=key)
-            if key in self._attempts:
-                self._attempts.pop(key)
-                log.info("Evicted past pending subscription attempts", run=key)
+            async with self._attempts_lock:
+                key = (
+                    (cast(HexStr, subscription.owner), signature.nonce),
+                    subscription.interval,
+                )
+                if key in self._pending:
+                    self._pending.pop(key)
+                    log.info("Evicted past pending subscription tx", run=key)
+                if key in self._attempts:
+                    self._attempts.pop(key)
+                    log.info("Evicted past pending subscription attempts", run=key)
 
         # Else, subscription does not exist on-chain
         try:
@@ -381,15 +295,20 @@ class ChainProcessor(AsyncTask):
             return
 
         # Else, if signers match, track delegate subscription
-        self._delegate_subscriptions[(subscription.owner, signature.nonce)] = (
+        sub_id: DelegateSubscriptionID = (
+            cast(HexStr, subscription.owner),
+            signature.nonce,
+        )
+
+        self._delegate_subscriptions[sub_id] = (
             subscription,
             signature,
             msg.data,
         )
+
         log.info(
             "Tracked new delegate subscription",
-            owner=subscription.owner,
-            nonce=signature.nonce,
+            sub_id=sub_id,
         )
 
     async def _has_responded_onchain_in_interval(
@@ -424,6 +343,11 @@ class ChainProcessor(AsyncTask):
 
         # Update node reply status and return
         if node_responded:
+            log.info(
+                "Node has already responded for this interval",
+                id=sub.id,
+                interval=sub.interval,
+            )
             sub.set_node_replied(sub.interval)
         return node_responded
 
@@ -437,43 +361,91 @@ class ChainProcessor(AsyncTask):
         """
         failed_txs: list[tuple[UnionID, Interval]] = []
 
-        # Make deep copy to avoid mutation during iteration
-        pending_copy = deepcopy(self._pending)
+        async with self._attempts_lock:
+            # Make deep copy to avoid mutation during iteration
+            pending_copy = deepcopy(self._pending)
+            for (id, interval), tx_hash in pending_copy.items():
+                # Check if tx_hash is not blocked
+                if tx_hash != BLOCKED:
+                    # Check if tx failed on-chain
+                    (found, success) = await self._rpc.get_tx_success(tx_hash)
+                    if not found:
+                        continue
+                    if success:
+                        # clean attempts count
+                        if (id, interval) in self._attempts:
+                            self._attempts.pop((id, interval))
+                    else:
+                        # Push to failed tx list
+                        failed_txs.append((id, interval))
 
-        for (id, interval), tx_hash in pending_copy.items():
-            # Check if tx_hash is not blocked
-            if tx_hash != BLOCKED:
-                # Check if tx failed on-chain
-                (found, success) = await self._rpc.get_tx_success(cast(HexStr, tx_hash))
+            # Evict failed txs
+            for id, interval in failed_txs:
+                key = (id, interval)
 
-                # If posted on-chain but failed, evict from pending txs
-                if found and not success:
-                    # Push to failed tx list
-                    failed_txs.append((id, interval))
+                # Check if key in attempts
+                if key in self._attempts:
+                    # If so, increment attempts
+                    self._attempts[key] += 1
+                else:
+                    # Else, initialize to 1 processed attempt
+                    self._attempts[key] = 1
 
-        # Evict failed txs
-        for id, interval in failed_txs:
-            key = (id, interval)
+                """
+                If < 3 failed attempts, evict failed tx, the subscription will be
+                reprocessed.
 
-            # Check if key in attempts
-            if key in self._attempts:
-                # If so, increment attempts
-                self._attempts[key] += 1
-            else:
-                # Else, initialize to 1 processed attempt
-                self._attempts[key] = 1
+                If >= 3 failed attempts, the subscription will be deleted
+                in the next cycle of the loop in: self.check_max_attempts
+                """
+                attempt_count = self._attempts[key]
+                log.debug("attempt count", count=attempt_count, key=key)
+                if attempt_count < 3:
+                    self._pending.pop(key)
+                    log.info(
+                        "Evicted failed tx",
+                        id=id,
+                        interval=interval,
+                        tx_hash=tx_hash,
+                        retries=attempt_count,
+                    )
 
-            # If < 3 failed attempts, evict failed tx
-            attempt_count = self._attempts[key]
-            if attempt_count < 3:
-                self._pending.pop(key)
-                log.info(
-                    "Evicted failed tx",
-                    id=id,
-                    interval=interval,
-                    tx_hash=tx_hash,
-                    retries=attempt_count,
+    def _stop_tracking(
+        self: ChainProcessor, subscription_id: UnionID, delegated: bool
+    ) -> None:
+        """Stops tracking subscription (or delegated subscription)
+            1. Deletes subscription from _subscriptions or _delegate_subscriptions
+            2. Deletes any pending transactions being checked
+
+        Args:
+            subscription_id (UnionID): subscription ID
+            delegated (bool): True if tracking delegated subscription, else False.
+                Defaults to False.
+        """
+
+        if delegated:
+            if subscription_id in self._delegate_subscriptions:
+                del self._delegate_subscriptions[
+                    cast(DelegateSubscriptionID, subscription_id)
+                ]
+
+        else:
+            if subscription_id in self._subscriptions:
+                del self._subscriptions[cast(SubscriptionID, subscription_id)]
+
+        for key in list(self._pending.copy().keys()):
+            if key[0] == subscription_id:
+                del self._pending[key]
+                log.debug(
+                    "Deleted pending transactions being checked",
+                    id=subscription_id,
+                    interval=key[1],
                 )
+
+        log.info(
+            "Stopped tracking subscription",
+            id=subscription_id,
+        )
 
     def _has_subscription_tx_pending_in_interval(
         self: ChainProcessor,
@@ -563,6 +535,172 @@ class ChainProcessor(AsyncTask):
             bytes("", "utf-8"),
         )
 
+    async def _stop_tracking_if_cancelled(
+        self: ChainProcessor, sub_id: SubscriptionID
+    ) -> bool:
+        """Check if the subscription has been cancelled on-chain, if so, stop tracking it
+
+        Args:
+            sub_id (SubscriptionID): subscription ID
+
+        Returns:
+            bool: True if subscription has been cancelled, else False
+        """
+        sub: Subscription = await self._coordinator.get_subscription_by_id(
+            sub_id, await self._rpc.get_head_block_number()
+        )
+        if sub.containers == [""] and sub.owner == ZERO_ADDRESS:
+            log.info("Subscription cancelled", id=sub_id)
+            self._stop_tracking(sub.id, delegated=False)
+            return True
+        return False
+
+    async def _stop_tracking_delegated_sub_if_completed(
+        self: ChainProcessor, sub_id: DelegateSubscriptionID
+    ) -> bool:
+        """Check if the delegated subscription has already been completed. If so, stop
+        tracking it.
+
+        Note that delegated subscriptions may not have a subscription id yet generated,
+        since we allow for delegated subscriptions to be created & fulfilled in the same
+        transaction. In such cases, we use the owner-nonce pair as the subscription id.
+
+        For delegated subscriptions, we only check if the transaction has already been
+        submitted and was successful.
+            1. For one-off delegated subscriptions (where redundancy=1 & frequency =1),
+            this is sufficient.
+            2. For recurring delegated subscriptions (redundancy>1 or frequency>1),
+            the same subscription will get tracked again as it will show up on-chain
+            & will get picked up by the listener. Past that point, the tracking of that
+            subscription will be handled by the regular subscription tracking logic.
+
+        Args:
+            sub_id (DelegateSubscriptionID): delegated subscription ID
+
+        Returns:
+            bool: True if delegated subscription has already been completed, else False
+        """
+        sub: Subscription = self._delegate_subscriptions[sub_id][0]
+
+        tx_hash: Optional[HexStr] = self._pending.get((sub_id, sub.interval), None)
+
+        if tx_hash is None or tx_hash == BLOCKED:
+            # We have not yet submitted the transaction for this delegated subscription
+            return False
+
+        (found, success) = await self._rpc.get_tx_success_with_retries(tx_hash)
+
+        if found and success:
+            # We have already submitted the transaction and it was successful
+            log.info(
+                "Delegated subscription completed for interval",
+                id=sub_id,
+                interval=sub.interval,
+            )
+            self._stop_tracking(sub_id, delegated=True)
+            return True
+
+        return False
+
+    async def _stop_tracking_sub_if_completed(
+        self: ChainProcessor, subscription: Subscription
+    ) -> bool:
+        """Check if the subscription has already been completed. If so, stop tracking it.
+
+        This updates the response count for the subscription by reading it from on-chain
+        storage. If the subscription has already been completed, it stops tracking it.
+
+        Args:
+            subscription (Subscription): subscription
+
+        Returns:
+            bool: True if subscription has already been completed, else False
+        """
+
+        _id, interval = subscription.id, subscription.interval
+        response_count = await self._coordinator.get_subscription_response_count(
+            _id, interval
+        )
+        subscription.set_response_count(interval, response_count)
+        if subscription.completed:
+            log.info(
+                "Subscription already completed",
+                id=subscription.id,
+                interval=subscription.interval,
+            )
+            self._stop_tracking(subscription.id, delegated=False)
+            return True
+        return False
+
+    async def _stop_tracking_if_maximum_retries_reached(
+        self: ChainProcessor, sub_key: tuple[UnionID, Interval], delegated: bool
+    ) -> bool:
+        """Check if the subscription has exceeded the maximum number of attempts. If so,
+            stop tracking it.
+
+        Args:
+            sub_key (tuple[UnionID, Interval]): subscription ID, interval
+            delegated (bool): True if tracking delegated subscription, else False
+
+        Returns:
+            bool: True if the subscription has exceeded the maximum number of attempts,
+            else False
+        """
+        if sub_key in self._attempts:
+            attempt_count = self._attempts[sub_key]
+            if attempt_count >= 3:
+                log.error(
+                    "Subscription has exceeded the maximum number of attempts",
+                    id=sub_key[0],
+                    interval=sub_key[1],
+                    tx_hash=self._pending[sub_key],
+                    attempts=attempt_count,
+                )
+
+                # clear attempts
+                log.info("Clearing attempts", sub_key=sub_key)
+                self._attempts.pop(sub_key)
+
+                async with self._attempts_lock:
+                    # delete subscription
+                    self._stop_tracking(sub_key[0], delegated)
+
+                return True
+        return False
+
+    def _stop_tracking_sub_if_missed_deadline(
+        self: ChainProcessor, subscription_id: UnionID, delegated: bool
+    ) -> bool:
+        """Check if the subscription has missed the deadline. If so, stop tracking it.
+
+        Args:
+            subscription_id (UnionID): subscription ID
+            delegated (bool): True if tracking delegated subscription, else False
+
+        Returns:
+            bool: True if the subscription has missed the deadline, else False
+        """
+        subscription = (
+            self._subscriptions[cast(SubscriptionID, subscription_id)]
+            if not delegated
+            else self._delegate_subscriptions[
+                cast(DelegateSubscriptionID, subscription_id)
+            ][0]
+        )
+        log.debug("checking subscription deadline", id=subscription.id)
+
+        if subscription.past_last_interval:
+            log.info(
+                "Subscription expired",
+                id=subscription.id,
+                interval=subscription.interval,
+            )
+            # delete the subscription
+            self._stop_tracking(subscription_id, delegated)
+            return True
+
+        return False
+
     async def _process_subscription(
         self: ChainProcessor,
         id: UnionID,
@@ -593,12 +731,17 @@ class ChainProcessor(AsyncTask):
 
         # Setup processing interval
         interval = subscription.interval
+
         log.info(
             "Processing subscription",
             id=id,
             interval=interval,
             delegated=delegated,
         )
+
+        # # check if we missed the subscription deadline
+        if self._stop_tracking_sub_if_missed_deadline(id, delegated):
+            return
 
         # Block pending execution
         self._pending[(id, interval)] = BLOCKED
@@ -703,7 +846,7 @@ class ChainProcessor(AsyncTask):
             return
 
         # Update pending with accurate tx hash
-        self._pending[(id, interval)] = tx_hash.hex()
+        self._pending[(id, interval)] = cast(HexStr, tx_hash.hex())
         log.info(
             "Sent tx",
             id=id,
@@ -721,10 +864,6 @@ class ChainProcessor(AsyncTask):
         match msg.type:
             case MessageType.SubscriptionCreated:
                 self._track_created_message(cast(SubscriptionCreatedMessage, msg))
-            case MessageType.SubscriptionCancelled:
-                self._track_cancelled_message(cast(SubscriptionCancelledMessage, msg))
-            case MessageType.SubscriptionFulfilled:
-                self._track_fulfilled_message(cast(SubscriptionFulfilledMessage, msg))
             case MessageType.DelegatedSubscription:
                 await self._track_delegated_message(
                     cast(DelegatedSubscriptionMessage, msg)
@@ -757,29 +896,70 @@ class ChainProcessor(AsyncTask):
             # Make deep copy to avoid mutation during iteration
             subscriptions_copy = deepcopy(self._subscriptions)
 
-            for subId, subscription in subscriptions_copy.items():
+            for sub_id, subscription in subscriptions_copy.items():
                 # Skips if subscription is not active
                 if not subscription.active:
+                    log.debug(
+                        "Ignored inactive subscription",
+                        id=sub_id,
+                        diff=subscription._active_at - time.time(),
+                    )
+                    continue
+
+                if await self._stop_tracking_if_cancelled(sub_id):
+                    continue
+
+                if await self._stop_tracking_sub_if_completed(subscription):
+                    continue
+
+                if self._stop_tracking_sub_if_missed_deadline(
+                    subscription.id, delegated=False
+                ):
+                    continue
+
+                if await self._stop_tracking_if_maximum_retries_reached(
+                    (sub_id, subscription.interval), delegated=False
+                ):
                     continue
 
                 # Check if subscription needs processing
                 # 1. Response for current interval must not be in pending queue
                 # 2. Response for current interval must not have already been confirmed
                 #   on-chain
-                if not self._has_subscription_tx_pending_in_interval(subId):
-                    if not await self._has_responded_onchain_in_interval(subId):
+                if not self._has_subscription_tx_pending_in_interval(sub_id):
+                    if not await self._has_responded_onchain_in_interval(sub_id):
                         create_task(
                             self._process_subscription(
-                                id=subId,
+                                id=sub_id,
                                 subscription=subscription,
                                 delegated=False,
                                 delegated_params=None,
                             )
                         )
 
-            for delegateSubId, params in self._delegate_subscriptions.items():
+            # Make deep copy to avoid mutation during iteration
+            delegate_subscriptions_copy = deepcopy(self._delegate_subscriptions)
+
+            for delegate_sub_id, params in delegate_subscriptions_copy.items():
                 # Skips if subscription is not active
-                if not params[0].active:
+                subscription = params[0]
+
+                if not subscription.active:
+                    log.debug(
+                        "Ignored inactive subscription",
+                        id=delegate_sub_id,
+                        diff=subscription._active_at - time.time(),
+                    )
+                    continue
+
+                if await self._stop_tracking_delegated_sub_if_completed(
+                    delegate_sub_id
+                ):
+                    continue
+
+                if await self._stop_tracking_if_maximum_retries_reached(
+                    (delegate_sub_id, subscription.interval), delegated=True
+                ):
                     continue
 
                 # Check if subscription needs processing
@@ -787,19 +967,20 @@ class ChainProcessor(AsyncTask):
                 # Unlike subscriptions, delegate subscriptions cannot have already
                 # confirmed on-chain txs, since those would be tracked by their
                 # on-chain ID and not as a delegate subscription
-                if not self._has_subscription_tx_pending_in_interval(delegateSubId):
+                if not self._has_subscription_tx_pending_in_interval(delegate_sub_id):
+                    log.info("arshan: creating new delegated subscription")
                     # If not, process subscription
                     create_task(
                         self._process_subscription(
-                            id=delegateSubId,
+                            id=delegate_sub_id,
                             subscription=params[0],
                             delegated=True,
                             delegated_params=(params[1], params[2]),
                         )
                     )
 
-            # Sleep loop for 500ms
-            await sleep(0.5)
+            # Sleep loop for 100ms
+            await sleep(0.1)
 
     async def cleanup(self: ChainProcessor) -> None:
         """Stateless task, no cleanup necessary"""

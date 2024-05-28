@@ -5,7 +5,8 @@ repo public:
 **Note:** This list is not exhaustive and may be updated as needed.
 
 ### `internal-*` references
-* [ ] Update docker tags `*-internal` to their public counterparts.
+* [ ] Update docker image names `*-internal` to their public counterparts.
+* [ ] Update the docker tag `my-branch-name` references in the `Makefile` to both `latest` as well as specific version: i.e.`0.3.0`.
 * [ ] Update the status badge URL
 
 ### `Changelog.md`
