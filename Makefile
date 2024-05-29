@@ -50,7 +50,7 @@ register-node:
 activate-node:
 	@PYTHONPATH=$$PYTHONPATH:src python3.11 scripts/activate_node.py
 
-tag ?= 1.0.0
+tag ?= 1.0.1
 image_id = ritualnetwork/infernet-node-internal:$(tag)
 
 build:
