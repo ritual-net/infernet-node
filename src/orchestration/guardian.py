@@ -5,6 +5,7 @@ from dataclasses import asdict, dataclass
 from ipaddress import IPv4Network, IPv6Network, ip_address, ip_network
 from typing import Any, Union, cast
 
+from chain.container_lookup import ContainerLookup
 from shared.message import (
     DelegatedSubscriptionMessage,
     FilteredMessage,
@@ -37,6 +38,8 @@ class Guardian:
     the message is returned for processing.
 
     Attributes:
+        _container_lookup (ContainerLookup): Container lookup, used for
+            deserialization of subscriptions.
         _restrictions (dict[str, ContainerRestrictions]): Container restrictions
         _chain_enabled (bool): Is chain module enabled?
 
@@ -55,17 +58,23 @@ class Guardian:
     """
 
     def __init__(
-        self: Guardian, configs: list[ConfigContainer], chain_enabled: bool
+        self: Guardian,
+        configs: list[ConfigContainer],
+        chain_enabled: bool,
+        container_lookup: ContainerLookup,
     ) -> None:
         """Initialize Guardian
 
         Args:
             configs (list[ConfigContainer]): Container configurations
             chain_enabled (bool): Is chain module enabled?
+            container_lookup (ContainerLookup): Container lookup, used for
+                deserialization of subscriptions.
         """
         super().__init__()
 
         self._chain_enabled = chain_enabled
+        self._container_lookup = container_lookup
 
         # Initialize container restrictions
         self._restrictions: dict[str, ContainerRestrictions] = {
@@ -259,7 +268,8 @@ class Guardian:
                 message, "Signature expired", delegated_subscription=message
             )
 
-        subscription = message.subscription.deserialize()
+        subscription = message.subscription.deserialize(self._container_lookup)
+
         supported_containers = list(self._restrictions.keys())
 
         # Filter out containers that are not supported
@@ -309,41 +319,37 @@ class Guardian:
                 filtering fails, otherwise parsed message to be processed
         """
 
-        supported_containers = list(self._restrictions.keys())
+        subscription = message.subscription
 
         # Filter out completed subscriptions
         if message.subscription.completed:
             return self._error(message, "Subscription completed")
 
-        # Filter out empty container list
-        if len(message.subscription.containers) == 0:
-            return self._error(message, "No containers in subscription")
+        if len(subscription.containers) == 0:
+            return self._error(
+                message,
+                "Container-set not supported",
+                containers_hash=subscription.containers_hash,
+            )
 
-        # Filter out containers that are not supported
-        for container in message.subscription.containers:
-            if container not in supported_containers:
-                return self._error(
-                    message, "Container not supported", container=container
-                )
+        log.info(f"Subscription containers: {subscription.containers}")
 
         # Filter out internal first container
-        if not self._is_external(message.subscription.containers[0]):
+        if not self._is_external(subscription.containers[0]):
             return self._error(
                 message,
                 "First container must be external",
-                first_container=message.subscription.containers[0],
+                first_container=subscription.containers[0],
             )
 
         # Filter out unallowed subscription recipients
-        for container in message.subscription.containers:
-            if not self._is_allowed_address(
-                container, message.subscription.owner, True
-            ):
+        for container in subscription.containers:
+            if not self._is_allowed_address(container, subscription.owner, True):
                 return self._error(
                     message,
                     "Container not allowed for address",
                     container=container,
-                    address=message.subscription.owner,
+                    address=subscription.owner,
                 )
 
         return message

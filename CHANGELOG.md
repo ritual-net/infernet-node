@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 - ##### The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - ##### This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - god-knows-when
+### Changed
+- Guardian no longer checks whether container isn't supported, since that check is already being done at the `ContainerLookup`
+  level. If a subscription's `containers` field is not empty, it means that it must require a subset of the containers that this
+  node supports.
+- `SubscriptionCancelled` is now caught by checking if `activeAt` is set to `max uint32`. This was an optimization done in the
+`infernet-sdk 1.0.0` contracts.
+- Since node registration feature has been removed in `1.0.0`, `register_node` & `activate_node` scripts have been removed from
+  the `scripts` directory. The `Wallet` class also has the `register_node` & `activate_node` methods removed.
+
+
 ## [Unreleased]
 
 ### Added

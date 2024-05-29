@@ -14,6 +14,7 @@ from typing import Any, Optional, Tuple, cast
 from eth_abi import encode  # type: ignore
 from eth_typing import HexStr
 
+from chain.container_lookup import ContainerLookup
 from chain.coordinator import Coordinator, CoordinatorSignatureParams
 from chain.rpc import RPC
 from chain.wallet import Wallet
@@ -27,7 +28,6 @@ from shared.message import (
 )
 from shared.service import AsyncTask
 from shared.subscription import Subscription
-from utils.constants import ZERO_ADDRESS
 from utils.logging import log
 
 # Blocked tx
@@ -152,6 +152,7 @@ class ChainProcessor(AsyncTask):
         coordinator: Coordinator,
         wallet: Wallet,
         orchestrator: Orchestrator,
+        container_lookup: ContainerLookup,
     ):
         """Initializes new ChainProcessor
 
@@ -160,6 +161,7 @@ class ChainProcessor(AsyncTask):
             coordinator (Coordinator): Coordinator instance
             wallet (Wallet): Wallet instance
             orchestrator (Orchestrator): Orchestrator instance
+            container_lookup (ContainerLookup): ContainerLookup instance
         """
 
         # Initialize inherited AsyncTask
@@ -169,6 +171,7 @@ class ChainProcessor(AsyncTask):
         self._coordinator = coordinator
         self._wallet = wallet
         self._orchestrator = orchestrator
+        self._container_lookup = container_lookup
 
         # Subscription ID => subscription
         self._subscriptions: dict[SubscriptionID, Subscription] = {}
@@ -227,7 +230,9 @@ class ChainProcessor(AsyncTask):
         """
 
         # Collect message inputs
-        subscription: Subscription = msg.subscription.deserialize()
+        subscription: Subscription = msg.subscription.deserialize(
+            self._container_lookup
+        )
         signature = msg.signature
 
         # Check if delegated subscription already exists on-chain
@@ -549,7 +554,7 @@ class ChainProcessor(AsyncTask):
         sub: Subscription = await self._coordinator.get_subscription_by_id(
             sub_id, await self._rpc.get_head_block_number()
         )
-        if sub.containers == [""] and sub.owner == ZERO_ADDRESS:
+        if sub.cancelled:
             log.info("Subscription cancelled", id=sub_id)
             self._stop_tracking(sub.id, delegated=False)
             return True
@@ -897,6 +902,11 @@ class ChainProcessor(AsyncTask):
             subscriptions_copy = deepcopy(self._subscriptions)
 
             for sub_id, subscription in subscriptions_copy.items():
+                # since cancellation means active_at == UINT32_MAX, we should
+                # check if the subscription is cancelled first
+                if await self._stop_tracking_if_cancelled(sub_id):
+                    continue
+
                 # Skips if subscription is not active
                 if not subscription.active:
                     log.debug(
@@ -904,9 +914,6 @@ class ChainProcessor(AsyncTask):
                         id=sub_id,
                         diff=subscription._active_at - time.time(),
                     )
-                    continue
-
-                if await self._stop_tracking_if_cancelled(sub_id):
                     continue
 
                 if await self._stop_tracking_sub_if_completed(subscription):
@@ -968,7 +975,6 @@ class ChainProcessor(AsyncTask):
                 # confirmed on-chain txs, since those would be tracked by their
                 # on-chain ID and not as a delegate subscription
                 if not self._has_subscription_tx_pending_in_interval(delegate_sub_id):
-                    log.info("arshan: creating new delegated subscription")
                     # If not, process subscription
                     create_task(
                         self._process_subscription(

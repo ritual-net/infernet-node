@@ -13,6 +13,7 @@ class ConfigWallet(TypedDict):
 
     max_gas_limit: int
     private_key: str
+    payment_address: str
     allowed_sim_errors: Optional[list[str]]
 
 
@@ -97,6 +98,7 @@ VALIDATION_CONFIG: list[ValidationItem] = [
     ValidationItem("chain.coordinator_address", str),
     ValidationItem("chain.wallet.max_gas_limit", int),
     ValidationItem("chain.wallet.private_key", str),
+    ValidationItem("chain.wallet.payment_address", str),
 ]
 
 

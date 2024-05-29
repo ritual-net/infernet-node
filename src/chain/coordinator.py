@@ -26,20 +26,11 @@ Examples:
     >>> await coordiantor.get_deliver_compute_delegatee_tx(data, tx, signature)
     TxParams(...)
 
-    >>> await coordinator.get_node_registration_tx(address)
-    TxParams(...)
-
-    >>> await coordinator.get_node_activation_tx()
-    TxParams(...)
-
     >>> await coordinator.get_head_subscription_id(1000)
     100
 
     >>> await coordinator.get_subscription_by_id(1, 1000)
     Subscription(...)
-
-    >>> await coordinator.get_node_status(0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045)
-    (NodeStatus.Inactive, 0)
 
     >>> await coordinator.get_container_inputs(sub, interval, ts, caller)
     bytes("0xabc", "utf-8")
@@ -69,6 +60,7 @@ from web3.constants import ADDRESS_ZERO
 from web3.contract.async_contract import AsyncContractFunction
 from web3.types import FilterParams, LogReceipt, Nonce, TxParams
 
+from chain.container_lookup import ContainerLookup
 from chain.rpc import RPC
 from shared.subscription import Subscription
 from utils.constants import (
@@ -77,14 +69,6 @@ from utils.constants import (
     SUBSCRIPTION_CONSUMER_ABI,
 )
 from utils.logging import log
-
-
-class NodeStatus(Enum):
-    """Coordinator (manager) node status"""
-
-    Inactive = 0
-    Registered = 1
-    Active = 2
 
 
 class CoordinatorEvent(Enum):
@@ -104,6 +88,7 @@ class CoordinatorDeliveryParams:
     input: bytes
     output: bytes
     proof: bytes
+    node_wallet: ChecksumAddress
 
 
 @dataclass(frozen=True)
@@ -143,11 +128,8 @@ class Coordinator:
         recover_delegatee_signer: Recovers delegatee signer from signature
         get_deliver_compute_tx: Returns deliverCompute() tx params
         get_deliver_compute_delegatee_tx: Returns deliverComputeDelegatee() tx params
-        get_node_registration_tx: Returns registerNode() tx params
-        get_node_activation_tx: Returns activateNode() tx params
         get_head_subscription_id: Returns latest coordinator subscription ID
         get_subscription_by_id: Returns subscription by subscription ID
-        get_node_status: Returns node status from Manager
         get_container_inputs: Returns container inputs by subscription (local or via
             contract)
         get_node_has_delivered_response: Returns whether a node has delivered response
@@ -162,12 +144,19 @@ class Coordinator:
         _contract (AsyncContract): Coordinator AsyncContract instance
     """
 
-    def __init__(self: Coordinator, rpc: RPC, coordinator_address: str) -> None:
+    def __init__(
+        self: Coordinator,
+        rpc: RPC,
+        coordinator_address: str,
+        container_lookup: ContainerLookup,
+    ) -> None:
         """Initializes new Infernet Coordinator client
 
         Args:
             rpc (RPC): RPC instance
             coordinator_address (str): Infernet Coordinator contract address
+            container_lookup (ContainerIdDecoder): Container ID decoder object
+                to initialize Subscription objects with
 
         Raises:
             ValueError: Coordinator address is incorrectly formatted
@@ -180,6 +169,7 @@ class Coordinator:
         self._rpc = rpc
 
         # Setup coordinator contract
+        self._lookup = container_lookup
         self._checksum_address = rpc.get_checksum_address(coordinator_address)
         self._contract = rpc.get_contract(
             address=self._checksum_address,
@@ -213,16 +203,17 @@ class Coordinator:
 
         # Set up subscription consumer contract
         # Presumably, this contract should have inherited Delegator.sol
-        checksum_address = self._rpc.get_checksum_address(subscription.owner)
         delegator = self._rpc.get_contract(
-            address=checksum_address, abi=DELEGATED_SIGNER_ABI
+            address=subscription.owner, abi=DELEGATED_SIGNER_ABI
         )
 
         try:
             # Attempt to collect delegated signer
             return cast(
                 ChecksumAddress,
-                await delegator.functions.signer().call(block_identifier=block_number),
+                await delegator.functions.getSigner().call(
+                    block_identifier=block_number
+                ),
             )
         except Exception:
             # Else, return signer as zero address
@@ -313,6 +304,7 @@ class Coordinator:
             data.input,
             data.output,
             data.proof,
+            data.node_wallet,
         )
 
     def get_deliver_compute_delegatee_tx_contract_function(
@@ -331,6 +323,7 @@ class Coordinator:
             data.input,
             data.output,
             data.proof,
+            data.node_wallet,
         )
 
     async def get_deliver_compute_delegatee_tx(
@@ -357,49 +350,6 @@ class Coordinator:
                 "nonce": cast(Nonce, tx_params.nonce),
                 "from": tx_params.sender,
                 "gas": tx_params.gas_limit,
-            }
-        )
-
-    async def get_node_registration_tx(
-        self: Coordinator,
-        node_address: ChecksumAddress,
-        tx: CoordinatorTxParams,
-    ) -> TxParams:
-        """Generates tx to call Coordinator.registerNode()
-
-        Args:
-            node_address (ChecksumAddress): node adddess to register
-            tx (CoordinatorTxParams): general tx params
-
-        Returns:
-            TxParams: built transaction params
-        """
-        return await self._contract.functions.registerNode(
-            node_address
-        ).build_transaction(
-            {
-                "nonce": cast(Nonce, tx.nonce),
-                "from": tx.sender,
-                "gas": tx.gas_limit,
-            }
-        )
-
-    async def get_node_activation_tx(
-        self: Coordinator, tx: CoordinatorTxParams
-    ) -> TxParams:
-        """Generates tx to call Coordinator.activateNode()
-
-        Args:
-            tx (CoordinatorTxParams): general tx params
-
-        Returns:
-            TxParams: built transaction params
-        """
-        return await self._contract.functions.activateNode().build_transaction(
-            {
-                "nonce": cast(Nonce, tx.nonce),
-                "from": tx.sender,
-                "gas": tx.gas_limit,
             }
         )
 
@@ -433,26 +383,10 @@ class Coordinator:
         """
 
         # Collect raw subscription data
-        subscription_data: list[Any] = await self._contract.functions.subscriptions(
+        subscription_data: list[Any] = await self._contract.functions.getSubscription(
             subscription_id
         ).call(block_identifier=block_number)
-        return Subscription(subscription_id, *subscription_data)
-
-    async def get_node_status(
-        self: Coordinator, address: ChecksumAddress
-    ) -> tuple[NodeStatus, int]:
-        """Returns node status from Manager
-
-        Args:
-            address (ChecksumAddress): node address
-
-        Returns:
-            tuple[NodeStatus, int]: node status, action cooldown
-        """
-        # Collect NodeInfo struct via `nodeInfo()`
-        [status, cooldown] = await self._contract.functions.nodeInfo(address).call()
-        # Return node status, action cooldown
-        return NodeStatus(status), cast(int, cooldown)
+        return Subscription(subscription_id, self._lookup, *subscription_data)
 
     async def get_container_inputs(
         self: Coordinator,
@@ -461,12 +395,10 @@ class Coordinator:
         timestamp: int,
         caller: ChecksumAddress,
     ) -> bytes:
-        """Returns local or remotely-available container inputs by subscription
+        """Returns local or remotely-available container inputs by subscription.
 
-        If local subscription input is non-empty, returns inputs.
-        If local subscription input is empty:
-            1. Attempts to collect and return on-chain inputs
-            2. Else, returns empty inptus
+        1. Attempts to collect and return on-chain inputs
+        2. Else, returns empty inptus
 
         Args:
             subscription (Subscription): subscription
@@ -478,16 +410,10 @@ class Coordinator:
             bytes: subscription inputs
         """
 
-        # Immediately return if local inputs are non-empty
-        if subscription.inputs != bytes("", "utf-8"):
-            return subscription.inputs
-
         # Else, attempt to collect on-chain inputs
         # Set up subscription consumer contract
-        checksum_address = self._rpc.get_checksum_address(subscription.owner)
-        consumer = self._rpc.get_contract(
-            address=checksum_address, abi=SUBSCRIPTION_CONSUMER_ABI
-        )
+        owner = self._rpc.get_checksum_address(subscription.owner)
+        consumer = self._rpc.get_contract(address=owner, abi=SUBSCRIPTION_CONSUMER_ABI)
 
         try:
             # Attempt to collect container inputs
