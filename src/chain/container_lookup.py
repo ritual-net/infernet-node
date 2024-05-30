@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from itertools import permutations
+from typing import List
 
 import structlog
 from eth_abi.abi import encode
@@ -9,11 +10,17 @@ from web3 import Web3
 from utils.config import ConfigContainer
 
 
-def get_all_comma_separated_permutations(containers: list[str]) -> list[str]:
+def get_all_comma_separated_permutations(containers: List[str]) -> List[str]:
     """
     Get all possible permutations of comma-separated container IDs. It performs this on
-    the power set of the containers list, which includes all possible combinations of
+    the power set of the containers List, which includes all possible combinations of
     containers, including the empty set.
+
+    Args:
+        containers (List[str]): List of container IDs
+
+    Returns:
+        List[str]: All possible permutations of comma-separated container IDs
 
     """
     # Single elements
@@ -44,17 +51,17 @@ class ContainerLookup:
 
     """
 
-    def __init__(self: ContainerLookup, configs: list[ConfigContainer]) -> None:
+    def __init__(self: ContainerLookup, configs: List[ConfigContainer]) -> None:
         """
         Initialize the container lookup table.
 
         Args:
-            configs (list[ConfigContainer]): Container configurations
+            configs (List[ConfigContainer]): Container configurations
         """
         self._init_container_lookup(configs)
 
     def _init_container_lookup(
-        self: ContainerLookup, configs: list[ConfigContainer]
+        self: ContainerLookup, configs: List[ConfigContainer]
     ) -> None:
         """
         Build a lookup table keccak hash of a container set -> container set
@@ -65,7 +72,7 @@ class ContainerLookup:
         containers are required for a given subscription.
 
         Args:
-            configs (list[ConfigContainer]): Container configurations
+            configs (List[ConfigContainer]): Container configurations
         """
         all_permutations = get_all_comma_separated_permutations(
             [container["id"] for container in configs]
@@ -81,16 +88,16 @@ class ContainerLookup:
         }
         log.info(f"Initialized container lookup: {self._container_lookup}")
 
-    def get_containers(self: ContainerLookup, _hash: str) -> list[str]:
+    def get_containers(self: ContainerLookup, _hash: str) -> List[str]:
         """
-        Get the container IDs from a keccak hash. Returns an empty list if the hash is
+        Get the container IDs from a keccak hash. Returns an empty List if the hash is
         not found.
 
         Args:
             _hash (str): Keccak hash of the container IDs
 
         Returns:
-            list[str]: Container IDs
+            List[str]: Container IDs
         """
 
         return self._container_lookup.get(_hash, [])

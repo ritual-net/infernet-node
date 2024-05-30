@@ -1,9 +1,6 @@
 from typing import Any, Type, Union, get_args
 
 import dacite
-import structlog
-
-log = structlog.getLogger(__name__)
 
 
 def from_union(type_or_union: Union[Type[Any], Any], data: dict[Any, Any]) -> Any:

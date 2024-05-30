@@ -34,6 +34,8 @@ vim config.json
   - **wallet** (`object`). _if enabled_:
     - **max_gas_limit** (`integer`). Maximum gas limit per node transaction
     - **private_key** (`string`). Node wallet private key
+    - **payment_address** (`string`). Public address of the node's escrow wallet.
+      This is an instance of Infernet's `Wallet` contract.
     - **allowed_sim_errors** (`array[string]`). Allowed error messages to ignore when simulating transactions. Checks for inclusion in error message. Case-insensitive. i.e. `["out of gas"]` matches `"Contract reverted: Out of gas"`.
   - **snapshot_sync** (`object`, Optional). Snapshot sync configurations.
     - **sleep** (`float`, Optional).  Number of seconds to sleep between snapshot syncs. Defaults to `1.0`.
