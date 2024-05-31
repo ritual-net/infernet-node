@@ -159,6 +159,15 @@ class Subscription:
         return self.interval > self._frequency
 
     @property
+    def is_callback(self: Subscription) -> bool:
+        """Returns whether a subscription is a callback subscription (i.e. period = 0)
+
+        Returns:
+            bool: True if subscription is a callback, else False
+        """
+        return self._period == 0
+
+    @property
     def interval(self: Subscription) -> int:
         """Returns subscription interval based on active_at and period
 

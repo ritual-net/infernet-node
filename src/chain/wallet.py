@@ -21,7 +21,7 @@ from chain.coordinator import (
     CoordinatorSignatureParams,
     CoordinatorTxParams,
 )
-from chain.errors import is_infernet_error
+from chain.errors import raise_if_infernet_error
 from chain.rpc import RPC
 from shared.subscription import Subscription
 from utils.logging import log
@@ -142,7 +142,7 @@ class Wallet:
 
     async def __send_tx_retries(
         self: Wallet, tx: SignedTransaction, retries: int, current_try: int
-    ) -> Optional[bytes]:
+    ) -> bytes:
         """Internal counterpart to _send_tx_receipts with current_try counter
 
         Args:
@@ -178,7 +178,7 @@ class Wallet:
 
     async def _send_tx_retries(
         self: Wallet, tx: SignedTransaction, retries: int
-    ) -> Optional[bytes]:
+    ) -> bytes:
         """Trys to send tx `retries` times until successful or RuntimeError
 
         Args:
@@ -190,24 +190,25 @@ class Wallet:
         """
         return await self.__send_tx_retries(tx, retries, 0)
 
-    async def _simulation_passed(
+    async def _simulate_transaction(
         self: Wallet, fn: AsyncContractFunction, subscription: Subscription
-    ) -> bool:
-        """Simulate the function call and check if it passes.
-        * In case of a failed simulation, it retries 3 times, with a delay of 0.5
-            seconds.
+    ) -> None:
+        """Simulates the function call, retrying 3 times with a delay of 0.5 and
+        raises if there's errors.
         * Simulation errors may be bypassed if they are in the `allowed_sim_errors` list.
             In which case, the simulation is considered to have passed.
-        * For infernet-specific errors, more verbose logging is provided.
-        * Handles ContractCustomError and ContractLogicError exceptions, for other
-            exceptions, it bubbles up.
+        * For infernet-specific errors, more verbose logging is provided, and an
+            `InfernetError` is raised.
+        * The rest of the errors bubble up as is.
 
         Args:
             fn (AsyncContractFunction): Function to simulate
             subscription (Subscription): Subscription to check
 
-        Returns:
-            bool: True if simulation passed, False otherwise
+        Raises:
+            ContractCustomError: Raises if contract-specific error occurs
+            ContractLogicError: Raises if contract logic error occurs
+            InfernetError: Raises if infernet-specific error occurs
         """
         try:
 
@@ -224,22 +225,21 @@ class Wallet:
                     raise e
 
             await _sim()
-            return True
         except ContractCustomError as e:
-            if not is_infernet_error(e, subscription):
-                log.error(
-                    "Failed to simulate transaction",
-                    error=e,
-                    subscription=subscription,
-                )
-            return False
+            raise_if_infernet_error(e, subscription)
+            log.error(
+                "Failed to simulate transaction",
+                error=e,
+                subscription=subscription,
+            )
+            raise e
         except ContractLogicError as e:
             log.warn(
                 "Contract logic error while simulating",
                 error=e,
                 subscription=subscription,
             )
-            return False
+            raise e
 
     async def deliver_compute(
         self: Wallet,
@@ -247,10 +247,12 @@ class Wallet:
         input: bytes,
         output: bytes,
         proof: bytes,
-    ) -> Optional[bytes]:
+        simulate_only: bool = False,
+    ) -> bytes:
         """Sends Coordinator.deliverCompute() tx.
-        Transactions are first simulated using `.call()` to prevent submission of invalid
-        transactions that result in the user's gas being wasted.
+        Transactions are first simulated using `.call()`. If simulation fails, the
+        error is bubbled up. This is to prevent submission of invalid transactions that
+        result in the user's gas being wasted.
 
         If a simulation passes & transaction still fails, it will be retried thrice.
 
@@ -259,12 +261,17 @@ class Wallet:
             input (bytes): optional response input
             output (bytes): optional response output
             proof (bytes): optional response proof
+            simulate_only (bool): if True, only simulate the transaction & return after
 
         Raises:
-            RuntimeError: Throws if can't collect nonce to send tx
+            RuntimeError: If can't collect nonce to send tx
+            InfernetError: If infernet-specific error occurs during simulation
+            ContractCustomError: If contract-specific error occurs during
+                simulation
+            ContractLogicError: If contract logic error occurs during simulation
 
         Returns:
-            Optional[bytes]: transaction hash
+            bytes: transaction hash
         """
 
         if self._nonce is None:
@@ -290,8 +297,9 @@ class Wallet:
             )
         )
 
-        if not await self._simulation_passed(fn, subscription):
-            return None
+        await self._simulate_transaction(fn, subscription)
+        if simulate_only:
+            return b""
 
         await self._collect_nonce()
 
@@ -322,7 +330,8 @@ class Wallet:
         input: bytes,
         output: bytes,
         proof: bytes,
-    ) -> Optional[bytes]:
+        simulate_only: bool = False,
+    ) -> bytes:
         """Send Coordinator.deliverComputeDelegatee() tx.
         Transactions are first simulated using `.call()` to prevent submission of invalid
         transactions that result in the user's gas being wasted.
@@ -335,12 +344,18 @@ class Wallet:
             input (bytes): optional response input
             output (bytes): optional response output
             proof (bytes): optional response proof
-
-        Raises:
-            RuntimeError: Throws if can't collect nonce to send tx
+            simulate_only (bool): if True, only simulate the transaction & return after
+                simulating
 
         Returns:
-            Optional[bytes]: transaction hash
+            bytes: transaction hash
+
+        Raises:
+            RuntimeError: If can't collect nonce to send tx
+            InfernetError: If infernet-specific error occurs during simulation
+            ContractCustomError: If contract-specific error occurs during
+                simulation
+            ContractLogicError: If contract logic error occurs during simulation
         """
 
         if self._nonce is None:
@@ -367,9 +382,10 @@ class Wallet:
             signature=signature,
         )
 
-        if not await self._simulation_passed(fn, subscription):
-            # if simulation of the transaction fails, we'll skip sending it.
-            return None
+        await self._simulate_transaction(fn, subscription)
+
+        if simulate_only:
+            return b""
 
         await self._collect_nonce()
 
