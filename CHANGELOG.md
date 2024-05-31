@@ -20,6 +20,8 @@ All notable changes to this project will be documented in this file.
 - Support for streaming offchain job responses, via the `/api/jobs/stream` endpoint.
 - New flag `"allowed_sim_errors"` in the `config.json` file to specify which error messages are allowed to be ignored by the node when simulating transactions.
 - New flag `"payment_address"` in the `config.json` file to specify the public address of the node's escrow wallet. This is an instance of Infernet's `Wallet` contract.
+- New flag `"registry_address"` in the `config.json` file to specify the public address of Infernet's `Registry` contract. This contract is used to retrieve the addresses
+  of the rest of the Infernet contracts. Therefore, the `"coordinator_address"` is now removed.
 
 ### Changed
 - Limit restarts within time window in `docker-compose.yaml`.
@@ -39,6 +41,7 @@ All notable changes to this project will be documented in this file.
   node supports.
 - Since node registration feature has been removed in `1.0.0`, `register_node` & `activate_node` scripts have been removed from
   the `scripts` directory. The `Wallet` class also has the `register_node` & `activate_node` methods removed.
+- Removed the `"coordinator_address"` flag from the `config.json` file. The address of the coordinator contract is now retrieved from the registry contract.
 
 ### Fixed
 - Orchestrator now works in dev mode (outside of docker), previously `host.docker.internal` was hardcoded.

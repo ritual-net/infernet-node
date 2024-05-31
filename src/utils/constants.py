@@ -1,4 +1,10 @@
-ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
+from typing import cast
+
+from eth_typing import ChecksumAddress
+
+ZERO_ADDRESS: ChecksumAddress = cast(
+    ChecksumAddress, "0x0000000000000000000000000000000000000000"
+)
 
 DELEGATED_SIGNER_ABI = [
     {
@@ -428,4 +434,62 @@ COORDINATOR_ABI = [
     {"type": "error", "name": "SubscriptionNotFound", "inputs": []},
     {"type": "error", "name": "UnauthorizedProver", "inputs": []},
     {"type": "error", "name": "UnsupportedProverToken", "inputs": []},
+]
+
+WALLET_FACTORY_ABI = [
+    {
+        "type": "function",
+        "name": "isValidWallet",
+        "inputs": [{"name": "wallet", "type": "address", "internalType": "address"}],
+        "outputs": [{"name": "", "type": "bool", "internalType": "bool"}],
+        "stateMutability": "view",
+    }
+]
+
+REGISTRY_ABI = [
+    {
+        "type": "function",
+        "name": "COORDINATOR",
+        "inputs": [],
+        "outputs": [{"name": "", "type": "address", "internalType": "address"}],
+        "stateMutability": "view",
+    },
+    {
+        "type": "function",
+        "name": "FEE",
+        "inputs": [],
+        "outputs": [{"name": "", "type": "address", "internalType": "address"}],
+        "stateMutability": "view",
+    },
+    {
+        "type": "function",
+        "name": "INBOX",
+        "inputs": [],
+        "outputs": [{"name": "", "type": "address", "internalType": "address"}],
+        "stateMutability": "view",
+    },
+    {
+        "type": "function",
+        "name": "READER",
+        "inputs": [],
+        "outputs": [{"name": "", "type": "address", "internalType": "address"}],
+        "stateMutability": "view",
+    },
+    {
+        "type": "function",
+        "name": "WALLET_FACTORY",
+        "inputs": [],
+        "outputs": [{"name": "", "type": "address", "internalType": "address"}],
+        "stateMutability": "view",
+    },
+]
+
+ERC20_ABI = [
+    {
+        "type": "function",
+        "name": "balanceOf",
+        "inputs": [{"name": "owner", "type": "address", "internalType": "address"}],
+        "outputs": [{"name": "result", "type": "uint256", "internalType": "uint256"}],
+        "stateMutability": "view",
+    },
 ]

@@ -201,6 +201,33 @@ class Subscription:
         return add0x(self._containers_hash.hex())
 
     @property
+    def payment_amount(self: Subscription) -> int:
+        """Returns subscription payment amount
+
+        Returns:
+            int: payment amount
+        """
+        return self._payment_amount
+
+    @property
+    def payment_token(self: Subscription) -> ChecksumAddress:
+        """Returns subscription payment token
+
+        Returns:
+            ChecksumAddress: payment token
+        """
+        return Web3.to_checksum_address(self._payment_token)
+
+    @property
+    def wallet(self: Subscription) -> ChecksumAddress:
+        """Returns subscription wallet address
+
+        Returns:
+            ChecksumAddress: wallet address
+        """
+        return Web3.to_checksum_address(self._wallet)
+
+    @property
     def last_interval(self: Subscription) -> bool:
         """Returns whether a subscription is on its last interval
 

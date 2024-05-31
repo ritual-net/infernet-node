@@ -30,7 +30,7 @@ vim config.json
   - **enabled** (`boolean`). Whether chain is enabled on this node.
   - **trail_head_blocks** (`integer`). _if enabled_: how many blocks to stay behind head when syncing. Set to `0` to ignore.
   - **rpc_url** (`string`). _if enabled_: the HTTP(s) JSON-RPC url.
-  - **coordinator_address** (`string`). _if enabled_: the Coordinator contract address.
+  - **registry_address** (`string`). _if enabled_: the `Registry` contract address.
   - **wallet** (`object`). _if enabled_:
     - **max_gas_limit** (`integer`). Maximum gas limit per node transaction
     - **private_key** (`string`). Node wallet private key

@@ -6,6 +6,7 @@ from ipaddress import IPv4Network, IPv6Network, ip_address, ip_network
 from typing import Any, Union, cast
 
 from chain.container_lookup import ContainerLookup
+from chain.wallet_checker import WalletChecker
 from shared.message import (
     DelegatedSubscriptionMessage,
     FilteredMessage,
@@ -33,15 +34,17 @@ class Guardian:
     """Filters job requests based on container restrictions
 
     Both off-chain and on-chain job requests are filtered based on sanity checks and
-    container-level restrictions, such as origin IP address and allowed chain
-    addresses. If a message fails filtering, a GuardianError is returned. Otherwise,
-    the message is returned for processing.
+    container-level restrictions, such as origin IP address, whether a matches the
+    payment requirements, and allowed chain addresses. If a message fails filtering, a
+    GuardianError is returned. Otherwise, the message is returned for processing.
 
     Attributes:
         _container_lookup (ContainerLookup): Container lookup, used for
             deserialization of subscriptions.
         _restrictions (dict[str, ContainerRestrictions]): Container restrictions
         _chain_enabled (bool): Is chain module enabled?
+        _wallet_checker (WalletChecker): Wallet checker, used for filtering
+            subscriptions that don't match payment requirements
 
     Methods:
         process_message: Parses and filters message
@@ -62,19 +65,23 @@ class Guardian:
         configs: list[ConfigContainer],
         chain_enabled: bool,
         container_lookup: ContainerLookup,
+        wallet_checker: WalletChecker,
     ) -> None:
         """Initialize Guardian
 
         Args:
             configs (list[ConfigContainer]): Container configurations
             chain_enabled (bool): Is chain module enabled?
-            container_lookup (ContainerLookup): Container lookup, used for
-                deserialization of subscriptions.
+            container_lookup (ContainerLookup): Container lookup, used for reverse hash
+                lookup of subscriptions' `containers` field.
+            wallet_checker (WalletChecker): Wallet checker, used for filtering
+                subscriptions that don't match payment requirements
         """
         super().__init__()
 
         self._chain_enabled = chain_enabled
         self._container_lookup = container_lookup
+        self._wallet_checker = wallet_checker
 
         # Initialize container restrictions
         self._restrictions: dict[str, ContainerRestrictions] = {
@@ -351,6 +358,15 @@ class Guardian:
                     container=container,
                     address=subscription.owner,
                 )
+
+        # filter out subscriptions that don't match payment requirements
+        (matches, _) = self._wallet_checker.matches_payment_requirements(subscription)
+        if not matches:
+            return self._error(
+                message,
+                "Invalid payment",
+                subscription_id=subscription.id,
+            )
 
         return message
 

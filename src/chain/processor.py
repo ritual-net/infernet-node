@@ -18,6 +18,7 @@ from chain.container_lookup import ContainerLookup
 from chain.coordinator import Coordinator, CoordinatorSignatureParams
 from chain.rpc import RPC
 from chain.wallet import Wallet
+from chain.wallet_checker import WalletChecker
 from orchestration.orchestrator import Orchestrator
 from shared.job import ContainerError, ContainerOutput, JobInput, JobLocation
 from shared.message import (
@@ -72,17 +73,19 @@ class ChainProcessor(AsyncTask):
             3.1. Prune pending txs that have failed to allow for re-processing
                 (successful txs pruned during event replay)
             3.2. Check for subscriptions
-                3.2.1. Skip the inactive subscriptions
+                3.2.1. If the node requires payment, check if the subscription has a
+                    valid wallet and enough funds
                 3.2.2. Check subscriptions that have been cancelled, and stop tracking
-                3.2.3. Check if the subscription has already been completed, and stop
+                3.2.3. Skip the inactive subscriptions
+                3.2.4. Check if the subscription has already been completed, and stop
                     tracking
-                3.2.4 Check if the subscription has passed the deadline, and stop
+                3.2.5 Check if the subscription has passed the deadline, and stop
                     tracking
-                3.2.5. Check if the subscription's transaction failure has exceeded the
+                3.2.6. Check if the subscription's transaction failure has exceeded the
                     maximum number of attempts, and if so, stop tracking
-                3.2.6. Filter out ones where node has already submitted on-chain tx
+                3.2.7. Filter out ones where node has already submitted on-chain tx
                   for current interval, or has a pending tx submitted
-                3.2.7. Queue for processing
+                3.2.8. Queue for processing
             3.3. Check for delegated subscriptions that are tracked
                 3.3.1. Skip the inactive subscriptions
                 3.3.2. Check if the delegated subscription has already been completed,
@@ -135,6 +138,7 @@ class ChainProcessor(AsyncTask):
         _rpc (RPC): RPC instance
         _coordinator (Coordinator): Coordinator instance
         _wallet (Wallet): Wallet instance
+        _wallet_checker (WalletChecker): WalletChecker instance
         _subscriptions (dict[SubscriptionID, Subscription]): subscription ID => on-chain
             subscription
         _delegate_subscriptions (dict[DelegateSubscriptionID, DelegateSubscriptionData]):
@@ -151,6 +155,7 @@ class ChainProcessor(AsyncTask):
         rpc: RPC,
         coordinator: Coordinator,
         wallet: Wallet,
+        wallet_checker: WalletChecker,
         orchestrator: Orchestrator,
         container_lookup: ContainerLookup,
     ):
@@ -160,6 +165,7 @@ class ChainProcessor(AsyncTask):
             rpc (RPC): RPC instance
             coordinator (Coordinator): Coordinator instance
             wallet (Wallet): Wallet instance
+            wallet_checker (WalletChecker): WalletChecker instance
             orchestrator (Orchestrator): Orchestrator instance
             container_lookup (ContainerLookup): ContainerLookup instance
         """
@@ -170,6 +176,7 @@ class ChainProcessor(AsyncTask):
         self._rpc = rpc
         self._coordinator = coordinator
         self._wallet = wallet
+        self._wallet_checker = wallet_checker
         self._orchestrator = orchestrator
         self._container_lookup = container_lookup
 
@@ -540,6 +547,41 @@ class ChainProcessor(AsyncTask):
             bytes("", "utf-8"),
         )
 
+    async def _stop_tracking_if_sub_owner_cant_pay(
+        self: ChainProcessor, sub_id: SubscriptionID
+    ) -> bool:
+        sub = self._subscriptions[sub_id]
+        (_, requires_payment) = self._wallet_checker.matches_payment_requirements(sub)
+        if not requires_payment:
+            return False
+
+        banner = f"Skipping subscription: {sub_id}"
+
+        if not await self._wallet_checker.is_valid_wallet(sub.wallet):
+            log.info(
+                f"{banner}: Invalid subscription wallet",
+                sub_id=sub.id,
+                wallet=sub.wallet,
+            )
+            self._stop_tracking(sub.id, delegated=False)
+            return True
+
+        has_balance, balance = await self._wallet_checker.has_enough_balance(
+            sub.wallet, sub.payment_token, sub.payment_amount
+        )
+        if not has_balance:
+            log.info(
+                f"{banner}: Insufficient balance",
+                sub_id=sub.id,
+                wallet=sub.wallet,
+                sub_amount=sub.payment_amount,
+                wallet_balance=balance,
+            )
+            self._stop_tracking(sub.id, delegated=False)
+            return True
+
+        return False
+
     async def _stop_tracking_if_cancelled(
         self: ChainProcessor, sub_id: SubscriptionID
     ) -> bool:
@@ -692,7 +734,6 @@ class ChainProcessor(AsyncTask):
                 cast(DelegateSubscriptionID, subscription_id)
             ][0]
         )
-        log.debug("checking subscription deadline", id=subscription.id)
 
         if subscription.past_last_interval:
             log.info(
@@ -884,15 +925,31 @@ class ChainProcessor(AsyncTask):
         """Core ChainProcessor event loop
 
         Process:
-            1. Every 500ms (note: not most efficient implementation, should just
+            1. Every 100ms (note: not most efficient implementation, should just
               trigger as needed):
-                1.1. Prune pending txs that have failed
-                1.2. Check for subscriptions + delegated subscriptions that are active
-                1.3. Filter for (subscription, interval)-pairs that do not have a
-                  pending tx
-                1.4. Filter for (subscription, interval)-pairs that do not have an
-                  on-chain submitted tx
-                1.5. Queue for processing
+                For each subscription:
+                    1.1. Prune pending txs that have failed
+                    1.2 If the node requires payment, check if the subscription has a
+                        valid wallet and enough funds
+                    1.3 Check subscriptions that have been cancelled, and stop tracking
+                    1.4 Skip the inactive subscriptions
+                    1.5 Check if the subscription has already been completed, and stop
+                        tracking
+                    1.6 Check if the subscription has passed the deadline, and stop
+                        tracking
+                    1.7 Check if the subscription's transaction failure has exceeded the
+                        maximum number of attempts, and if so, stop tracking
+                    1.8 Filter out ones where node has already submitted on-chain tx
+                        for current interval, or has a pending tx submitted
+                    1.9 If all above checks pass, queue for processing
+                For each delegated subscription:
+                    1.1 Skip the inactive subscriptions
+                    1.2 Check if the delegated subscription has already been completed,
+                        and stop tracking
+                    1.3 Check if the delegated subscription's transaction failure has
+                        exceeded the maximum number of attempts, and if so, stop tracking
+                    1.4 Filter out ones where node has a pending tx submitted
+                    1.5 Queue for processing
         """
         while not self._shutdown:
             # Prune pending txs that have failed
@@ -902,14 +959,18 @@ class ChainProcessor(AsyncTask):
             subscriptions_copy = deepcopy(self._subscriptions)
 
             for sub_id, subscription in subscriptions_copy.items():
+                # Checks if sub owner has a valid wallet & enough funds
+                if await self._stop_tracking_if_sub_owner_cant_pay(sub_id):
+                    continue
+
                 # since cancellation means active_at == UINT32_MAX, we should
-                # check if the subscription is cancelled first
+                # check if the subscription is cancelled before checking activation
                 if await self._stop_tracking_if_cancelled(sub_id):
                     continue
 
                 # Skips if subscription is not active
                 if not subscription.active:
-                    log.debug(
+                    log.info(
                         "Ignored inactive subscription",
                         id=sub_id,
                         diff=subscription._active_at - time.time(),

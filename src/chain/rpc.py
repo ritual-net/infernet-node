@@ -267,6 +267,17 @@ class RPC:
 
         return logs
 
+    async def get_balance(self: RPC, address: ChecksumAddress) -> int:
+        """Collects balance for an address
+
+        Args:
+            address (ChecksumAddress): address to collect balance
+
+        Returns:
+            int: balance
+        """
+        return await self._web3.eth.get_balance(address)
+
     async def send_transaction(self: RPC, tx: SignedTransaction) -> bytes:
         """Sends signed transaction. Bubble up error traceback
 

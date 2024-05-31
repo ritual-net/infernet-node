@@ -5,12 +5,16 @@ import os
 import signal
 from typing import Any, Optional, cast
 
+from web3 import Web3
+
 from chain.container_lookup import ContainerLookup
 from chain.coordinator import Coordinator
 from chain.listener import ChainListener
 from chain.processor import ChainProcessor
+from chain.registry import Registry
 from chain.rpc import RPC
 from chain.wallet import Wallet
+from chain.wallet_checker import WalletChecker
 from orchestration import ContainerManager, DataStore, Guardian, Orchestrator
 from server import RESTServer, StatSender
 from shared import AsyncTask
@@ -77,10 +81,26 @@ class NodeLifecycle:
         # Initialize guardian + orchestrator
         container_lookup = ContainerLookup(config["containers"])
 
+        rpc = RPC(config["chain"]["rpc_url"])
+
+        registry = Registry(
+            rpc,
+            Web3.to_checksum_address(config["chain"]["registry_address"]),
+        )
+
+        # address population is an async operation, and needs to be awaited before
+        # other tasks are initialized
+        asyncio.get_event_loop().run_until_complete(registry.populate_addresses())
+
+        wallet_checker = WalletChecker(
+            rpc=rpc, registry=registry, container_configs=config["containers"]
+        )
+
         guardian = Guardian(
             config["containers"],
             config["chain"]["enabled"],
             container_lookup=container_lookup,
+            wallet_checker=wallet_checker,
         )
 
         orchestrator = Orchestrator(manager, store)
@@ -93,10 +113,9 @@ class NodeLifecycle:
         )
 
         if config["chain"]["enabled"]:
-            rpc = RPC(config["chain"]["rpc_url"])
             coordinator = Coordinator(
                 rpc,
-                config["chain"]["coordinator_address"],
+                registry.coordinator,
                 container_lookup=container_lookup,
             )
             wallet = Wallet(
@@ -108,7 +127,7 @@ class NodeLifecycle:
                 config["chain"]["wallet"].get("allowed_sim_errors"),
             )
             processor = ChainProcessor(
-                rpc, coordinator, wallet, orchestrator, container_lookup
+                rpc, coordinator, wallet, wallet_checker, orchestrator, container_lookup
             )
             listener = ChainListener(
                 rpc,

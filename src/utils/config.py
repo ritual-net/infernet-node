@@ -30,7 +30,7 @@ class ConfigChain(TypedDict):
     enabled: bool
     rpc_url: str
     trail_head_blocks: int
-    coordinator_address: str
+    registry_address: str
     wallet: ConfigWallet
     snapshot_sync: Optional[ConfigSnapshotSync]
 
@@ -57,6 +57,7 @@ class ConfigContainer(TypedDict):
     external: bool
     gpu: Optional[bool]
     volumes: Optional[list[str]]
+    accepted_payments: dict[str, int]
 
 
 class ConfigRedis(TypedDict):
@@ -95,7 +96,7 @@ VALIDATION_CONFIG: list[ValidationItem] = [
     ValidationItem("chain.enabled", bool),
     ValidationItem("chain.rpc_url", str),
     ValidationItem("chain.trail_head_blocks", int),
-    ValidationItem("chain.coordinator_address", str),
+    ValidationItem("chain.registry_address", str),
     ValidationItem("chain.wallet.max_gas_limit", int),
     ValidationItem("chain.wallet.private_key", str),
     ValidationItem("chain.wallet.payment_address", str),
