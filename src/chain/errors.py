@@ -39,6 +39,10 @@ class AllowlistError(Enum):
     NodeNotAllowed = "0x42764946"
 
 
+class ERC20Error(Enum):
+    InsufficientBalance = "0xf4d678b8"
+
+
 invalid_wallet_error = (
     "Invalid wallet, please make sure you're using a wallet created "
     "from Infernet's `WalletFactory`."
@@ -71,6 +75,7 @@ insufficient_funds_error = (
 )
 insufficient_allowance_error = "Insufficient allowance."
 node_not_allowed_error = "Node is not allowed to deliver this subscription."
+insufficient_balance_error = "Insufficient balance."
 
 
 def is_infernet_error(e: ContractCustomError, sub: Subscription) -> bool:
@@ -106,6 +111,7 @@ def is_infernet_error(e: ContractCustomError, sub: Subscription) -> bool:
         WalletError.InsufficientFunds.value: insufficient_funds_error,
         WalletError.InsufficientAllowance.value: insufficient_allowance_error,
         AllowlistError.NodeNotAllowed.value: node_not_allowed_error,
+        ERC20Error.InsufficientBalance.value: insufficient_balance_error,
     }
 
     for error_value, message in errors.items():
