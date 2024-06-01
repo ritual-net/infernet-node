@@ -10,6 +10,7 @@ from web3 import Web3
 from chain.container_lookup import ContainerLookup
 from chain.coordinator import Coordinator
 from chain.listener import ChainListener
+from chain.payment_wallet import PaymentWallet
 from chain.processor import ChainProcessor
 from chain.registry import Registry
 from chain.rpc import RPC
@@ -81,7 +82,8 @@ class NodeLifecycle:
         # Initialize guardian + orchestrator
         container_lookup = ContainerLookup(config["containers"])
 
-        rpc = RPC(config["chain"]["rpc_url"])
+        rpc = RPC(config["chain"]["rpc_url"], config["chain"]["wallet"]["private_key"])
+        asyncio.get_event_loop().run_until_complete(rpc.initialize())
 
         registry = Registry(
             rpc,
@@ -118,16 +120,27 @@ class NodeLifecycle:
                 registry.coordinator,
                 container_lookup=container_lookup,
             )
+            payment_address = Web3.to_checksum_address(
+                config["chain"]["wallet"]["payment_address"]
+            )
             wallet = Wallet(
                 rpc,
                 coordinator,
                 config["chain"]["wallet"]["private_key"],
                 config["chain"]["wallet"]["max_gas_limit"],
-                config["chain"]["wallet"]["payment_address"],
+                payment_address,
                 config["chain"]["wallet"].get("allowed_sim_errors"),
             )
+            payment_wallet = PaymentWallet(payment_address, rpc)
             processor = ChainProcessor(
-                rpc, coordinator, wallet, wallet_checker, orchestrator, container_lookup
+                rpc,
+                coordinator,
+                wallet,
+                payment_wallet,
+                wallet_checker,
+                registry,
+                orchestrator,
+                container_lookup,
             )
             listener = ChainListener(
                 rpc,

@@ -58,6 +58,7 @@ from eth_typing import BlockNumber, ChecksumAddress, HexStr
 from web3 import AsyncHTTPProvider, AsyncWeb3
 from web3.contract.async_contract import AsyncContract
 from web3.exceptions import TransactionNotFound
+from web3.middleware.signing import async_construct_sign_and_send_raw_middleware
 from web3.types import ABIElement, BlockData, FilterParams, LogReceipt, Nonce
 
 from utils.logging import log
@@ -84,7 +85,7 @@ class RPC:
         _web3 (AsyncWeb3): Async web3.py client
     """
 
-    def __init__(self: RPC, rpc_url: str) -> None:
+    def __init__(self: RPC, rpc_url: str, private_key: str) -> None:
         """Initializes new Ethereum-compatible JSON-RPC client
 
         Args:
@@ -98,14 +99,39 @@ class RPC:
         if not validators.url(rpc_url):
             raise ValueError("Incorrect RPC URL format")
 
+        self._rpc_url = rpc_url
+        self._private_key = private_key
+
+    async def initialize(self: RPC) -> RPC:
         # Setup new Web3 HTTP provider w/ 10 minute timeout
         # Long timeout is useful for event polling, subscriptions
         provider = AsyncHTTPProvider(
-            endpoint_uri=rpc_url, request_kwargs={"timeout": 60 * 10}
+            endpoint_uri=self._rpc_url, request_kwargs={"timeout": 60 * 10}
         )
+        w3 = AsyncWeb3(provider)
+        account = w3.eth.account.from_key(self._private_key)
+        w3.middleware_onion.add(
+            await async_construct_sign_and_send_raw_middleware(account)
+        )
+        w3.eth.default_account = account.address
+        self._web3: AsyncWeb3 = w3
+        log.info(
+            "Initialized RPC", url=self._rpc_url, default_account=w3.eth.default_account
+        )
+        return self
 
-        self._web3: AsyncWeb3 = AsyncWeb3(provider)
-        log.info("Initialized RPC", url=rpc_url)
+    @property
+    def account(self: RPC) -> ChecksumAddress:
+        return cast(ChecksumAddress, self._web3.eth.default_account)
+
+    @property
+    def web3(self: RPC) -> AsyncWeb3:
+        """Get an async web3.py client
+
+        Returns:
+            AsyncWeb3: async web3.py client
+        """
+        return self._web3
 
     @cache
     def is_valid_address(self: RPC, address: str) -> bool:

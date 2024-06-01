@@ -228,6 +228,15 @@ class Subscription:
         return Web3.to_checksum_address(self._payment_token)
 
     @property
+    def prover(self: Subscription) -> ChecksumAddress:
+        """Returns subscription prover address
+
+        Returns:
+            ChecksumAddress: prover address
+        """
+        return Web3.to_checksum_address(self._prover)
+
+    @property
     def wallet(self: Subscription) -> ChecksumAddress:
         """Returns subscription wallet address
 

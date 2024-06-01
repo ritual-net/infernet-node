@@ -493,3 +493,34 @@ ERC20_ABI = [
         "stateMutability": "view",
     },
 ]
+
+PAYMENT_WALLET_ABI = [
+    {
+        "type": "function",
+        "name": "approve",
+        "inputs": [
+            {"name": "spender", "type": "address", "internalType": "address"},
+            {"name": "token", "type": "address", "internalType": "address"},
+            {"name": "amount", "type": "uint256", "internalType": "uint256"},
+        ],
+        "outputs": [],
+        "stateMutability": "nonpayable",
+    },
+    {
+        "type": "function",
+        "name": "allowance",
+        "inputs": [
+            {"name": "", "type": "address", "internalType": "address"},
+            {"name": "", "type": "address", "internalType": "address"},
+        ],
+        "outputs": [{"name": "", "type": "uint256", "internalType": "uint256"}],
+        "stateMutability": "view",
+    },
+    {
+        "type": "function",
+        "name": "owner",
+        "inputs": [],
+        "outputs": [{"name": "result", "type": "address", "internalType": "address"}],
+        "stateMutability": "view",
+    },
+]

@@ -18,6 +18,8 @@ from web3.exceptions import ContractCustomError, ContractLogicError
 from chain.container_lookup import ContainerLookup
 from chain.coordinator import Coordinator, CoordinatorSignatureParams
 from chain.errors import InfernetError
+from chain.payment_wallet import PaymentWallet
+from chain.registry import Registry
 from chain.rpc import RPC
 from chain.wallet import Wallet
 from chain.wallet_checker import WalletChecker
@@ -31,6 +33,7 @@ from shared.message import (
 )
 from shared.service import AsyncTask
 from shared.subscription import Subscription
+from utils.constants import ZERO_ADDRESS
 from utils.logging import log
 
 # Blocked tx
@@ -141,6 +144,7 @@ class ChainProcessor(AsyncTask):
         _coordinator (Coordinator): Coordinator instance
         _wallet (Wallet): Wallet instance
         _wallet_checker (WalletChecker): WalletChecker instance
+        _registry (Registry): Registry instance
         _subscriptions (dict[SubscriptionID, Subscription]): subscription ID => on-chain
             subscription
         _delegate_subscriptions (dict[DelegateSubscriptionID, DelegateSubscriptionData]):
@@ -157,7 +161,9 @@ class ChainProcessor(AsyncTask):
         rpc: RPC,
         coordinator: Coordinator,
         wallet: Wallet,
+        payment_wallet: PaymentWallet,
         wallet_checker: WalletChecker,
+        registry: Registry,
         orchestrator: Orchestrator,
         container_lookup: ContainerLookup,
     ):
@@ -167,7 +173,9 @@ class ChainProcessor(AsyncTask):
             rpc (RPC): RPC instance
             coordinator (Coordinator): Coordinator instance
             wallet (Wallet): Wallet instance
+            payment_wallet (PaymentWallet): PaymentWallet instance
             wallet_checker (WalletChecker): WalletChecker instance
+            registry (Registry): Registry instance
             orchestrator (Orchestrator): Orchestrator instance
             container_lookup (ContainerLookup): ContainerLookup instance
         """
@@ -178,7 +186,9 @@ class ChainProcessor(AsyncTask):
         self._rpc = rpc
         self._coordinator = coordinator
         self._wallet = wallet
+        self._payment_wallet = payment_wallet
         self._wallet_checker = wallet_checker
+        self._registry = registry
         self._orchestrator = orchestrator
         self._container_lookup = container_lookup
 
@@ -779,6 +789,8 @@ class ChainProcessor(AsyncTask):
         Returns:
             bool: True if the subscription has any infernet-related errors, else False
         """
+        if subscription.prover != ZERO_ADDRESS:
+            return False
         try:
             await self._deliver(
                 subscription=subscription,
@@ -840,6 +852,69 @@ class ChainProcessor(AsyncTask):
             )
         return tx_hash
 
+    async def _execute_on_containers(
+        self: ChainProcessor,
+        subscription: Subscription,
+        delegated: bool,
+        delegated_params: Optional[tuple[CoordinatorSignatureParams, dict[Any, Any]]],
+    ) -> list[ContainerOutput | ContainerError]:
+        # todo: tell the container if an on-chain sub request needs proof
+        if delegated:
+            # Setup off-chain inputs
+            parsed_params = cast(
+                tuple[CoordinatorSignatureParams, dict[Any, Any]],
+                delegated_params,
+            )
+            container_input = JobInput(
+                source=JobLocation.OFFCHAIN.value,
+                destination=JobLocation.ONCHAIN.value,
+                data=parsed_params[1],
+            )
+        else:
+            # Setup on-chain inputs
+            chain_input = await self._coordinator.get_container_inputs(
+                subscription=subscription,
+                interval=subscription.interval,
+                timestamp=int(time.time()),
+                caller=self._wallet.address,
+            )
+            container_input = JobInput(
+                source=JobLocation.ONCHAIN.value,
+                destination=JobLocation.ONCHAIN.value,
+                data=chain_input.hex(),
+            )
+
+        log.debug(
+            "Setup container input",
+            id=id,
+            interval=subscription.interval,
+            input=container_input,
+        )
+
+        # Execute containers
+        return await self._orchestrator.process_chain_processor_job(
+            job_id=id,
+            job_input=container_input,
+            containers=subscription.containers,
+        )
+
+    async def _escrow_reward_in_wallet(
+        self: ChainProcessor, subscription: Subscription
+    ) -> None:
+        # get escrow wallet instance
+        log.info(
+            "Escrowing reward in wallet",
+            id=subscription.id,
+            token=subscription.payment_token,
+            amount=subscription.payment_amount,
+            spender=self._registry.coordinator,
+        )
+        await self._payment_wallet.approve(
+            self._rpc.account,
+            subscription.payment_token,
+            subscription.payment_amount,
+        )
+
     async def _process_subscription(
         self: ChainProcessor,
         id: UnionID,
@@ -890,44 +965,16 @@ class ChainProcessor(AsyncTask):
         ):
             return
 
-        if delegated:
-            # Setup off-chain inputs
-            parsed_params = cast(
-                tuple[CoordinatorSignatureParams, dict[Any, Any]],
-                delegated_params,
-            )
-            container_input = JobInput(
-                source=JobLocation.OFFCHAIN.value,
-                destination=JobLocation.ONCHAIN.value,
-                data=parsed_params[1],
-            )
-        else:
-            # Setup on-chain inputs
-            chain_input = await self._coordinator.get_container_inputs(
-                subscription=subscription,
-                interval=interval,
-                timestamp=int(time.time()),
-                caller=self._wallet.address,
-            )
-            container_input = JobInput(
-                source=JobLocation.ONCHAIN.value,
-                destination=JobLocation.ONCHAIN.value,
-                data=chain_input.hex(),
-            )
-
-        log.debug(
-            "Setup container input",
-            id=id,
-            interval=interval,
-            input=container_input,
-        )
-
         # Execute containers
-        container_results = await self._orchestrator.process_chain_processor_job(
-            job_id=id,
-            job_input=container_input,
-            containers=subscription.containers,
+        container_results = await self._execute_on_containers(
+            subscription=subscription,
+            delegated=delegated,
+            delegated_params=delegated_params,
         )
+
+        if subscription.prover != ZERO_ADDRESS:
+            # allow wallet to be escrowed
+            await self._escrow_reward_in_wallet(subscription)
 
         # Check if some container response received
         # If none, prevent blocking pending queue and return
