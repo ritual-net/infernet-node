@@ -3,7 +3,7 @@ from __future__ import annotations
 from asyncio import CancelledError, Event, create_task
 from datetime import timedelta
 from functools import wraps
-from typing import Any, Optional, Tuple, Union, cast
+from typing import Any, Dict, Optional, Tuple, Union, cast
 from uuid import uuid4
 
 from hypercorn.asyncio import serve
@@ -37,6 +37,8 @@ class RESTServer(AsyncTask):
         _manager (ContainerManager): container manager instance
         _orchestrator (Orchestrator): orchestrator instance
         _port (int): webserver port
+        _rate_limit_num_requests (int): rate limit number of requests
+        _rate_limit_period (float): rate limit period
         _processor (Optional[ChainProcessor]): chain processor instance
         _store (DataStore): data store instance
         _version (str): node version
@@ -80,6 +82,14 @@ class RESTServer(AsyncTask):
         self._store = store
         self._chain = config_chain["enabled"]
         self._port = config_server["port"]
+        self._rate_limit_num_requests = int(
+            cast(Dict[str, Any], config_server)
+            .get("rate_limit", {})
+            .get("num_requests", 60)
+        )
+        self._rate_limit_period = float(
+            cast(Dict[str, Any], config_server).get("rate_limit", {}).get("period", 60)
+        )
         self._version = version
         self._wallet_address = wallet_address
 
@@ -112,7 +122,9 @@ class RESTServer(AsyncTask):
         """Registers Quart webserver routes"""
 
         @self._app.route("/health", methods=["GET"])
-        @rate_limit(60, timedelta(seconds=60))
+        @rate_limit(
+            self._rate_limit_num_requests, timedelta(seconds=self._rate_limit_period)
+        )
         async def health() -> Tuple[Response, int]:
             """Collects health of node
 
@@ -129,7 +141,9 @@ class RESTServer(AsyncTask):
             )
 
         @self._app.route("/info", methods=["GET"])
-        @rate_limit(60, timedelta(seconds=60))
+        @rate_limit(
+            self._rate_limit_num_requests, timedelta(seconds=self._rate_limit_period)
+        )
         async def info() -> Tuple[Response, int]:
             """Collects node info
 
@@ -216,7 +230,9 @@ class RESTServer(AsyncTask):
 
         @self._app.route("/api/jobs", methods=["POST"])
         @filter_create_job  # type: ignore
-        @rate_limit(30, timedelta(seconds=60))
+        @rate_limit(
+            self._rate_limit_num_requests, timedelta(seconds=self._rate_limit_period)
+        )
         async def create_job(message: OffchainMessage) -> Tuple[Response, int]:
             """Creates new off-chain job (direct compute request or subscription)
 
@@ -281,7 +297,9 @@ class RESTServer(AsyncTask):
 
         @self._app.route("/api/jobs/stream", methods=["POST"])
         @filter_create_job  # type: ignore
-        @rate_limit(10, timedelta(seconds=60))
+        @rate_limit(
+            self._rate_limit_num_requests, timedelta(seconds=self._rate_limit_period)
+        )
         async def create_job_stream(message: OffchainMessage) -> Tuple[Response, int]:
             """Creates new off-chain streaming job (direct compute request only)
 
@@ -323,7 +341,9 @@ class RESTServer(AsyncTask):
             return Response(generator()), 200
 
         @self._app.route("/api/jobs/batch", methods=["POST"])
-        @rate_limit(10, timedelta(seconds=60))
+        @rate_limit(
+            self._rate_limit_num_requests, timedelta(seconds=self._rate_limit_period)
+        )
         async def create_job_batch() -> Tuple[Response, int]:
             """Creates off-chain jobs in batch (direct compute requests / subscriptions)
 
@@ -419,7 +439,9 @@ class RESTServer(AsyncTask):
                 return jsonify({"error": f"Could not enqueue job:  {str(e)}"}), 500
 
         @self._app.route("/api/jobs", methods=["GET"])
-        @rate_limit(60, timedelta(seconds=60))
+        @rate_limit(
+            self._rate_limit_num_requests, timedelta(seconds=self._rate_limit_period)
+        )
         async def get_job() -> Tuple[Response, int]:
             # Get the IP address of the client
             client_ip = request.remote_addr

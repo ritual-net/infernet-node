@@ -18,10 +18,11 @@ All notable changes to this project will be documented in this file.
 - Support for CIDR ranges in container-level firewalls (`"allowed_ips"`).
 - Support for volume mounts to managed containers.
 - Support for streaming offchain job responses, via the `/api/jobs/stream` endpoint.
-- New flag `"allowed_sim_errors"` in the `config.json` file to specify which error messages are allowed to be ignored by the node when simulating transactions.
+- New optional flag `"allowed_sim_errors"` in the `config.json` file to specify which error messages are allowed to be ignored by the node when simulating transactions.
 - New flag `"payment_address"` in the `config.json` file to specify the public address of the node's escrow wallet. This is an instance of Infernet's `Wallet` contract.
 - New flag `"registry_address"` in the `config.json` file to specify the public address of Infernet's `Registry` contract. This contract is used to retrieve the addresses
   of the rest of the Infernet contracts. Therefore, the `"coordinator_address"` is now removed.
+- New optional flag `"rate_limit"` in the `config.json`'s `"server"` configuration to allow rate limiting of incoming requests to the REST server.
 
 ### Changed
 - Limit restarts within time window in `docker-compose.yaml`.
@@ -48,6 +49,7 @@ All notable changes to this project will be documented in this file.
 - Surface dacite errors when parsing REST interface inputs for better UX.
 - Don't return job IDs for Delegated Subscriptions (misleading, since results can only be fetched on-chain).
 - Added pending job TTL (loose upper bound) to prevent jobs from being in a pending state indefinitely (due crashes and / or incorrect use of the /status endpoint)
+- Fixed a bug where the node could not send multiple transactions in a single block.
 
 ### Security
 - Bumped `aiohttp` version to `3.9.4`.

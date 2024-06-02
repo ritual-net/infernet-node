@@ -281,10 +281,11 @@ class ChainListener(AsyncTask):
                 # Setup number of blocks to sync
                 num_blocks_to_sync = min(head_block - self._last_block, 100)
                 # Setup target block (last + diff inclusive)
-                target_block = self._last_block + num_blocks_to_sync
+                target_block = cast(BlockNumber, self._last_block + num_blocks_to_sync)
                 head_sub_id = await self._coordinator.get_head_subscription_id(
-                    head_block
+                    target_block
                 )
+                log.info(f"head sub id is: {head_sub_id}")
                 num_subs_to_sync = min(
                     head_sub_id - self._last_subscription_id,
                     SUBSCRIPTION_SYNC_BATCH_SIZE,

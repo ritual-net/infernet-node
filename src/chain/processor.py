@@ -208,6 +208,7 @@ class ChainProcessor(AsyncTask):
         self._attempts: dict[tuple[UnionID, Interval], int] = {}
         log.info("Initialized ChainProcessor")
         self._attempts_lock = asyncio.Lock()
+        self._nonce_lock = asyncio.Lock()
 
     def _track_created_message(
         self: ChainProcessor, msg: SubscriptionCreatedMessage
@@ -1027,6 +1028,17 @@ class ChainProcessor(AsyncTask):
                 interval=interval,
                 delegated=delegated,
             )
+            return
+        except Exception as e:
+            log.error(
+                f"Failed to send tx {e}",
+                subscription=subscription,
+                id=id,
+                interval=interval,
+                delegated=delegated,
+            )
+            if subscription.is_callback:
+                self._stop_tracking(subscription.id, delegated)
             return
 
         # Update pending with accurate tx hash

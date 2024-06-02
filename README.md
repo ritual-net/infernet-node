@@ -50,6 +50,9 @@ vim config.json
     - **command** (`string`). The command and flags to run the container with.
     - **env** (`object`). The environment variables to pass into the container.
     - **port** (`integer`). Local port to expose this container on.
+    - **rate_limit** (`object`). REST server rate-limiting configurations.
+      - **num_requests** (`integer`). Maximum number of requests per `period`.
+      - **period** (`float`). Time period in seconds for `num_requests`.
     - **external** (`boolean`). Whether this container can be the first container in a [JobRequest](https://docs.ritual.net/infernet/node/api#jobrequest).
     - **description** (`string`, optional). Description of service provided by this container.
     - **allowed_ips** (`array[string]`). Container-level firewall. Only specified IPs and/or [CIDR blocks](https://www.ipaddressguide.com/cidr) allowed to request execution of this container.
