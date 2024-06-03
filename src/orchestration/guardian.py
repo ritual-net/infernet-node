@@ -130,7 +130,7 @@ class Guardian:
             container (str): Container ID
 
         Returns:
-            bool: True if container generates proof, False otherwise
+            bool: True if container generates proofs, False otherwise
         """
         return self._restrictions[container].generates_proofs
 
