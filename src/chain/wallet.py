@@ -22,6 +22,7 @@ from chain.coordinator import (
 from chain.errors import raise_if_infernet_error
 from chain.rpc import RPC
 from shared.subscription import Subscription
+from utils.constants import ZERO_ADDRESS
 from utils.logging import log
 
 
@@ -45,12 +46,12 @@ class Wallet:
             ignore when simulating transactions. Checks for inclusion in error
             message, case-insensitive. i.e. ["bad input"] will match
             error message: "Contract reverted with error: Bad input.
-        _payment_address (ChecksumAddress): Node's payment wallet address.
+        _payment_address (Optional[str]): Node's payment wallet address
         _tx_lock (asyncio.Lock): Lock to prevent race conditions when web3py is sending
             multiple transactions at once.
 
     Public attributes:
-        payment_address (ChecksumAddress): Node's payment wallet address
+        payment_address (ChecksumAddress): Node's payment wallet address, if set
         address (ChecksumAddress): Wallet address
     """
 
@@ -60,7 +61,7 @@ class Wallet:
         coordinator: Coordinator,
         private_key: str,
         max_gas_limit: int,
-        payment_address: str,
+        payment_address: Optional[str],
         allowed_sim_errors: Optional[list[str]],
     ) -> None:
         """Initialize Wallet
@@ -90,18 +91,21 @@ class Wallet:
         # Initialize account
         self._account = Account.from_key(private_key)
         self._allowed_sim_errors = allowed_sim_errors or []
-        self._payment_address = payment_address
+        self._payment_address: Optional[str] = payment_address
         self._tx_lock = asyncio.Lock()
 
         log.info("Initialized Wallet", address=self._account.address)
 
     @property
     def payment_address(self: Wallet) -> ChecksumAddress:
-        """Returns Node's payment wallet address
+        """Returns Node's payment wallet address, zero address if not set
 
         Returns:
             ChecksumAddress: node's payment wallet address
         """
+        if self._payment_address is None:
+            return ZERO_ADDRESS
+
         return cast(ChecksumAddress, self._payment_address)
 
     @property

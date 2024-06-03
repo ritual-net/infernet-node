@@ -11,7 +11,8 @@
     "coordinator_address": "0x...",
     "wallet": {
       "max_gas_limit": 5000000,
-      "private_key": "0x..."
+      "private_key": "0x...",
+      "payment_address": "0x..."
     },
     "snapshot_sync": {
       "sleep": 1.5,

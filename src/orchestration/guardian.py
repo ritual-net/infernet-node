@@ -81,8 +81,8 @@ class Guardian:
         super().__init__()
 
         self._chain_enabled = chain_enabled
-        self._container_lookup = container_lookup
-        self._wallet_checker = wallet_checker
+        self._container_lookup: ContainerLookup = container_lookup
+        self._wallet_checker: WalletChecker = wallet_checker
 
         # Initialize container restrictions
         self._restrictions: dict[str, ContainerRestrictions] = {

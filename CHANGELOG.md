@@ -18,7 +18,7 @@ All notable changes to this project will be documented in this file.
 - Support for CIDR ranges in container-level firewalls (`"allowed_ips"`).
 - Support for volume mounts to managed containers.
 - Support for streaming offchain job responses, via the `/api/jobs/stream` endpoint.
-- New optional flag `"allowed_sim_errors"` in the `config.json` file to specify which error messages are allowed to be ignored by the node when simulating transactions.
+- New flag `"allowed_sim_errors"` in the `config.json` file to specify which error messages are allowed to be ignored by the node when simulating transactions.
 - New flag `"payment_address"` in the `config.json` file to specify the public address of the node's escrow wallet. This is an instance of Infernet's `Wallet` contract.
 - New flag `"registry_address"` in the `config.json` file to specify the public address of Infernet's `Registry` contract. This contract is used to retrieve the addresses
   of the rest of the Infernet contracts. Therefore, the `"coordinator_address"` is now removed.

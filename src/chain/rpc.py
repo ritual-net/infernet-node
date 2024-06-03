@@ -49,7 +49,7 @@ from __future__ import annotations
 
 import asyncio
 from functools import cache
-from typing import Any, Sequence, cast
+from typing import Any, Optional, Sequence, cast
 
 import validators  # type: ignore
 from async_lru import alru_cache
@@ -101,7 +101,7 @@ class RPC:
 
         self._rpc_url = rpc_url
         self._private_key = private_key
-        self._web3: AsyncWeb3 | None = None
+        self._web3: Optional[AsyncWeb3] = None
 
     async def initialize(self: RPC) -> RPC:
         # Setup new Web3 HTTP provider w/ 10 minute timeout

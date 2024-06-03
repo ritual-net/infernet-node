@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Tuple, cast
+from typing import Optional, Tuple, cast
 
 import structlog
 from eth_typing import ChecksumAddress
@@ -38,6 +38,7 @@ class WalletChecker:
         rpc: RPC,
         registry: Registry,
         container_configs: list[ConfigContainer],
+        payment_address: Optional[ChecksumAddress] = None,
     ):
         """
         Args:
@@ -45,9 +46,12 @@ class WalletChecker:
             registry (Registry): An instance of the Registry class.
             container_configs (list[ConfigContainer]): A list of container
             configurations.
+            payment_address (Optional[ChecksumAddress], optional): The payment address of
+                the node.
         """
         self._rpc = rpc
         self._registry = registry
+        self._payment_address: Optional[ChecksumAddress] = payment_address
         self._accepted_payments = {
             container["id"]: container["accepted_payments"]
             for container in container_configs
@@ -122,6 +126,9 @@ class WalletChecker:
     ) -> Tuple[bool, bool]:
         """
         Check if a subscription matches payment requirements.
+        1. If no payment address is provided, the subscription is skipped.
+        2. If the subscription does not match the payment requirements, it is also
+            skipped.
 
         Args:
             sub (Subscription): The subscription to check.
@@ -131,8 +138,15 @@ class WalletChecker:
             subscription matches the payment requirements and a boolean indicating
             if the node requires payment for that subscription.
         """
-
         skip_banner = f"Skipping subscription: {sub.id}"
+
+        if self._payment_address is None and sub.requires_payment:
+            log.info(
+                f"{skip_banner}: No payment address provided for the node",
+                sub_id=sub.id,
+            )
+            return False, False
+
         matches = False
         requires_payment = False
         for container in sub.containers:

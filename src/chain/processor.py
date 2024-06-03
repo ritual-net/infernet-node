@@ -208,7 +208,6 @@ class ChainProcessor(AsyncTask):
         self._attempts: dict[tuple[UnionID, Interval], int] = {}
         log.info("Initialized ChainProcessor")
         self._attempts_lock = asyncio.Lock()
-        self._nonce_lock = asyncio.Lock()
 
     def _track_created_message(
         self: ChainProcessor, msg: SubscriptionCreatedMessage
@@ -576,7 +575,8 @@ class ChainProcessor(AsyncTask):
 
         if not await self._wallet_checker.is_valid_wallet(sub.wallet):
             log.info(
-                f"{banner}: Invalid subscription wallet",
+                f"{banner}: Invalid subscription wallet, please use a wallet generated "
+                f"by infernet's `WalletFactory`",
                 sub_id=sub.id,
                 wallet=sub.wallet,
             )
@@ -999,7 +999,7 @@ class ChainProcessor(AsyncTask):
             if subscription.is_callback:
                 self._stop_tracking(subscription.id, delegated)
             return
-        elif last_result.output.get("code") != "200":
+        elif (code := last_result.output.get("code")) is not None and code != "200":
             log.error(
                 "Container execution errored",
                 id=id,

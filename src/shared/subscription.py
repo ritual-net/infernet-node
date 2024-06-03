@@ -49,6 +49,8 @@ class Subscription:
         id (int): Subscription ID (-1 if delegated subscription)
         owner (str): Subscription owner + recipient
         containers (list[str]): List of container IDs
+        requires_proof (bool): Whether subscription requires proof
+        requires_payment (bool): Whether subscription requires payment
 
     Private attributes:
         _container_lookup (ContainerLookup): Container lookup instance
@@ -245,6 +247,15 @@ class Subscription:
             bool: True if subscription requires proof, else False
         """
         return self.prover != ADDRESS_ZERO
+
+    @property
+    def requires_payment(self: Subscription) -> bool:
+        """Returns whether a subscription requires payment
+
+        Returns:
+            bool: True if subscription requires payment, else False
+        """
+        return self.payment_amount > 0
 
     @property
     def wallet(self: Subscription) -> ChecksumAddress:

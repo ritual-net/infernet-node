@@ -120,8 +120,11 @@ class NodeLifecycle:
                 registry.coordinator,
                 container_lookup=container_lookup,
             )
-            payment_address = Web3.to_checksum_address(
-                config["chain"]["wallet"]["payment_address"]
+            _payment_address = config["chain"]["wallet"].get("payment_address")
+            payment_address = (
+                _payment_address
+                if _payment_address is None
+                else Web3.to_checksum_address(_payment_address)
             )
             wallet = Wallet(
                 rpc,
