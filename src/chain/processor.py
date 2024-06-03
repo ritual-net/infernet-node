@@ -577,6 +577,9 @@ class ChainProcessor(AsyncTask):
         if sub is None:
             return True
 
+        if not sub.provides_payment:
+            return False
+
         banner = f"Skipping subscription: {sub_id}"
 
         if not await self._wallet_checker.is_valid_wallet(sub.wallet):
