@@ -17,6 +17,13 @@ class PaymentWallet:
     """
     Class to interact with an Infernet `Wallet` contract. Used by `ChainProcessor` to
     escrow tokens whenever a subscription requires a proof to be generated.
+
+    Public Methods:
+        - get_owner: Get the owner of the `PaymentWallet` contract.
+        - approve: Approve a spender to spend a certain amount of tokens.
+
+    Attributes:
+        - address: The address of the `PaymentWallet` contract.
     """
 
     def __init__(self: PaymentWallet, address: Optional[ChecksumAddress], rpc: RPC):
@@ -25,17 +32,38 @@ class PaymentWallet:
 
     @property
     def address(self: PaymentWallet) -> ChecksumAddress:
+        """
+        The address of the `PaymentWallet` contract.
+
+        Raises:
+            ValueError: If the `PaymentWallet` has no address.
+
+        Returns:
+            ChecksumAddress: The address of the `PaymentWallet` contract.
+        """
         if self._address is None:
             raise ValueError("PaymentWallet has no address")
         return self._address
 
     def _get_contract(self: PaymentWallet) -> AsyncContract:
+        """
+        Get the `PaymentWallet` contract.
+
+        Returns:
+            AsyncContract: The `PaymentWallet` contract.
+        """
         return self._rpc.get_contract(
             address=self.address,
             abi=PAYMENT_WALLET_ABI,
         )
 
     async def get_owner(self: PaymentWallet) -> ChecksumAddress:
+        """
+        Get the owner of the `PaymentWallet` contract.
+
+        Returns:
+            ChecksumAddress: The owner of the `PaymentWallet` contract.
+        """
         return Web3.to_checksum_address(
             await self._get_contract().functions.owner().call()
         )
@@ -46,6 +74,18 @@ class PaymentWallet:
         token: ChecksumAddress,
         amount: int,
     ) -> None:
+        """
+        Approve a spender to spend a certain amount of tokens.
+
+        Args:
+            spender (ChecksumAddress): The address of the spender.
+            token (ChecksumAddress): The address of the token.
+            amount (int): The amount of tokens to approve.
+
+        Raises:
+            AssertionError: If the allowance is not equal to the amount set.
+
+        """
         _contract = self._get_contract()
         assert await _contract.functions.owner().call() == self._rpc.account
         tx = await _contract.functions.approve(spender, token, amount).transact()
