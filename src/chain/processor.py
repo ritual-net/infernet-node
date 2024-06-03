@@ -33,7 +33,6 @@ from shared.message import (
 )
 from shared.service import AsyncTask
 from shared.subscription import Subscription
-from utils.constants import ZERO_ADDRESS
 from utils.logging import log
 
 # Blocked tx
@@ -143,6 +142,7 @@ class ChainProcessor(AsyncTask):
         _rpc (RPC): RPC instance
         _coordinator (Coordinator): Coordinator instance
         _wallet (Wallet): Wallet instance
+        _payment_wallet (PaymentWallet): PaymentWallet instance
         _wallet_checker (WalletChecker): WalletChecker instance
         _registry (Registry): Registry instance
         _subscriptions (dict[SubscriptionID, Subscription]): subscription ID => on-chain
@@ -797,7 +797,7 @@ class ChainProcessor(AsyncTask):
         Returns:
             bool: True if the subscription has any infernet-related errors, else False
         """
-        if subscription.prover != ZERO_ADDRESS:
+        if subscription.requires_proof:
             return False
         try:
             await self._deliver(
@@ -866,7 +866,19 @@ class ChainProcessor(AsyncTask):
         delegated: bool,
         delegated_params: Optional[tuple[CoordinatorSignatureParams, dict[Any, Any]]],
     ) -> list[ContainerOutput | ContainerError]:
-        # todo: tell the container if an on-chain sub request needs proof
+        """
+        Execute containers for the subscription.
+
+        Args:
+            subscription (Subscription): subscription
+            delegated (bool): True if processing delegated subscription, else False
+            delegated_params (
+                Optional[tuple[CoordinatorSignatureParams, dict[Any, Any]]]
+            ): delegated subscription params: signature, data
+
+        Returns:
+            list[ContainerOutput | ContainerError]: container results
+        """
         if delegated:
             # Setup off-chain inputs
             parsed_params = cast(
@@ -981,10 +993,6 @@ class ChainProcessor(AsyncTask):
             delegated_params=delegated_params,
         )
 
-        if subscription.prover != ZERO_ADDRESS:
-            # allow wallet to be escrowed
-            await self._escrow_reward_in_wallet(subscription)
-
         # Check if some container response received
         # If none, prevent blocking pending queue and return
         if len(container_results) == 0:
@@ -1021,6 +1029,10 @@ class ChainProcessor(AsyncTask):
         else:
             log.info("Container execution succeeded", id=id, interval=interval)
             log.debug("Container output", last_result=last_result)
+
+        if subscription.requires_proof:
+            # escrow reward in wallet
+            await self._escrow_reward_in_wallet(subscription)
 
         # Serialize container output
         (input, output, proof) = self._serialize_container_output(last_result)
