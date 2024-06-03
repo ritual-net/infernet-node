@@ -567,9 +567,6 @@ class ChainProcessor(AsyncTask):
         # deleted in _process_subscription
         if sub is None:
             return True
-        (_, requires_payment) = self._wallet_checker.matches_payment_requirements(sub)
-        if not requires_payment:
-            return False
 
         banner = f"Skipping subscription: {sub_id}"
 
@@ -586,9 +583,10 @@ class ChainProcessor(AsyncTask):
         has_balance, balance = await self._wallet_checker.has_enough_balance(
             sub.wallet, sub.payment_token, sub.payment_amount
         )
+
         if not has_balance:
             log.info(
-                f"{banner}: Insufficient balance",
+                f"{banner}: Subscription wallet has insufficient balance",
                 sub_id=sub.id,
                 wallet=sub.wallet,
                 sub_amount=sub.payment_amount,

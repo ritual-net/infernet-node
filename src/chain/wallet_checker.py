@@ -16,6 +16,7 @@ log = structlog.getLogger(__name__)
 
 class WalletChecker:
     """A class to check wallet validity and balance.
+
     A wallet is valid if it is instantiated through Infernet's `WalletFactory` contract.
 
     Public methods:
@@ -121,9 +122,7 @@ class WalletChecker:
             balance = await self._erc20_balance(address, token)
         return balance >= amount, balance
 
-    def matches_payment_requirements(
-        self: WalletChecker, sub: Subscription
-    ) -> Tuple[bool, bool]:
+    def matches_payment_requirements(self: WalletChecker, sub: Subscription) -> bool:
         """
         Check if a subscription matches payment requirements.
         1. If no payment address is provided, the subscription is skipped.
@@ -134,21 +133,19 @@ class WalletChecker:
             sub (Subscription): The subscription to check.
 
         Returns:
-            Tuple[bool, bool]: A tuple containing a boolean indicating if the
-            subscription matches the payment requirements and a boolean indicating
-            if the node requires payment for that subscription.
+            bool: True if the subscription matches payment requirements, False otherwise.
         """
         skip_banner = f"Skipping subscription: {sub.id}"
 
-        if self._payment_address is None and sub.requires_payment:
+        # Node won't be able to fulfill a subscription that provides payment if it
+        # doesn't have a payment address, the on-chain transaction will fail
+        if self._payment_address is None and sub.provides_payment:
             log.info(
                 f"{skip_banner}: No payment address provided for the node",
                 sub_id=sub.id,
             )
-            return False, False
+            return False
 
-        matches = False
-        requires_payment = False
         for container in sub.containers:
             if self._accepted_payments[container] == {}:
                 # no payment requirements for this container, it allows everything
@@ -162,8 +159,11 @@ class WalletChecker:
                     container=container,
                     accepted_tokens=list(self._accepted_payments[container].keys()),
                 )
-                return matches, requires_payment
+                # doesn't match, but requires payment
+                return False
 
+        # minimum required payment for the subscription is the sum of the payment
+        # requirements of each container
         min_payment = sum(
             self._accepted_payments[container].get(sub.payment_token, 0)
             for container in sub.containers
@@ -178,7 +178,6 @@ class WalletChecker:
                 sub_amount=sub.payment_amount,
                 min_amount=min_payment,
             )
-            return matches, requires_payment
-        matches = True
-        requires_payment = min_payment != 0
-        return matches, requires_payment
+            return False
+
+        return True

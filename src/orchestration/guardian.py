@@ -410,8 +410,7 @@ class Guardian:
             )
 
         # filter out subscriptions that don't match payment requirements
-        (matches, _) = self._wallet_checker.matches_payment_requirements(subscription)
-        if not matches:
+        if not self._wallet_checker.matches_payment_requirements(subscription):
             return self._error(
                 message,
                 "Invalid payment",

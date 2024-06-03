@@ -249,7 +249,7 @@ class Subscription:
         return self.prover != ADDRESS_ZERO
 
     @property
-    def requires_payment(self: Subscription) -> bool:
+    def provides_payment(self: Subscription) -> bool:
         """Returns whether a subscription requires payment
 
         Returns:
