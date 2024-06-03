@@ -2,7 +2,11 @@
   "log_path": "infernet_node.log",
   "manage_containers": true,
   "server": {
-    "port": 4000
+    "port": 4000,
+    "rate_limit": {
+      "num_requests": 100,
+      "period": 100
+    }
   },
   "chain": {
     "enabled": true,
