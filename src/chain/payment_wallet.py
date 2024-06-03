@@ -91,11 +91,4 @@ class PaymentWallet:
         tx = await _contract.functions.approve(spender, token, amount).transact()
         await self._rpc.web3.eth.wait_for_transaction_receipt(tx)
         allowance = await _contract.functions.allowance(spender, token).call()
-        log.info(
-            f"allowance: {allowance}, amount: {amount}, {allowance == amount}",
-            spender=spender,
-            token=token,
-            allowance=allowance,
-            amount=amount,
-        )
-        # assert allowance == amount
+        assert allowance == amount, "Allowance is not equal to the amount set."
