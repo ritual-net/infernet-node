@@ -562,6 +562,15 @@ class ChainProcessor(AsyncTask):
     async def _stop_tracking_if_sub_owner_cant_pay(
         self: ChainProcessor, sub_id: SubscriptionID
     ) -> bool:
+        """
+        Check if the subscription owner can pay for the subscription. If not, stop
+        tracking the subscription. Checks for:
+        1. Invalid wallet
+        2. Insufficient balance
+
+        Args:
+            sub_id (SubscriptionID): subscription ID
+        """
         sub = self._subscriptions.get(sub_id)
         # checking if sub is None is necessary because the subscription may have been
         # deleted in _process_subscription
