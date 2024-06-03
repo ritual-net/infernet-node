@@ -12,7 +12,7 @@
     "enabled": true,
     "trail_head_blocks": 5,
     "rpc_url": "http://127.0.0.1:8545",
-    "coordinator_address": "0x...",
+    "registry_address": "0x...",
     "wallet": {
       "max_gas_limit": 5000000,
       "private_key": "0x...",
@@ -49,7 +49,8 @@
       "accepted_payments": {
         "0x0000000000000000000000000000000000000000": 1000000000000000000,
         "0x59F2f1fCfE2474fD5F0b9BA1E73ca90b143Eb8d0": 1000000000000000000
-      }
+      },
+      "generates_proofs": false
     }
   ]
 }

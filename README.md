@@ -60,6 +60,7 @@ vim config.json
       - _Leave empty for no restrictions_.
     - **accepted_payments** (`dict[string, string]`, optional). Payment configurations for this container. This is a dictionary of accepted token addresses (zero address for native token i.e. ETH) and their corresponding minimum payment amount. If not provided, no payments will be received. If provided, subscriptions that don't meet these requirements will be skipped.
       - _Leave empty for no payment requirements_.
+    - **generates_proofs** (`boolean`). Whether this container generates proofs. Defaults to `false`. If `false`, the node will skip subscriptions that require proofs from this container.
     - **allowed_delegate_addresses** (`array[string]`). Container-level firewall. Only specified addresses allowed to request execution of this container, with request originating from on-chain contract but via off-chain delegate subscription (with this address corresponding to the delegate subscription `owner`).
       - _Leave empty for no restrictions_.
     - **gpu** (`boolean`). Whether this should be a GPU-enabled container. Host must also be GPU-enabled.
