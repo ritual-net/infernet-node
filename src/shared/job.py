@@ -18,6 +18,7 @@ class ContainerInput:
     source: int  # JobLocation (ONCHAIN or OFFCHAIN)
     destination: int  # JobLocation (ONCHAIN or OFFCHAIN or STREAM)
     data: Any
+    requires_proof: bool
 
 
 @dataclass(frozen=True)

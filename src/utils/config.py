@@ -66,6 +66,7 @@ class ConfigContainer(TypedDict):
     gpu: Optional[bool]
     volumes: Optional[list[str]]
     accepted_payments: dict[str, int]
+    generates_proofs: Optional[bool]
 
 
 class ConfigRedis(TypedDict):
