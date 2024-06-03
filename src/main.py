@@ -112,8 +112,19 @@ class NodeLifecycle:
                 Web3.to_checksum_address(config["chain"]["registry_address"]),
             )
 
+            _payment_address = config["chain"]["wallet"].get("payment_address")
+
+            payment_address = (
+                _payment_address
+                if _payment_address is None
+                else Web3.to_checksum_address(_payment_address)
+            )
+
             wallet_checker = WalletChecker(
-                rpc=rpc, registry=registry, container_configs=config["containers"]
+                rpc=rpc,
+                registry=registry,
+                container_configs=config["containers"],
+                payment_address=payment_address,
             )
 
             guardian = Guardian(
@@ -132,12 +143,7 @@ class NodeLifecycle:
                 registry.coordinator,
                 container_lookup=container_lookup,
             )
-            _payment_address = config["chain"]["wallet"].get("payment_address")
-            payment_address = (
-                _payment_address
-                if _payment_address is None
-                else Web3.to_checksum_address(_payment_address)
-            )
+
             wallet = Wallet(
                 rpc,
                 coordinator,
