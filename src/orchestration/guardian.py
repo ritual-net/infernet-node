@@ -124,7 +124,7 @@ class Guardian:
         return self._restrictions[container].external
 
     def _generates_proof(self: Guardian, container: str) -> bool:
-        """Does container generate proof
+        """Does container generate proofs
 
         Args:
             container (str): Container ID
