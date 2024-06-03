@@ -35,9 +35,10 @@ class Guardian:
     """Filters job requests based on container restrictions
 
     Both off-chain and on-chain job requests are filtered based on sanity checks and
-    container-level restrictions, such as origin IP address, whether a matches the
-    payment requirements, and allowed chain addresses. If a message fails filtering, a
-    GuardianError is returned. Otherwise, the message is returned for processing.
+    container-level restrictions, such as origin IP address, whether a subscription
+    matches the payment requirements, and allowed chain addresses. If a message fails
+    filtering, a GuardianError is returned. Otherwise, the message is returned for
+    processing.
 
     Attributes:
         _container_lookup (ContainerLookup): Container lookup, used for
