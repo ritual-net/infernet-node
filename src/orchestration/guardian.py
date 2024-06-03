@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from dataclasses import asdict, dataclass
 from ipaddress import IPv4Network, IPv6Network, ip_address, ip_network
-from typing import Any, Dict, Union, cast
+from typing import Any, Dict, Optional, Union, cast
 
 from chain.container_lookup import ContainerLookup
 from chain.wallet_checker import WalletChecker
@@ -45,10 +45,12 @@ class Guardian:
         _restrictions (dict[str, ContainerRestrictions]): Container restrictions
         _chain_enabled (bool): Is chain module enabled?
         _wallet_checker (WalletChecker): Wallet checker, used for filtering
-            subscriptions that don't match payment requirements
+            subscriptions that don't match payment requirements, None if chain not
+            enabled
 
     Methods:
         process_message: Parses and filters message
+        wallet_checker: Wallet checker getter, unpacks the optional _wallet_checker
 
     Private Methods:
         _is_external: Is container external
@@ -66,7 +68,7 @@ class Guardian:
         configs: list[ConfigContainer],
         chain_enabled: bool,
         container_lookup: ContainerLookup,
-        wallet_checker: WalletChecker,
+        wallet_checker: Optional[WalletChecker],
     ) -> None:
         """Initialize Guardian
 
@@ -75,14 +77,15 @@ class Guardian:
             chain_enabled (bool): Is chain module enabled?
             container_lookup (ContainerLookup): Container lookup, used for reverse hash
                 lookup of subscriptions' `containers` field.
-            wallet_checker (WalletChecker): Wallet checker, used for filtering
-                subscriptions that don't match payment requirements
+            wallet_checker (Optional[WalletChecker]): Wallet checker, used for filtering
+                subscriptions that don't match payment requirements. If chain not
+                enabled, this is None.
         """
         super().__init__()
 
         self._chain_enabled = chain_enabled
         self._container_lookup: ContainerLookup = container_lookup
-        self._wallet_checker: WalletChecker = wallet_checker
+        self._wallet_checker: Optional[WalletChecker] = wallet_checker
 
         # Initialize container restrictions
         self._restrictions: dict[str, ContainerRestrictions] = {
@@ -103,6 +106,20 @@ class Guardian:
         }
 
         log.info("Initialized Guardian")
+
+    @property
+    def wallet_checker(self: Guardian) -> WalletChecker:
+        """
+        Wallet checker getter, unpacks the optional _wallet_checker attribute, check
+        if it is None and raises an error if it is.
+
+        Returns:
+            WalletChecker: Wallet checker
+        """
+        if self._wallet_checker is None:
+            raise ValueError("Wallet checker not provided when chain is disabled.")
+
+        return self._wallet_checker
 
     @property
     def restrictions(self: Guardian) -> dict[str, Any]:
@@ -410,7 +427,7 @@ class Guardian:
             )
 
         # filter out subscriptions that don't match payment requirements
-        if not self._wallet_checker.matches_payment_requirements(subscription):
+        if not self.wallet_checker.matches_payment_requirements(subscription):
             return self._error(
                 message,
                 "Invalid payment",
