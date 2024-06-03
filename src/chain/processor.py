@@ -1010,6 +1010,7 @@ class ChainProcessor(AsyncTask):
             if subscription.is_callback:
                 self._stop_tracking(subscription.id, delegated)
             return
+
         # Else, log successful execution
         else:
             log.info("Container execution succeeded", id=id, interval=interval)
