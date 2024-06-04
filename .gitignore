@@ -37,3 +37,4 @@ config.json
 
 # IDE
 launch.json
+.idea/

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Union
+from typing import Any, Optional, Union
 
 from chain.coordinator import CoordinatorSignatureParams
 from shared.subscription import SerializedSubscription, Subscription
@@ -29,6 +29,7 @@ class OffchainJobMessage(BaseMessage):
     containers: list[str]
     data: dict[Any, Any]
     type: MessageType = MessageType.OffchainJob
+    requires_proof: Optional[bool] = False
 
 
 @dataclass(frozen=True)
@@ -39,6 +40,7 @@ class DelegatedSubscriptionMessage(BaseMessage):
     signature: CoordinatorSignatureParams
     data: dict[Any, Any]
     type: MessageType = MessageType.DelegatedSubscription
+    requires_proof: Optional[bool] = False
 
 
 @dataclass(frozen=True)
@@ -47,6 +49,7 @@ class SubscriptionCreatedMessage:
 
     subscription: Subscription
     type: MessageType = MessageType.SubscriptionCreated
+    requires_proof: Optional[bool] = False
 
 
 # Type alias for off-chain originating message

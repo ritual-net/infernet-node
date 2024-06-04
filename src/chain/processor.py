@@ -13,9 +13,13 @@ from typing import Any, Optional, Tuple, cast
 
 from eth_abi import encode  # type: ignore
 from eth_typing import HexStr
+from web3.exceptions import ContractCustomError, ContractLogicError
 
 from chain.container_lookup import ContainerLookup
 from chain.coordinator import Coordinator, CoordinatorSignatureParams
+from chain.errors import InfernetError
+from chain.payment_wallet import PaymentWallet
+from chain.registry import Registry
 from chain.rpc import RPC
 from chain.wallet import Wallet
 from chain.wallet_checker import WalletChecker
@@ -29,6 +33,7 @@ from shared.message import (
 )
 from shared.service import AsyncTask
 from shared.subscription import Subscription
+from utils.constants import ZERO_ADDRESS
 from utils.logging import log
 
 # Blocked tx
@@ -139,6 +144,7 @@ class ChainProcessor(AsyncTask):
         _coordinator (Coordinator): Coordinator instance
         _wallet (Wallet): Wallet instance
         _wallet_checker (WalletChecker): WalletChecker instance
+        _registry (Registry): Registry instance
         _subscriptions (dict[SubscriptionID, Subscription]): subscription ID => on-chain
             subscription
         _delegate_subscriptions (dict[DelegateSubscriptionID, DelegateSubscriptionData]):
@@ -155,7 +161,9 @@ class ChainProcessor(AsyncTask):
         rpc: RPC,
         coordinator: Coordinator,
         wallet: Wallet,
+        payment_wallet: PaymentWallet,
         wallet_checker: WalletChecker,
+        registry: Registry,
         orchestrator: Orchestrator,
         container_lookup: ContainerLookup,
     ):
@@ -165,7 +173,9 @@ class ChainProcessor(AsyncTask):
             rpc (RPC): RPC instance
             coordinator (Coordinator): Coordinator instance
             wallet (Wallet): Wallet instance
+            payment_wallet (PaymentWallet): PaymentWallet instance
             wallet_checker (WalletChecker): WalletChecker instance
+            registry (Registry): Registry instance
             orchestrator (Orchestrator): Orchestrator instance
             container_lookup (ContainerLookup): ContainerLookup instance
         """
@@ -176,7 +186,9 @@ class ChainProcessor(AsyncTask):
         self._rpc = rpc
         self._coordinator = coordinator
         self._wallet = wallet
+        self._payment_wallet = payment_wallet
         self._wallet_checker = wallet_checker
+        self._registry = registry
         self._orchestrator = orchestrator
         self._container_lookup = container_lookup
 
@@ -196,6 +208,7 @@ class ChainProcessor(AsyncTask):
         self._attempts: dict[tuple[UnionID, Interval], int] = {}
         log.info("Initialized ChainProcessor")
         self._attempts_lock = asyncio.Lock()
+        self._nonce_lock = asyncio.Lock()
 
     def _track_created_message(
         self: ChainProcessor, msg: SubscriptionCreatedMessage
@@ -455,7 +468,7 @@ class ChainProcessor(AsyncTask):
                 )
 
         log.info(
-            "Stopped tracking subscription",
+            f"Stopped tracking subscription: {subscription_id}",
             id=subscription_id,
         )
 
@@ -550,7 +563,11 @@ class ChainProcessor(AsyncTask):
     async def _stop_tracking_if_sub_owner_cant_pay(
         self: ChainProcessor, sub_id: SubscriptionID
     ) -> bool:
-        sub = self._subscriptions[sub_id]
+        sub = self._subscriptions.get(sub_id)
+        # checking if sub is None is necessary because the subscription may have been
+        # deleted in _process_subscription
+        if sub is None:
+            return True
         (_, requires_payment) = self._wallet_checker.matches_payment_requirements(sub)
         if not requires_payment:
             return False
@@ -728,12 +745,16 @@ class ChainProcessor(AsyncTask):
             bool: True if the subscription has missed the deadline, else False
         """
         subscription = (
-            self._subscriptions[cast(SubscriptionID, subscription_id)]
+            self._subscriptions.get(cast(SubscriptionID, subscription_id))
             if not delegated
-            else self._delegate_subscriptions[
-                cast(DelegateSubscriptionID, subscription_id)
-            ][0]
+            else self._delegate_subscriptions.get(
+                cast(DelegateSubscriptionID, subscription_id), [None]
+            )[0]
         )
+        # checking if subscription is None is necessary because the subscription may have
+        # been deleted in _process_subscription
+        if subscription is None:
+            return True
 
         if subscription.past_last_interval:
             log.info(
@@ -746,6 +767,155 @@ class ChainProcessor(AsyncTask):
             return True
 
         return False
+
+    async def _stop_tracking_if_infernet_errors_caught_in_simulation(
+        self: ChainProcessor,
+        subscription: Subscription,
+        delegated: bool,
+        signature: Optional[CoordinatorSignatureParams] = None,
+    ) -> bool:
+        """
+        We first attempt a delivery with empty (input, output, proof) to check if there
+        are any infernet-related errors caught during the transaction simulation. This
+        allows us to catch a multitude of errors even if we had run the compute. This
+        prevents the node from wasting resources on a compute that would have failed
+        on-chain.
+
+        Args:
+            subscription (Subscription): subscription
+            delegated (bool): True if processing delegated subscription, else False
+            signature (Optional[CoordinatorSignatureParams]): delegated subscription
+                signature, in case of normal subscription, it should be None
+
+        Returns:
+            bool: True if the subscription has any infernet-related errors, else False
+        """
+        if subscription.prover != ZERO_ADDRESS:
+            return False
+        try:
+            await self._deliver(
+                subscription=subscription,
+                delegated=delegated,
+                signature=signature,
+                simulate_only=True,
+            )
+        except InfernetError:
+            if subscription.is_callback:
+                self._stop_tracking(subscription.id, delegated)
+                return True
+        except Exception:
+            pass
+        return False
+
+    async def _deliver(
+        self: ChainProcessor,
+        subscription: Subscription,
+        delegated: bool,
+        signature: Optional[CoordinatorSignatureParams],
+        simulate_only: bool = False,
+        input: bytes = b"",
+        output: bytes = b"",
+        proof: bytes = b"",
+    ) -> bytes:
+        """
+        Deliver the compute to the chain.
+
+        Args:
+            subscription (Subscription): subscription
+            delegated (bool): True if processing delegated subscription, else False
+            signature (Optional[CoordinatorSignatureParams]): delegated subscription
+                signature, in case of normal subscription, it should be None
+            simulate_only (bool): If set, the transaction is only simulated & not sent,
+                used to pre-emptively check for subscriptions that would've failed even
+                with correct compute delivered.
+            input (bytes): input
+            output (bytes): output
+            proof (bytes): proof
+        """
+        if delegated:
+            # Delegated subscriptions => deliver_compute_delegatee
+            tx_hash = await self._wallet.deliver_compute_delegatee(
+                subscription=subscription,
+                signature=cast(CoordinatorSignatureParams, signature),
+                input=input,
+                output=output,
+                proof=proof,
+                simulate_only=simulate_only,
+            )
+        else:
+            # Regular subscriptions => deliver_compute
+            tx_hash = await self._wallet.deliver_compute(
+                subscription=subscription,
+                input=input,
+                output=output,
+                proof=proof,
+                simulate_only=simulate_only,
+            )
+        return tx_hash
+
+    async def _execute_on_containers(
+        self: ChainProcessor,
+        subscription: Subscription,
+        delegated: bool,
+        delegated_params: Optional[tuple[CoordinatorSignatureParams, dict[Any, Any]]],
+    ) -> list[ContainerOutput | ContainerError]:
+        # todo: tell the container if an on-chain sub request needs proof
+        if delegated:
+            # Setup off-chain inputs
+            parsed_params = cast(
+                tuple[CoordinatorSignatureParams, dict[Any, Any]],
+                delegated_params,
+            )
+            container_input = JobInput(
+                source=JobLocation.OFFCHAIN.value,
+                destination=JobLocation.ONCHAIN.value,
+                data=parsed_params[1],
+            )
+        else:
+            # Setup on-chain inputs
+            chain_input = await self._coordinator.get_container_inputs(
+                subscription=subscription,
+                interval=subscription.interval,
+                timestamp=int(time.time()),
+                caller=self._wallet.address,
+            )
+            container_input = JobInput(
+                source=JobLocation.ONCHAIN.value,
+                destination=JobLocation.ONCHAIN.value,
+                data=chain_input.hex(),
+            )
+
+        log.debug(
+            "Setup container input",
+            id=id,
+            interval=subscription.interval,
+            input=container_input,
+        )
+
+        # Execute containers
+        return await self._orchestrator.process_chain_processor_job(
+            job_id=id,
+            job_input=container_input,
+            containers=subscription.containers,
+            requires_proof=subscription.requires_proof,
+        )
+
+    async def _escrow_reward_in_wallet(
+        self: ChainProcessor, subscription: Subscription
+    ) -> None:
+        # get escrow wallet instance
+        log.info(
+            "Escrowing reward in wallet",
+            id=subscription.id,
+            token=subscription.payment_token,
+            amount=subscription.payment_amount,
+            spender=self._registry.coordinator,
+        )
+        await self._payment_wallet.approve(
+            self._rpc.account,
+            subscription.payment_token,
+            subscription.payment_amount,
+        )
 
     async def _process_subscription(
         self: ChainProcessor,
@@ -792,46 +962,21 @@ class ChainProcessor(AsyncTask):
         # Block pending execution
         self._pending[(id, interval)] = BLOCKED
 
-        # Parse params if delegated subscription
-        if delegated:
-            parsed_params = cast(
-                tuple[CoordinatorSignatureParams, dict[Any, Any]],
-                delegated_params,
-            )
-
-        if delegated:
-            # Setup off-chain inputs
-            container_input = JobInput(
-                source=JobLocation.OFFCHAIN.value,
-                destination=JobLocation.ONCHAIN.value,
-                data=parsed_params[1],
-            )
-        else:
-            # Setup on-chain inputs
-            chain_input = await self._coordinator.get_container_inputs(
-                subscription=subscription,
-                interval=interval,
-                timestamp=int(time.time()),
-                caller=self._wallet.address,
-            )
-            container_input = JobInput(
-                source=JobLocation.ONCHAIN.value,
-                destination=JobLocation.ONCHAIN.value,
-                data=chain_input.hex(),
-            )
-        log.debug(
-            "Setup container input",
-            id=id,
-            interval=interval,
-            input=container_input,
-        )
+        if await self._stop_tracking_if_infernet_errors_caught_in_simulation(
+            subscription, delegated, delegated_params and delegated_params[0]
+        ):
+            return
 
         # Execute containers
-        container_results = await self._orchestrator.process_chain_processor_job(
-            job_id=id,
-            job_input=container_input,
-            containers=subscription.containers,
+        container_results = await self._execute_on_containers(
+            subscription=subscription,
+            delegated=delegated,
+            delegated_params=delegated_params,
         )
+
+        if subscription.prover != ZERO_ADDRESS:
+            # allow wallet to be escrowed
+            await self._escrow_reward_in_wallet(subscription)
 
         # Check if some container response received
         # If none, prevent blocking pending queue and return
@@ -851,7 +996,21 @@ class ChainProcessor(AsyncTask):
                 err=last_result,
             )
             del self._pending[(id, interval)]
+            if subscription.is_callback:
+                self._stop_tracking(subscription.id, delegated)
             return
+        elif last_result.output.get("code") != "200":
+            log.error(
+                "Container execution errored",
+                id=id,
+                interval=interval,
+                err=last_result,
+            )
+            del self._pending[(id, interval)]
+            if subscription.is_callback:
+                self._stop_tracking(subscription.id, delegated)
+            return
+
         # Else, log successful execution
         else:
             log.info("Container execution succeeded", id=id, interval=interval)
@@ -860,28 +1019,23 @@ class ChainProcessor(AsyncTask):
         # Serialize container output
         (input, output, proof) = self._serialize_container_output(last_result)
 
-        # Send on-chain submission tx
-        if delegated:
-            # Delegated subscriptions => deliver_compute_delegatee
-            tx_hash = await self._wallet.deliver_compute_delegatee(
+        try:
+            tx_hash = await self._deliver(
                 subscription=subscription,
-                signature=parsed_params[0],
+                delegated=delegated,
+                signature=delegated_params[0]
+                if delegated and delegated_params
+                else None,
                 input=input,
                 output=output,
                 proof=proof,
             )
-        else:
-            # Regular subscriptions => deliver_compute
-            tx_hash = await self._wallet.deliver_compute(
-                subscription=subscription,
-                input=input,
-                output=output,
-                proof=proof,
-            )
-
-        # if tx_hash is none, it means that the transaction simulation failed,
-        # we won't need to track it.
-        if tx_hash is None:
+        except (InfernetError, ContractLogicError, ContractCustomError):
+            # transaction simulation failed
+            # if it's a callback subscription, we can stop tracking it
+            # delegated subscriptions will expire instead
+            if subscription.is_callback:
+                self._stop_tracking(subscription.id, delegated)
             log.info(
                 "Did not send tx",
                 subscription=subscription,
@@ -889,6 +1043,17 @@ class ChainProcessor(AsyncTask):
                 interval=interval,
                 delegated=delegated,
             )
+            return
+        except Exception as e:
+            log.error(
+                f"Failed to send tx {e}",
+                subscription=subscription,
+                id=id,
+                interval=interval,
+                delegated=delegated,
+            )
+            if subscription.is_callback:
+                self._stop_tracking(subscription.id, delegated)
             return
 
         # Update pending with accurate tx hash

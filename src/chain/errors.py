@@ -39,6 +39,10 @@ class AllowlistError(Enum):
     NodeNotAllowed = "0x42764946"
 
 
+class ERC20Error(Enum):
+    InsufficientBalance = "0xf4d678b8"
+
+
 invalid_wallet_error = (
     "Invalid wallet, please make sure you're using a wallet created "
     "from Infernet's `WalletFactory`."
@@ -71,19 +75,29 @@ insufficient_funds_error = (
 )
 insufficient_allowance_error = "Insufficient allowance."
 node_not_allowed_error = "Node is not allowed to deliver this subscription."
+insufficient_balance_error = "Insufficient balance."
 
 
-def is_infernet_error(e: ContractCustomError, sub: Subscription) -> bool:
+class InfernetError(Exception):
+    """
+    Custom exception for Infernet errors, raised if an error is detected in the Infernet
+    contracts.
+    """
+
+    pass
+
+
+def raise_if_infernet_error(e: ContractCustomError, sub: Subscription) -> None:
     """
     Checks if the error belongs to the infernet contracts based on its 4-byte signature,
-    and prints a helpful message and returns true if it does.
+    and if it does, prints a helpful message and raises an InfernetError.
 
     Args:
         e (ContractCustomError): The error object
         sub (Subscription): The subscription object, used for logging
 
-    Returns:
-        bool: True if the error belongs to the coordinator, False otherwise
+    Raises:
+        InfernetError: If the error is an Infernet error
     """
     error_message = str(e)
 
@@ -106,6 +120,7 @@ def is_infernet_error(e: ContractCustomError, sub: Subscription) -> bool:
         WalletError.InsufficientFunds.value: insufficient_funds_error,
         WalletError.InsufficientAllowance.value: insufficient_allowance_error,
         AllowlistError.NodeNotAllowed.value: node_not_allowed_error,
+        ERC20Error.InsufficientBalance.value: insufficient_balance_error,
     }
 
     for error_value, message in errors.items():
@@ -121,6 +136,4 @@ def is_infernet_error(e: ContractCustomError, sub: Subscription) -> bool:
                 else log.error
             )
             _log(message, subscription_id=sub.id)
-            return True
-
-    return False
+            raise InfernetError(message)
