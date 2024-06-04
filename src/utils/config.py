@@ -2,10 +2,18 @@ from json import load as json_load
 from typing import Any, NamedTuple, Optional, TypedDict, cast
 
 
+class ConfigRateLimit(TypedDict):
+    """Expected config[server][rate_limit] format"""
+
+    num_requests: Optional[int]
+    period: Optional[int]
+
+
 class ConfigServer(TypedDict):
     """Expected config[server] format"""
 
     port: int
+    rate_limit: Optional[ConfigRateLimit]
 
 
 class ConfigWallet(TypedDict):
@@ -58,6 +66,7 @@ class ConfigContainer(TypedDict):
     gpu: Optional[bool]
     volumes: Optional[list[str]]
     accepted_payments: dict[str, int]
+    generates_proofs: Optional[bool]
 
 
 class ConfigRedis(TypedDict):

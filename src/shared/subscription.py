@@ -9,6 +9,7 @@ from eth_account.messages import SignableMessage, encode_typed_data
 from eth_typing import ChecksumAddress
 from hexbytes import HexBytes
 from web3 import Web3
+from web3.constants import ADDRESS_ZERO
 
 from chain.container_lookup import ContainerLookup
 
@@ -226,6 +227,24 @@ class Subscription:
             ChecksumAddress: payment token
         """
         return Web3.to_checksum_address(self._payment_token)
+
+    @property
+    def prover(self: Subscription) -> ChecksumAddress:
+        """Returns subscription prover address
+
+        Returns:
+            ChecksumAddress: prover address
+        """
+        return Web3.to_checksum_address(self._prover)
+
+    @property
+    def requires_proof(self: Subscription) -> bool:
+        """Returns whether a subscription requires proof
+
+        Returns:
+            bool: True if subscription requires proof, else False
+        """
+        return self.prover != ADDRESS_ZERO
 
     @property
     def wallet(self: Subscription) -> ChecksumAddress:
