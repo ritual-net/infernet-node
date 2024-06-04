@@ -65,7 +65,7 @@ class ConfigContainer(TypedDict):
     external: bool
     gpu: Optional[bool]
     volumes: Optional[list[str]]
-    accepted_payments: dict[str, int]
+    accepted_payments: Optional[dict[str, int]]
     generates_proofs: Optional[bool]
 
 

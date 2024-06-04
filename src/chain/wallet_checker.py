@@ -54,7 +54,7 @@ class WalletChecker:
         self._registry = registry
         self._payment_address: Optional[ChecksumAddress] = payment_address
         self._accepted_payments = {
-            container["id"]: container["accepted_payments"]
+            container["id"]: container.get("accepted_payments", {})
             for container in container_configs
         }
 
@@ -147,9 +147,10 @@ class WalletChecker:
             return False
 
         for container in sub.containers:
-            if self._accepted_payments[container] == {}:
+            if not self._accepted_payments[container]:
                 # no payment requirements for this container, it allows everything
                 continue
+            
             if sub.payment_token not in self._accepted_payments[container]:
                 log.info(
                     f"{skip_banner}: Token {sub.payment_token} not "
