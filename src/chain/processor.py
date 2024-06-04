@@ -897,6 +897,7 @@ class ChainProcessor(AsyncTask):
             job_id=id,
             job_input=container_input,
             containers=subscription.containers,
+            requires_proof=subscription.requires_proof,
         )
 
     async def _escrow_reward_in_wallet(
@@ -995,7 +996,21 @@ class ChainProcessor(AsyncTask):
                 err=last_result,
             )
             del self._pending[(id, interval)]
+            if subscription.is_callback:
+                self._stop_tracking(subscription.id, delegated)
             return
+        elif last_result.output.get("code") != "200":
+            log.error(
+                "Container execution errored",
+                id=id,
+                interval=interval,
+                err=last_result,
+            )
+            del self._pending[(id, interval)]
+            if subscription.is_callback:
+                self._stop_tracking(subscription.id, delegated)
+            return
+
         # Else, log successful execution
         else:
             log.info("Container execution succeeded", id=id, interval=interval)
