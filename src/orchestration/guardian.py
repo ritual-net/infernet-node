@@ -3,9 +3,10 @@ from __future__ import annotations
 import time
 from dataclasses import asdict, dataclass
 from ipaddress import IPv4Network, IPv6Network, ip_address, ip_network
-from typing import Any, Union, cast
+from typing import Any, Dict, Union, cast
 
 from chain.container_lookup import ContainerLookup
+from chain.wallet_checker import WalletChecker
 from shared.message import (
     DelegatedSubscriptionMessage,
     FilteredMessage,
@@ -27,21 +28,24 @@ class ContainerRestrictions:
     allowed_addresses: list[str]
     allowed_delegate_addresses: list[str]
     external: bool
+    generates_proofs: bool
 
 
 class Guardian:
     """Filters job requests based on container restrictions
 
     Both off-chain and on-chain job requests are filtered based on sanity checks and
-    container-level restrictions, such as origin IP address and allowed chain
-    addresses. If a message fails filtering, a GuardianError is returned. Otherwise,
-    the message is returned for processing.
+    container-level restrictions, such as origin IP address, whether a matches the
+    payment requirements, and allowed chain addresses. If a message fails filtering, a
+    GuardianError is returned. Otherwise, the message is returned for processing.
 
     Attributes:
         _container_lookup (ContainerLookup): Container lookup, used for
             deserialization of subscriptions.
         _restrictions (dict[str, ContainerRestrictions]): Container restrictions
         _chain_enabled (bool): Is chain module enabled?
+        _wallet_checker (WalletChecker): Wallet checker, used for filtering
+            subscriptions that don't match payment requirements
 
     Methods:
         process_message: Parses and filters message
@@ -62,19 +66,23 @@ class Guardian:
         configs: list[ConfigContainer],
         chain_enabled: bool,
         container_lookup: ContainerLookup,
+        wallet_checker: WalletChecker,
     ) -> None:
         """Initialize Guardian
 
         Args:
             configs (list[ConfigContainer]): Container configurations
             chain_enabled (bool): Is chain module enabled?
-            container_lookup (ContainerLookup): Container lookup, used for
-                deserialization of subscriptions.
+            container_lookup (ContainerLookup): Container lookup, used for reverse hash
+                lookup of subscriptions' `containers` field.
+            wallet_checker (WalletChecker): Wallet checker, used for filtering
+                subscriptions that don't match payment requirements
         """
         super().__init__()
 
         self._chain_enabled = chain_enabled
         self._container_lookup = container_lookup
+        self._wallet_checker = wallet_checker
 
         # Initialize container restrictions
         self._restrictions: dict[str, ContainerRestrictions] = {
@@ -87,6 +95,9 @@ class Guardian:
                     map(str.lower, container["allowed_delegate_addresses"])
                 ),
                 external=container["external"],
+                generates_proofs=cast(Dict[str, bool], container).get(
+                    "generates_proofs", False
+                ),
             )
             for container in configs
         }
@@ -111,6 +122,17 @@ class Guardian:
             bool: True if container is external, False otherwise
         """
         return self._restrictions[container].external
+
+    def _generates_proof(self: Guardian, container: str) -> bool:
+        """Does container generate proofs
+
+        Args:
+            container (str): Container ID
+
+        Returns:
+            bool: True if container generates proofs, False otherwise
+        """
+        return self._restrictions[container].generates_proofs
 
     def _is_allowed_ip(self: Guardian, container: str, address: str) -> bool:
         """Is IP address allowed for container
@@ -182,6 +204,8 @@ class Guardian:
             2. Checks if any message container IDs are unsupported
             3. Checks if first container ID is external container
             4. Checks if request IP is allowed for container
+            5. Checks if the last container in the pipeline generates a proof if the
+                message requires one
 
         Args:
             message (OffchainJobMessage): Raw message
@@ -217,6 +241,13 @@ class Guardian:
                 first_container=message.containers[0],
             )
 
+        if message.requires_proof and not self._generates_proof(message.containers[-1]):
+            return self._error(
+                message,
+                "Container does not generate proof",
+                container=message.containers[-1],
+            )
+
         # Filter out containers that are not allowed for the IP
         for container in message.containers:
             if not self._is_allowed_ip(container, message.ip):
@@ -243,6 +274,8 @@ class Guardian:
             4. Checks if first container ID is external container
             5. Checks if any subscription container IDs are unsupported
             6. Checks if subscription owner is in allowed addresses
+            7. Checks if subscription requires proof but the last container in their
+                pipeline does not generate one
 
         Non-filters:
             1. Does not check if signature itself is valid (handled by processor)
@@ -287,6 +320,17 @@ class Guardian:
                 first_container=subscription.containers[0],
             )
 
+        # Filter out subscriptions that require proofs but the last container in their
+        # pipeline does not generate one
+        if subscription.requires_proof and not self._generates_proof(
+            subscription.containers[-1]
+        ):
+            return self._error(
+                message,
+                "Container does not generate proof",
+                container=subscription.containers[-1],
+            )
+
         # Filter out unallowed subscription recipients
         for container in subscription.containers:
             if not self._is_allowed_address(container, subscription.owner, False):
@@ -310,6 +354,8 @@ class Guardian:
             3. Checks if first container ID is external container
             4. Checks if any subscription container IDs are unsupported
             5. Checks if subscription owner is in allowed addresses
+            6. Checks if subscription requires proof but the last container in their
+                pipeline does not generate one
 
         Args:
             message (SubscriptionCreatedMessage): raw message
@@ -351,6 +397,26 @@ class Guardian:
                     container=container,
                     address=subscription.owner,
                 )
+
+        # Filter out subscriptions that require proof but the last container in their
+        # pipeline does not generate one
+        if subscription.requires_proof and not self._generates_proof(
+            subscription.containers[-1]
+        ):
+            return self._error(
+                message,
+                "Container does not generate proof",
+                container=subscription.containers[-1],
+            )
+
+        # filter out subscriptions that don't match payment requirements
+        (matches, _) = self._wallet_checker.matches_payment_requirements(subscription)
+        if not matches:
+            return self._error(
+                message,
+                "Invalid payment",
+                subscription_id=subscription.id,
+            )
 
         return message
 

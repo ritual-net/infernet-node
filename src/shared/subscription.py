@@ -9,6 +9,7 @@ from eth_account.messages import SignableMessage, encode_typed_data
 from eth_typing import ChecksumAddress
 from hexbytes import HexBytes
 from web3 import Web3
+from web3.constants import ADDRESS_ZERO
 
 from chain.container_lookup import ContainerLookup
 
@@ -159,6 +160,15 @@ class Subscription:
         return self.interval > self._frequency
 
     @property
+    def is_callback(self: Subscription) -> bool:
+        """Returns whether a subscription is a callback subscription (i.e. period = 0)
+
+        Returns:
+            bool: True if subscription is a callback, else False
+        """
+        return self._period == 0
+
+    @property
     def interval(self: Subscription) -> int:
         """Returns subscription interval based on active_at and period
 
@@ -199,6 +209,51 @@ class Subscription:
             bytes: container IDs hash
         """
         return add0x(self._containers_hash.hex())
+
+    @property
+    def payment_amount(self: Subscription) -> int:
+        """Returns subscription payment amount
+
+        Returns:
+            int: payment amount
+        """
+        return self._payment_amount
+
+    @property
+    def payment_token(self: Subscription) -> ChecksumAddress:
+        """Returns subscription payment token
+
+        Returns:
+            ChecksumAddress: payment token
+        """
+        return Web3.to_checksum_address(self._payment_token)
+
+    @property
+    def prover(self: Subscription) -> ChecksumAddress:
+        """Returns subscription prover address
+
+        Returns:
+            ChecksumAddress: prover address
+        """
+        return Web3.to_checksum_address(self._prover)
+
+    @property
+    def requires_proof(self: Subscription) -> bool:
+        """Returns whether a subscription requires proof
+
+        Returns:
+            bool: True if subscription requires proof, else False
+        """
+        return self.prover != ADDRESS_ZERO
+
+    @property
+    def wallet(self: Subscription) -> ChecksumAddress:
+        """Returns subscription wallet address
+
+        Returns:
+            ChecksumAddress: wallet address
+        """
+        return Web3.to_checksum_address(self._wallet)
 
     @property
     def last_interval(self: Subscription) -> bool:

@@ -58,6 +58,7 @@ from eth_typing import BlockNumber, ChecksumAddress, HexStr
 from web3 import AsyncHTTPProvider, AsyncWeb3
 from web3.contract.async_contract import AsyncContract
 from web3.exceptions import TransactionNotFound
+from web3.middleware.signing import async_construct_sign_and_send_raw_middleware
 from web3.types import ABIElement, BlockData, FilterParams, LogReceipt, Nonce
 
 from utils.logging import log
@@ -84,7 +85,7 @@ class RPC:
         _web3 (AsyncWeb3): Async web3.py client
     """
 
-    def __init__(self: RPC, rpc_url: str) -> None:
+    def __init__(self: RPC, rpc_url: str, private_key: str) -> None:
         """Initializes new Ethereum-compatible JSON-RPC client
 
         Args:
@@ -98,14 +99,43 @@ class RPC:
         if not validators.url(rpc_url):
             raise ValueError("Incorrect RPC URL format")
 
+        self._rpc_url = rpc_url
+        self._private_key = private_key
+        self._web3: AsyncWeb3 | None = None
+
+    async def initialize(self: RPC) -> RPC:
         # Setup new Web3 HTTP provider w/ 10 minute timeout
         # Long timeout is useful for event polling, subscriptions
         provider = AsyncHTTPProvider(
-            endpoint_uri=rpc_url, request_kwargs={"timeout": 60 * 10}
+            endpoint_uri=self._rpc_url, request_kwargs={"timeout": 60 * 10}
         )
+        w3 = AsyncWeb3(provider)
+        account = w3.eth.account.from_key(self._private_key)
+        w3.middleware_onion.add(
+            await async_construct_sign_and_send_raw_middleware(account)
+        )
+        w3.eth.default_account = account.address
+        self._web3 = w3
+        log.info(
+            "Initialized RPC", url=self._rpc_url, default_account=w3.eth.default_account
+        )
+        return self
 
-        self._web3: AsyncWeb3 = AsyncWeb3(provider)
-        log.info("Initialized RPC", url=rpc_url)
+    @property
+    def web3(self: RPC) -> AsyncWeb3:
+        """Get an async web3.py client
+
+        Returns:
+            AsyncWeb3: async web3.py client
+        """
+        if self._web3 is None:
+            raise ValueError("RPC not initialized")
+
+        return self._web3
+
+    @property
+    def account(self: RPC) -> ChecksumAddress:
+        return cast(ChecksumAddress, self.web3.eth.default_account)
 
     @cache
     def is_valid_address(self: RPC, address: str) -> bool:
@@ -117,7 +147,7 @@ class RPC:
         Returns:
             bool: true if correctly formatted, else false
         """
-        return self._web3.is_address(address)
+        return self.web3.is_address(address)
 
     def get_keccak(self: RPC, abi_types: list[str], values: list[Any]) -> bytes:
         """Returns Keccak256 encoded values
@@ -129,7 +159,7 @@ class RPC:
         Returns:
             bytes: keccak256 encoded response bytes
         """
-        return cast(bytes, self._web3.solidity_keccak(abi_types, values))
+        return cast(bytes, self.web3.solidity_keccak(abi_types, values))
 
     @cache
     def get_checksum_address(self: RPC, address: str) -> ChecksumAddress:
@@ -141,7 +171,7 @@ class RPC:
         Returns:
             ChecksumAddress: checksum-validated Ethereum address
         """
-        return self._web3.to_checksum_address(address)
+        return self.web3.to_checksum_address(address)
 
     @cache
     def get_event_hash(self: RPC, event_name: str) -> str:
@@ -153,7 +183,7 @@ class RPC:
         Returns:
             str: keccak-hashed event signature
         """
-        return self._web3.keccak(text=event_name).hex()
+        return self.web3.keccak(text=event_name).hex()
 
     def get_contract(
         self: RPC, address: ChecksumAddress, abi: list[Any]
@@ -167,7 +197,7 @@ class RPC:
         Returns:
             AsyncContract: async-callable contract object
         """
-        return self._web3.eth.contract(
+        return self.web3.eth.contract(
             address=address, abi=cast(Sequence[ABIElement], abi)
         )
 
@@ -178,7 +208,7 @@ class RPC:
         Returns:
             int: chain ID
         """
-        return await self._web3.eth.chain_id
+        return await self.web3.eth.chain_id
 
     async def get_nonce(self: RPC, address: ChecksumAddress) -> Nonce:
         """Collects nonce for an address
@@ -189,7 +219,7 @@ class RPC:
         Returns:
             Nonce: transaction count (nonce)
         """
-        return await self._web3.eth.get_transaction_count(address)
+        return await self.web3.eth.get_transaction_count(address)
 
     @alru_cache
     async def get_block_by_number(self: RPC, block_number: BlockNumber) -> BlockData:
@@ -201,7 +231,7 @@ class RPC:
         Returns:
             BlockData: block data
         """
-        return await self._web3.eth.get_block(block_number)
+        return await self.web3.eth.get_block(block_number)
 
     async def get_head_block_number(self: RPC) -> BlockNumber:
         """Collects latest confirmed block number from chain
@@ -209,7 +239,7 @@ class RPC:
         Returns:
             BlockNumber: head block number
         """
-        return await self._web3.eth.get_block_number()
+        return await self.web3.eth.get_block_number()
 
     async def get_tx_success_with_retries(
         self: RPC, tx_hash: HexStr, retries: int = 10, sleep: float = 0.2
@@ -241,7 +271,7 @@ class RPC:
             tuple[bool, bool]: (transaction found, transaction success status)
         """
         try:
-            receipt = await self._web3.eth.get_transaction_receipt(tx_hash)
+            receipt = await self.web3.eth.get_transaction_receipt(tx_hash)
             return (True, receipt["status"] == 1)
         except TransactionNotFound:
             # In cases where tx has not yet been processed on-chain
@@ -258,7 +288,7 @@ class RPC:
         """
 
         # Create event filter at node
-        event_filter = await self._web3.eth.filter(params)
+        event_filter = await self.web3.eth.filter(params)
         log.debug("Created event filter", id=event_filter.filter_id)
 
         # Collect filter logs
@@ -266,6 +296,17 @@ class RPC:
         log.debug("Collected event logs", count=len(logs))
 
         return logs
+
+    async def get_balance(self: RPC, address: ChecksumAddress) -> int:
+        """Collects balance for an address
+
+        Args:
+            address (ChecksumAddress): address to collect balance
+
+        Returns:
+            int: balance
+        """
+        return await self.web3.eth.get_balance(address)
 
     async def send_transaction(self: RPC, tx: SignedTransaction) -> bytes:
         """Sends signed transaction. Bubble up error traceback
@@ -277,7 +318,7 @@ class RPC:
             bytes: transaction hash
         """
         try:
-            return await self._web3.eth.send_raw_transaction(tx.rawTransaction)
+            return await self.web3.eth.send_raw_transaction(tx.rawTransaction)
         except Exception as e:
             log.debug("rpc.send_transaction failed", error=str(e))
             raise

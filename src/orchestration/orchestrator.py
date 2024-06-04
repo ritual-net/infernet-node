@@ -61,6 +61,7 @@ class Orchestrator:
         job_input: JobInput,
         containers: list[str],
         message: Optional[OffchainJobMessage],
+        requires_proof: Optional[bool],
     ) -> list[ContainerResult]:
         """Runs a job
 
@@ -75,6 +76,7 @@ class Orchestrator:
             containers (list[str]): ordered list of containers to execute
             message (Optional[OffchainJobMessage]): optional offchain job message to
                 track state in store
+            requires_proof (bool): whether job requires proof
 
         Returns:
             list[ContainerResult]: job execution results
@@ -97,6 +99,7 @@ class Orchestrator:
                 else JobLocation.OFFCHAIN.value
             ),
             data=job_input.data,
+            requires_proof=bool(requires_proof),
         )
 
         # Call container chain
@@ -131,6 +134,7 @@ class Orchestrator:
                                 else JobLocation.OFFCHAIN.value
                             ),
                             data=output,
+                            requires_proof=bool(requires_proof),
                         )
 
                 except JSONDecodeError:
@@ -188,6 +192,7 @@ class Orchestrator:
         job_id: Any,
         job_input: JobInput,
         containers: list[str],
+        requires_proof: bool,
     ) -> list[ContainerResult]:
         """Processes arbitrary job from ChainProcessor
 
@@ -195,6 +200,7 @@ class Orchestrator:
             job_id (Any): job identifier
             job_input (JobInput): initial input to first container
             containers (list[str]): ordered list of containers to execute
+            requires_proof (bool): whether job requires proof
 
         Returns:
             list[ContainerResult]: container execution results
@@ -204,6 +210,7 @@ class Orchestrator:
             job_input=job_input,
             containers=containers,
             message=None,
+            requires_proof=requires_proof,
         )
 
     async def process_offchain_job(
@@ -223,6 +230,7 @@ class Orchestrator:
             ),
             containers=message.containers,
             message=message,
+            requires_proof=message.requires_proof,
         )
 
     async def process_streaming_job(
