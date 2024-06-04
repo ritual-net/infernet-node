@@ -5,6 +5,7 @@ import os
 import signal
 from typing import Any, Optional, cast
 
+from chain.container_lookup import ContainerLookup
 from chain.coordinator import Coordinator
 from chain.listener import ChainListener
 from chain.processor import ChainProcessor
@@ -74,7 +75,14 @@ class NodeLifecycle:
         store = DataStore(config["redis"]["host"], config["redis"]["port"])
 
         # Initialize guardian + orchestrator
-        guardian = Guardian(config["containers"], config["chain"]["enabled"])
+        container_lookup = ContainerLookup(config["containers"])
+
+        guardian = Guardian(
+            config["containers"],
+            config["chain"]["enabled"],
+            container_lookup=container_lookup,
+        )
+
         orchestrator = Orchestrator(manager, store)
 
         # Initialize chain-specific tasks
@@ -86,15 +94,22 @@ class NodeLifecycle:
 
         if config["chain"]["enabled"]:
             rpc = RPC(config["chain"]["rpc_url"])
-            coordinator = Coordinator(rpc, config["chain"]["coordinator_address"])
+            coordinator = Coordinator(
+                rpc,
+                config["chain"]["coordinator_address"],
+                container_lookup=container_lookup,
+            )
             wallet = Wallet(
                 rpc,
                 coordinator,
                 config["chain"]["wallet"]["private_key"],
                 config["chain"]["wallet"]["max_gas_limit"],
+                config["chain"]["wallet"]["payment_address"],
                 config["chain"]["wallet"].get("allowed_sim_errors"),
             )
-            processor = ChainProcessor(rpc, coordinator, wallet, orchestrator)
+            processor = ChainProcessor(
+                rpc, coordinator, wallet, orchestrator, container_lookup
+            )
             listener = ChainListener(
                 rpc,
                 coordinator,

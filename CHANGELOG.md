@@ -19,6 +19,7 @@ All notable changes to this project will be documented in this file.
 - Support for volume mounts to managed containers.
 - Support for streaming offchain job responses, via the `/api/jobs/stream` endpoint.
 - New flag `"allowed_sim_errors"` in the `config.json` file to specify which error messages are allowed to be ignored by the node when simulating transactions.
+- New flag `"payment_address"` in the `config.json` file to specify the public address of the node's escrow wallet. This is an instance of Infernet's `Wallet` contract.
 
 ### Changed
 - Limit restarts within time window in `docker-compose.yaml`.
@@ -31,8 +32,13 @@ All notable changes to this project will be documented in this file.
 - Snapshot syncing retries now include exponential backoff when syncing chain state.
 - Job and container counts are now reported separately via metric sender. The REST port is also reported.
 - `chain/processor.py` & `chain/listener.py` are extensively refactored to remove the dependency on on-chain events. `SubscriptionCreated` is now caught by repeatedly
-checking the latest `sub_id` & syncing all subscriptions since the last sync. `SubscriptionCancelled` is now caught by checking if the `owner` & `containers` fields
-are set to be empty. `SubscriptionFulfilled` is now checked instead by reading the `redundancyCount` from the coordinator contract.
+  checking the latest `sub_id` & syncing all subscriptions since the last sync. `SubscriptionCancelled` is now caught by checking if `activeAt` is set to `max uint32`.
+  This was an optimization done in the `infernet-sdk 1.0.0` contracts. `SubscriptionFulfilled` is now checked instead by reading the `redundancyCount` from the coordinator contract.
+- Guardian no longer checks whether container isn't supported, since that check is already being done at the `ContainerLookup`
+  level. If a subscription's `containers` field is not empty, it means that it must require a subset of the containers that this
+  node supports.
+- Since node registration feature has been removed in `1.0.0`, `register_node` & `activate_node` scripts have been removed from
+  the `scripts` directory. The `Wallet` class also has the `register_node` & `activate_node` methods removed.
 
 ### Fixed
 - Orchestrator now works in dev mode (outside of docker), previously `host.docker.internal` was hardcoded.

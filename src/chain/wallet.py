@@ -34,8 +34,6 @@ class Wallet:
         address: Returns wallet address
         deliver_compute: Sends Coordinator.deliverCompute() tx
         deliver_compute_delegatee: Sends Coordinator.deliverComputeDelegatee() tx
-        register_node: Sends Coordinator.registerNode() tx
-        activate_node: Sends Coordinator.activateNode() tx
 
     Private methods:
         _sign_tx_params: Signs TxParams from LocalAccount(private_key)
@@ -59,6 +57,7 @@ class Wallet:
         coordinator: Coordinator,
         private_key: str,
         max_gas_limit: int,
+        payment_address: str,
         allowed_sim_errors: Optional[list[str]],
     ) -> None:
         """Initialize Wallet
@@ -89,8 +88,18 @@ class Wallet:
         self._account = Account.from_key(private_key)
         self._nonce: Optional[int] = None
         self._allowed_sim_errors = allowed_sim_errors or []
+        self._payment_address = payment_address
 
         log.info("Initialized Wallet", address=self._account.address)
+
+    @property
+    def payment_address(self: Wallet) -> ChecksumAddress:
+        """Returns Node's payment wallet address
+
+        Returns:
+            ChecksumAddress: node's payment wallet address
+        """
+        return cast(ChecksumAddress, self._payment_address)
 
     @property
     def address(self: Wallet) -> ChecksumAddress:
@@ -277,6 +286,7 @@ class Wallet:
                 input=input,
                 output=output,
                 proof=proof,
+                node_wallet=self.payment_address,
             )
         )
 
@@ -288,7 +298,7 @@ class Wallet:
         coordinator_params = CoordinatorTxParams(
             nonce=self._nonce,
             sender=self.address,
-            gas_limit=min(subscription.max_gas_limit, self._max_gas_limit),
+            gas_limit=self._max_gas_limit,
         )
 
         tx = await fn.build_transaction(
@@ -352,6 +362,7 @@ class Wallet:
                 input=input,
                 output=output,
                 proof=proof,
+                node_wallet=self.payment_address,
             ),
             signature=signature,
         )
@@ -363,9 +374,7 @@ class Wallet:
         await self._collect_nonce()
 
         coordinator_params = CoordinatorTxParams(
-            nonce=self._nonce,
-            sender=self.address,
-            gas_limit=min(subscription.max_gas_limit, self._max_gas_limit),
+            nonce=self._nonce, sender=self.address, gas_limit=self._max_gas_limit
         )
 
         # building the raw unsigned transaction
@@ -381,77 +390,4 @@ class Wallet:
         signed_tx = self._sign_tx_params(tx)
 
         # Send tx, retrying submission thrice
-        return await self._send_tx_retries(signed_tx, 3)
-
-    async def register_node(self: Wallet) -> Optional[bytes]:
-        """Sends Coordinator.registerNode() tx, retrying failed txs thrice
-
-        Raises:
-            RuntimeError: Throws if can't collect nonce to send tx
-
-        Returns:
-            Optional[bytes]: transaction hash
-        """
-
-        if self._nonce is None:
-            # Collect nonce if doesn't exist
-            await self._collect_nonce()
-        else:
-            # Else, increment nonce
-            self._increment_nonce()
-
-        # Throw if still unsuccessful in collecting nonce
-        if self._nonce is None:
-            raise RuntimeError("Could not collect nonce")
-
-        # Build registration tx
-        tx_params = await self._coordinator.get_node_registration_tx(
-            node_address=self.address,
-            tx=CoordinatorTxParams(
-                nonce=self._nonce,
-                sender=self.address,
-                gas_limit=min(100000, self._max_gas_limit),
-            ),
-        )
-
-        # Sign tx
-        signed_tx = self._sign_tx_params(tx_params)
-
-        # Send tx
-        return await self._send_tx_retries(signed_tx, 3)
-
-    async def activate_node(self: Wallet) -> Optional[bytes]:
-        """Sends Coordinator.activateNode() tx, retrying failed txs thrice
-
-        Raises:
-            RuntimeError: Throws if can't collect nonce to send tx
-
-        Returns:
-            Optional[bytes]: transaction hash
-        """
-
-        if self._nonce is None:
-            # Collect nonce if doesn't exist
-            await self._collect_nonce()
-        else:
-            # Else, increment nonce
-            self._increment_nonce()
-
-        # Throw if still unsuccessful in collecting nonce
-        if self._nonce is None:
-            raise RuntimeError("Could not collect nonce")
-
-        # Build registration tx
-        tx_params = await self._coordinator.get_node_activation_tx(
-            tx=CoordinatorTxParams(
-                nonce=self._nonce,
-                sender=self.address,
-                gas_limit=min(100000, self._max_gas_limit),
-            )
-        )
-
-        # Sign tx
-        signed_tx = self._sign_tx_params(tx_params)
-
-        # Send tx
         return await self._send_tx_retries(signed_tx, 3)
