@@ -51,7 +51,7 @@ activate-node:
 	@PYTHONPATH=$$PYTHONPATH:src python3.11 scripts/activate_node.py
 
 tag ?= 1.0.0
-image_id = ritualnetwork/infernet-node-internal:$(tag)
+image_id = ritualnetwork/infernet-node:$(tag)
 
 build:
 	docker build -t $(image_id) .
