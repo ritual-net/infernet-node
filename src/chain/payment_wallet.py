@@ -84,7 +84,6 @@ class PaymentWallet:
 
         Raises:
             AssertionError: If the allowance is not equal to the amount set.
-
         """
         _contract = self._get_contract()
         assert await _contract.functions.owner().call() == self._rpc.account

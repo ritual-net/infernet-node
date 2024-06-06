@@ -22,7 +22,6 @@ All notable changes to this project will be documented in this file.
 - New flag `"payment_address"` in the `config.json` file to specify the public address of the node's escrow wallet. This is an instance of Infernet's `Wallet` contract.
 - New flag `"accepted_payments"` in the `config.json`'s `"containers"` subsection to specify which tokens the container accepts as payment for jobs.
 - New flag `"generates_proofs"` in the `config.json`'s `"containers"` subsection to specify whether the container generates proofs, defaults to `false`.
-  If `false`, the node will skip subscriptions that require proofs from that container id.
 - New flag `"requires_proof"` in the input to the containers. Containers can check that flag to determine if they need to provide a proof, or error if they don't support proofs.
 - New flag `"registry_address"` in the `config.json` file to specify the public address of Infernet's `Registry` contract. This contract is used to retrieve the addresses
   of the rest of the Infernet contracts. Therefore, the `"coordinator_address"` is now removed.

@@ -125,9 +125,8 @@ class WalletChecker:
     def matches_payment_requirements(self: WalletChecker, sub: Subscription) -> bool:
         """
         Check if a subscription matches payment requirements.
-        1. If no payment address is provided, the subscription is skipped.
-        2. If the subscription does not match the payment requirements, it is also
-            skipped.
+        1. Ensure that payment address is provided.
+        2. Check that the subscription matches the payment requirements.
 
         Args:
             sub (Subscription): The subscription to check.
@@ -137,8 +136,6 @@ class WalletChecker:
         """
         skip_banner = f"Skipping subscription: {sub.id}"
 
-        # Node won't be able to fulfill a subscription that provides payment if it
-        # doesn't have a payment address, the on-chain transaction will fail
         if self._payment_address is None and sub.provides_payment:
             log.info(
                 f"{skip_banner}: No payment address provided for the node",
