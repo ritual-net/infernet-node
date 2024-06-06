@@ -5,47 +5,54 @@ On-chain transaction handling.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Optional, cast
 
 from eth_account import Account
-from web3.types import TxParams
 from eth_typing import ChecksumAddress
-from eth_account.datastructures import SignedTransaction
+from reretry import retry  # type: ignore
+from web3.contract.async_contract import AsyncContractFunction
+from web3.exceptions import ContractCustomError, ContractLogicError
 
-from chain.rpc import RPC
-from utils.logging import log
-from shared.subscription import Subscription
 from chain.coordinator import (
     Coordinator,
-    CoordinatorTxParams,
     CoordinatorDeliveryParams,
     CoordinatorSignatureParams,
 )
+from chain.errors import raise_if_infernet_error
+from chain.rpc import RPC
+from shared.subscription import Subscription
+from utils.constants import ZERO_ADDRESS
+from utils.logging import log
 
 
 class Wallet:
     """On-chain transaction handling.
 
     Public methods:
-        address: Returns wallet address
         deliver_compute: Sends Coordinator.deliverCompute() tx
         deliver_compute_delegatee: Sends Coordinator.deliverComputeDelegatee() tx
-        register_node: Sends Coordinator.registerNode() tx
-        activate_node: Sends Coordinator.activateNode() tx
 
     Private methods:
-        _sign_tx_params: Signs TxParams from LocalAccount(private_key)
-        _collect_nonce: Collects nonce from chain and updates local self._nonce
-        _increment_nonce: Increments local self._nonce
-        __send_tx_retries: Counterpart to _send_tx_retries
-        _send_tx_retries: Attempts to send tx with N times
+        _simulate_transaction: Simulates function call and checks if it passes, bubbles
+            up errors if not
 
     Private attributes:
         _rpc (RPC): RPC instance
         _coordinator (Coordinator): Coordinator instance
         _max_gas_limit (int): Wallet-enforced max gas limit per tx
         _account (Account): Account initialized from private key
-        _nonce (Optional[int]): Account nonce
+        _allowed_sim_errors (Optional[list[str]]): List of allowed error messages to
+            ignore when simulating transactions. Checks for inclusion in error
+            message, case-insensitive. i.e. ["bad input"] will match
+            error message: "Contract reverted with error: Bad input.
+        _payment_address (Optional[str]): Node's payment wallet address
+        _tx_lock (asyncio.Lock): Lock to prevent race conditions when web3py is sending
+            multiple transactions at once.
+
+    Public attributes:
+        payment_address (ChecksumAddress): Node's payment wallet address, if set
+        address (ChecksumAddress): Wallet address
     """
 
     def __init__(
@@ -54,6 +61,8 @@ class Wallet:
         coordinator: Coordinator,
         private_key: str,
         max_gas_limit: int,
+        payment_address: Optional[str],
+        allowed_sim_errors: Optional[list[str]],
     ) -> None:
         """Initialize Wallet
 
@@ -62,6 +71,10 @@ class Wallet:
             coordinator (Coordinator): Coodinator instance
             private_key (str): 0x-prefixed private key
             max_gas_limit (int): Wallet-enforced max gas limit per tx
+            allowed_sim_errors (Optional[list[str]]): List of allowed error messages to
+                ignore when simulating transactions. Checks for inclusion in error
+                message, case-insensitive. i.e. ["bad input"] will match
+                error message: "Contract reverted with error: Bad input.
 
         Raises:
             ValueError: Throws if private key is not 0x-prefixed
@@ -77,8 +90,23 @@ class Wallet:
 
         # Initialize account
         self._account = Account.from_key(private_key)
-        self._nonce: Optional[int] = None
+        self._allowed_sim_errors = allowed_sim_errors or []
+        self._payment_address: Optional[str] = payment_address
+        self._tx_lock = asyncio.Lock()
+
         log.info("Initialized Wallet", address=self._account.address)
+
+    @property
+    def payment_address(self: Wallet) -> ChecksumAddress:
+        """Returns Node's payment wallet address, zero address if not set
+
+        Returns:
+            ChecksumAddress: node's payment wallet address
+        """
+        if self._payment_address is None:
+            return ZERO_ADDRESS
+
+        return cast(ChecksumAddress, self._payment_address)
 
     @property
     def address(self: Wallet) -> ChecksumAddress:
@@ -89,82 +117,60 @@ class Wallet:
         """
         return cast(ChecksumAddress, self._account.address)
 
-    def _sign_tx_params(self: Wallet, tx_params: TxParams) -> SignedTransaction:
-        """Signs tx_params with account, generating a signed raw transaction
+    async def _simulate_transaction(
+        self: Wallet, fn: AsyncContractFunction, subscription: Subscription
+    ) -> bool:
+        """Simulates the function call, retrying 3 times with a delay of 0.5 and
+        raises if there's errors.
+        * Simulation errors may be bypassed if they are in the `allowed_sim_errors` list.
+            In which case, the simulation is considered to have passed.
+        * For infernet-specific errors, more verbose logging is provided, and an
+            `InfernetError` is raised.
+        * The rest of the errors bubble up as is.
 
         Args:
-            tx_params (TxParams): transaction to sign
+            fn (AsyncContractFunction): Function to simulate
+            subscription (Subscription): Subscription to check
 
         Returns:
-            SignedTransaction: signed raw transaction
-        """
-        return cast(SignedTransaction, self._account.sign_transaction(tx_params))
-
-    async def _collect_nonce(self: Wallet) -> None:
-        """Collects nonce from chain, stores in self._nonce"""
-        nonce = await self._rpc.get_nonce(self.address)
-        self._nonce = nonce
-
-    def _increment_nonce(self: Wallet) -> None:
-        """Increments self._nonce by 1, if exists
+            bool: True if simulation was bypassed due to allowed errors, False otherwise
 
         Raises:
-            RuntimeError: Thrown if nonce is not yet initialized
-        """
-
-        # Throw if nonce is not incrementable
-        if self._nonce is None:
-            raise RuntimeError("Cannot increment None nonce")
-
-        # Increment nonce
-        self._nonce += 1
-
-    async def __send_tx_retries(
-        self: Wallet, tx: SignedTransaction, retries: int, current_try: int
-    ) -> bytes:
-        """Internal counterpart to _send_tx_receipts with current_try counter
-
-        Args:
-            tx (SignedTransaction): signed transaction
-            retries (int): number of times to retry failed tx
-            current_try (int): current attempt count
-
-        Raises:
-            RuntimeError: Throws if maximum retries is hit without success
-
-        Returns:
-            bytes: transaction hash
+            ContractCustomError: Raises if contract-specific error occurs
+            ContractLogicError: Raises if contract logic error occurs
+            InfernetError: Raises if infernet-specific error occurs
         """
         try:
-            # Send transaction
-            return await self._rpc.send_transaction(tx)
-        except ValueError as e:
-            # Handle some exceptions
-            # Nonce mismatch (most common)
-            if len(e.args) > 0 and e.args[0]["message"].startswith("nonce"):
-                # Re-collect nonce
-                await self._collect_nonce()
 
-        # If maximum retries hit, throw error
-        if retries == current_try:
-            raise RuntimeError("Failed sending tx")
+            @retry(
+                exceptions=(ContractCustomError, ContractLogicError), tries=3, delay=0.5
+            )  # type: ignore
+            async def _sim() -> bool:
+                try:
+                    await fn.call({"from": self._account.address})
+                except Exception as e:
+                    for err in self._allowed_sim_errors:
+                        if err.lower() in str(e).lower():
+                            return True
+                    raise e
+                return False
 
-        # Retry transaction
-        return await self.__send_tx_retries(tx, retries, current_try + 1)
-
-    async def _send_tx_retries(
-        self: Wallet, tx: SignedTransaction, retries: int
-    ) -> bytes:
-        """Trys to send tx `retries` times until successful or RuntimeError
-
-        Args:
-            tx (SignedTransaction): signed transaction
-            retries (int): number of attempts to make to send tx
-
-        Returns:
-            bytes: transaction hash
-        """
-        return await self.__send_tx_retries(tx, retries, 0)
+            return cast(bool, await _sim())
+        except ContractCustomError as e:
+            raise_if_infernet_error(e, subscription)
+            log.error(
+                "Failed to simulate transaction",
+                error=e,
+                subscription=subscription,
+            )
+            raise e
+        except ContractLogicError as e:
+            log.warn(
+                "Contract logic error while simulating",
+                error=e,
+                subscription=subscription,
+            )
+            raise e
 
     async def deliver_compute(
         self: Wallet,
@@ -172,54 +178,57 @@ class Wallet:
         input: bytes,
         output: bytes,
         proof: bytes,
+        simulate_only: bool = False,
     ) -> bytes:
-        """Sends Coordinator.deliverCompute() tx, retrying failed txs thrice
+        """Sends Coordinator.deliverCompute() tx.
+        Transactions are first simulated using `.call()`. If simulation fails, the
+        error is bubbled up. This is to prevent submission of invalid transactions that
+        result in the user's gas being wasted.
+
+        If a simulation passes & transaction still fails, it will be retried thrice.
 
         Args:
             subscription (Subscription): Subscription to respond to
             input (bytes): optional response input
             output (bytes): optional response output
             proof (bytes): optional response proof
+            simulate_only (bool): if True, only simulate the transaction & return after
 
         Raises:
-            RuntimeError: Throws if can't collect nonce to send tx
+            RuntimeError: If can't collect nonce to send tx
+            InfernetError: If infernet-specific error occurs during simulation
+            ContractCustomError: If contract-specific error occurs during
+                simulation
+            ContractLogicError: If contract logic error occurs during simulation
 
         Returns:
             bytes: transaction hash
         """
 
-        if self._nonce is None:
-            # Collect nonce if doesn't exist
-            await self._collect_nonce()
-        else:
-            # Else, increment nonce
-            self._increment_nonce()
-
-        # Throw if still unsuccessful in collecting nonce
-        if self._nonce is None:
-            raise RuntimeError("Could not collect nonce")
-
         # Build Coordinator tx
-        tx_params = await self._coordinator.get_deliver_compute_tx(
+        fn = self._coordinator.get_deliver_compute_tx_contract_function(
             data=CoordinatorDeliveryParams(
                 subscription=subscription,
                 interval=subscription.interval,
                 input=input,
                 output=output,
                 proof=proof,
-            ),
-            tx=CoordinatorTxParams(
-                nonce=self._nonce,
-                sender=self.address,
-                gas_limit=min(subscription.max_gas_limit, self._max_gas_limit),
-            ),
+                node_wallet=self.payment_address,
+            )
         )
 
-        # Sign coordinator tx
-        signed_tx = self._sign_tx_params(tx_params)
+        skipped = await self._simulate_transaction(fn, subscription)
+        if simulate_only:
+            return b""
 
-        # Send tx, retrying submission thrice
-        return await self._send_tx_retries(signed_tx, 3)
+        async with self._tx_lock:
+            # By default, gas gets estimated (which includes a simulation call)
+            # if we're purposefully skipping an error in simulation, we need to set gas
+            # limit manually
+            if skipped:
+                return await fn.transact({"gas": self._max_gas_limit})
+            else:
+                return await fn.transact()
 
     async def deliver_compute_delegatee(
         self: Wallet,
@@ -228,8 +237,13 @@ class Wallet:
         input: bytes,
         output: bytes,
         proof: bytes,
+        simulate_only: bool = False,
     ) -> bytes:
-        """Sends Coordinator.deliverComputeDelegatee() tx, retrying failed txs thrice
+        """Send Coordinator.deliverComputeDelegatee() tx.
+        Transactions are first simulated using `.call()` to prevent submission of invalid
+        transactions that result in the user's gas being wasted.
+
+        If a simulation passes & transaction still fails, it will be retried thrice.
 
         Args:
             subscription (Subscription): Subscription to respond to
@@ -237,117 +251,43 @@ class Wallet:
             input (bytes): optional response input
             output (bytes): optional response output
             proof (bytes): optional response proof
-
-        Raises:
-            RuntimeError: Throws if can't collect nonce to send tx
+            simulate_only (bool): if True, only simulate the transaction & return after
+                simulating
 
         Returns:
             bytes: transaction hash
+
+        Raises:
+            RuntimeError: If can't collect nonce to send tx
+            InfernetError: If infernet-specific error occurs during simulation
+            ContractCustomError: If contract-specific error occurs during
+                simulation
+            ContractLogicError: If contract logic error occurs during simulation
         """
 
-        if self._nonce is None:
-            # Collect nonce if doesn't exist
-            await self._collect_nonce()
-        else:
-            # Else, increment nonce
-            self._increment_nonce()
-
-        # Throw if still unsuccessful in collecting nonce
-        if self._nonce is None:
-            raise RuntimeError("Could not collect nonce")
-
         # Build Coordinator tx
-        tx_params = await self._coordinator.get_deliver_compute_delegatee_tx(
+        fn = self._coordinator.get_deliver_compute_delegatee_tx_contract_function(
             data=CoordinatorDeliveryParams(
                 subscription=subscription,
                 interval=subscription.interval,
                 input=input,
                 output=output,
                 proof=proof,
-            ),
-            tx=CoordinatorTxParams(
-                nonce=self._nonce,
-                sender=self.address,
-                gas_limit=min(subscription.max_gas_limit, self._max_gas_limit),
+                node_wallet=self.payment_address,
             ),
             signature=signature,
         )
 
-        # Sign coordinator tx
-        signed_tx = self._sign_tx_params(tx_params)
+        skipped = await self._simulate_transaction(fn, subscription)
 
-        # Send tx, retrying submission thrice
-        return await self._send_tx_retries(signed_tx, 3)
+        if simulate_only:
+            return b""
 
-    async def register_node(self: Wallet) -> bytes:
-        """Sends Coordinator.registerNode() tx, retrying failed txs thrice
-
-        Raises:
-            RuntimeError: Throws if can't collect nonce to send tx
-
-        Returns:
-            bytes: transaction hash
-        """
-
-        if self._nonce is None:
-            # Collect nonce if doesn't exist
-            await self._collect_nonce()
-        else:
-            # Else, increment nonce
-            self._increment_nonce()
-
-        # Throw if still unsuccessful in collecting nonce
-        if self._nonce is None:
-            raise RuntimeError("Could not collect nonce")
-
-        # Build registration tx
-        tx_params = await self._coordinator.get_node_registration_tx(
-            node_address=self.address,
-            tx=CoordinatorTxParams(
-                nonce=self._nonce,
-                sender=self.address,
-                gas_limit=min(100000, self._max_gas_limit),
-            ),
-        )
-
-        # Sign tx
-        signed_tx = self._sign_tx_params(tx_params)
-
-        # Send tx
-        return await self._send_tx_retries(signed_tx, 3)
-
-    async def activate_node(self: Wallet) -> bytes:
-        """Sends Coordinator.activateNode() tx, retrying failed txs thrice
-
-        Raises:
-            RuntimeError: Throws if can't collect nonce to send tx
-
-        Returns:
-            bytes: transaction hash
-        """
-
-        if self._nonce is None:
-            # Collect nonce if doesn't exist
-            await self._collect_nonce()
-        else:
-            # Else, increment nonce
-            self._increment_nonce()
-
-        # Throw if still unsuccessful in collecting nonce
-        if self._nonce is None:
-            raise RuntimeError("Could not collect nonce")
-
-        # Build registration tx
-        tx_params = await self._coordinator.get_node_activation_tx(
-            tx=CoordinatorTxParams(
-                nonce=self._nonce,
-                sender=self.address,
-                gas_limit=min(100000, self._max_gas_limit),
-            )
-        )
-
-        # Sign tx
-        signed_tx = self._sign_tx_params(tx_params)
-
-        # Send tx
-        return await self._send_tx_retries(signed_tx, 3)
+        async with self._tx_lock:
+            # By default, gas gets estimated (which includes a simulation call)
+            # if we're purposefully skipping an error in simulation, we need to set gas
+            # limit manually
+            if skipped:
+                return await fn.transact({"gas": self._max_gas_limit})
+            else:
+                return await fn.transact()

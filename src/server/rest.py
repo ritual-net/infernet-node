@@ -1,31 +1,49 @@
 from __future__ import annotations
 
 from asyncio import CancelledError, Event, create_task
-from typing import Any, Optional, Tuple, Union, cast
+from datetime import timedelta
+from functools import wraps
+from typing import Any, Dict, Optional, Tuple, Union, cast
 from uuid import uuid4
 
 from hypercorn.asyncio import serve
 from hypercorn.config import Config
-from quart import Quart, jsonify, Response, request
+from quart import Quart, Response, jsonify, request
+from quart_rate_limiter import RateLimiter, rate_limit
 
+from chain.processor import ChainProcessor
 from orchestration import ContainerManager, DataStore, Guardian, Orchestrator
 from shared import AsyncTask, JobResult
 from shared.message import (
     BaseMessage,
-    GuardianError,
-    OffchainMessage,
-    OffchainJobMessage,
-    MessageType,
     DelegatedSubscriptionMessage,
+    GuardianError,
+    MessageType,
+    OffchainJobMessage,
+    OffchainMessage,
 )
 from utils import log
 from utils.config import ConfigChain, ConfigServer
 from utils.parser import from_union
-from chain.processor import ChainProcessor
 
 
 class RESTServer(AsyncTask):
-    """Initializes a new REST webserver to process off-chain requests."""
+    """A REST webserver that processes off-chain requests.
+
+    Attributes:
+        _app (Quart): Quart webserver instance
+        _app_config (Config): Quart webserver configuration
+        _chain (bool): chain enabled status
+        _manager (ContainerManager): container manager instance
+        _orchestrator (Orchestrator): orchestrator instance
+        _port (int): webserver port
+        _rate_limit_num_requests (int): rate limit number of requests
+        _rate_limit_period (float): rate limit period
+        _processor (Optional[ChainProcessor]): chain processor instance
+        _store (DataStore): data store instance
+        _version (str): node version
+        _wallet_address (Optional[str]): node wallet address
+    """
 
     def __init__(
         self: RESTServer,
@@ -64,6 +82,14 @@ class RESTServer(AsyncTask):
         self._store = store
         self._chain = config_chain["enabled"]
         self._port = config_server["port"]
+        self._rate_limit_num_requests = int(
+            cast(Dict[str, Any], config_server)
+            .get("rate_limit", {})
+            .get("num_requests", 60)
+        )
+        self._rate_limit_period = float(
+            cast(Dict[str, Any], config_server).get("rate_limit", {}).get("period", 60)
+        )
         self._version = version
         self._wallet_address = wallet_address
 
@@ -83,6 +109,9 @@ class RESTServer(AsyncTask):
             }
         )
 
+        # Initialize rate limiter
+        RateLimiter(self._app)
+
         # Register Quart routes
         self.register_routes()
 
@@ -93,6 +122,9 @@ class RESTServer(AsyncTask):
         """Registers Quart webserver routes"""
 
         @self._app.route("/health", methods=["GET"])
+        @rate_limit(
+            self._rate_limit_num_requests, timedelta(seconds=self._rate_limit_period)
+        )
         async def health() -> Tuple[Response, int]:
             """Collects health of node
 
@@ -109,6 +141,9 @@ class RESTServer(AsyncTask):
             )
 
         @self._app.route("/info", methods=["GET"])
+        @rate_limit(
+            self._rate_limit_num_requests, timedelta(seconds=self._rate_limit_period)
+        )
         async def info() -> Tuple[Response, int]:
             """Collects node info
 
@@ -120,120 +155,195 @@ class RESTServer(AsyncTask):
             return (
                 jsonify(
                     {
+                        "version": self._version,
                         "containers": self._manager.running_container_info,
                         "pending": self._store.get_pending_counters(),
+                        "chain": {
+                            "enabled": self._chain,
+                            "address": self._wallet_address or "",
+                        },
                     }
                 ),
                 200,
             )
 
-        @self._app.route("/api/chain/enabled", methods=["GET"])
-        async def get_chain_status() -> Tuple[Response, int]:
-            """Collects status of whether chain module is enabled or not
+        def filter_create_job(func):  # type: ignore
+            """Decorator to filter and preprocess incoming off-chain messages"""
 
-            Returns:
-                Response (dict[str, bool]): chain enabled true/false
-            """
-            return jsonify({"enabled": self._chain}), 200
+            @wraps(func)
+            async def wrapper() -> Any:
+                """Wrapper function to preprocess incoming off-chain messages.
 
-        @self._app.route("/api/chain/address", methods=["GET"])
-        async def get_node_address() -> Tuple[Response, int]:
-            """Collects node address, if exists
+                Parses incoming JSON body, injects UUID and client IP, and filters
+                message through guardian. If message is valid, passes it to the actual
+                endpoint function.
+                """
+                try:
+                    # Collect JSON body
+                    data = await request.get_json()
 
-            Returns:
-                Tuple[Response, int]: node address or "" if chain disabled
-            """
-            return (
-                jsonify(
-                    {"address": self._wallet_address if self._wallet_address else ""}
-                ),
-                200,
-            )
+                    # Get the IP address of the client
+                    client_ip = request.remote_addr
+                    if not client_ip:
+                        return (
+                            jsonify({"error": "Could not get client IP address"}),
+                            400,
+                        )
+
+                    # Parse message data, inject uuid and client IP
+                    job_id = str(uuid4())  # Generate a unique job ID
+                    log.info(
+                        "Received new off-chain raw message", msg=data, job_id=job_id
+                    )
+                    parsed: OffchainMessage = from_union(
+                        OffchainMessage,
+                        {"id": job_id, "ip": client_ip, **data},
+                    )
+
+                    # Filter message through guardian
+                    filtered = self._guardian.process_message(parsed)
+
+                    if isinstance(filtered, GuardianError):
+                        log.info(
+                            "Error submitting job",
+                            endpoint=request.path,
+                            method=request.method,
+                            status=403,
+                            err=filtered.error,
+                            **filtered.params,
+                        )
+                        return (
+                            jsonify(
+                                {"error": filtered.error, "params": filtered.params}
+                            ),
+                            405,
+                        )
+
+                    # Call actual endpoint function
+                    return await func(message=filtered)
+
+                except Exception as e:
+                    log.error(f"Error in endpoint preprocessing: {e}")
+                    return jsonify({"error": f"Internal server error: {str(e)}"}), 500
+
+            return wrapper
 
         @self._app.route("/api/jobs", methods=["POST"])
-        async def create_job() -> Tuple[Response, int]:
+        @filter_create_job  # type: ignore
+        @rate_limit(
+            self._rate_limit_num_requests, timedelta(seconds=self._rate_limit_period)
+        )
+        async def create_job(message: OffchainMessage) -> Tuple[Response, int]:
             """Creates new off-chain job (direct compute request or subscription)
+
+            Args:
+                message (OffchainMessage): Offchain message
 
             Returns:
                 Response (dict[str, str]): created job ID
             """
             try:
-                # Collect JSON body
-                data = await request.get_json(force=True)
+                if message.type == MessageType.OffchainJob:
+                    message = cast(OffchainJobMessage, message)
 
-                # Get the IP address of the client
-                client_ip = request.remote_addr
-                if not client_ip:
-                    return jsonify({"error": "Could not get client IP address"}), 400
+                    # Submit off-chain job message to orchestrator
+                    create_task(self._orchestrator.process_offchain_job(message))
+                    # Return created job ID
+                    return_obj = {"id": str(message.id)}
 
-                log.debug("Received new off-chain raw message", msg=data)
-
-                # Parse message data, inject uuid and client IP
-                parsed: Optional[OffchainMessage] = from_union(
-                    OffchainMessage,
-                    {"id": str(uuid4()), "ip": client_ip, **data},
-                )
-                if not parsed:
-                    return jsonify({"error": "Could not parse message"}), 400
-
-                # Filter message through guardian
-                filtered = self._guardian.process_message(parsed)
-
-                if isinstance(filtered, GuardianError):
+                elif message.type == MessageType.DelegatedSubscription:
                     log.info(
-                        "Error submitting job",
-                        endpoint="/api/jobs",
-                        method="POST",
-                        status=403,
-                        err=filtered.error,
-                        **filtered.params,
+                        "Received delegated subscription request",
+                        endpoint=request.path,
+                        method=request.method,
+                        status=200,
+                        id=str(message.id),
                     )
-                    return (
-                        jsonify({"error": filtered.error, "params": filtered.params}),
-                        405,
-                    )
+                    message = cast(DelegatedSubscriptionMessage, message)
 
-                if filtered.type == MessageType.OffchainJob:
-                    # Submit filtered off-chain job message to orchestrator
-                    create_task(
-                        self._orchestrator.process_offchain_job(
-                            cast(OffchainJobMessage, filtered)
-                        )
-                    )
-                elif filtered.type == MessageType.DelegatedSubscription:
                     # Should only reach this point if chain is enabled (else, filtered
                     # out upstream)
                     if self._processor is None:
                         raise RuntimeError("Chain not enabled")
 
-                    # Submit filtered delegated subscription message to processor
-                    create_task(
-                        self._processor.track(
-                            cast(DelegatedSubscriptionMessage, filtered)
-                        )
-                    )
+                    # Submit delegated subscription message to processor
+                    create_task(self._processor.track(message))
+
+                    # Don't return job ID for subscriptions; results / status can't be
+                    # fetched via REST so it would be misleading. They are tracked
+                    # on-chain instead
+                    return_obj = {}
 
                 # Return created message ID
                 log.info(
                     "Processed REST response",
-                    endpoint="/api/jobs",
-                    method="POST",
+                    endpoint=request.path,
+                    method=request.method,
                     status=200,
-                    id=str(parsed.id),
+                    type=message.type,
+                    id=str(message.id),
                 )
-                return jsonify({"id": str(parsed.id)}), 200
+                return jsonify(return_obj), 200
             except Exception as e:
                 # Return error
                 log.error(
                     "Processed REST response",
-                    endpoint="/api/jobs",
-                    method="POST",
+                    endpoint=request.path,
+                    method=request.method,
                     status=500,
                     err=str(e),
                 )
-                return jsonify({"error": "Could not enqueue job"}), 500
+                return jsonify({"error": f"Could not enqueue job: {str(e)}"}), 500
+
+        @self._app.route("/api/jobs/stream", methods=["POST"])
+        @filter_create_job  # type: ignore
+        @rate_limit(
+            self._rate_limit_num_requests, timedelta(seconds=self._rate_limit_period)
+        )
+        async def create_job_stream(message: OffchainMessage) -> Tuple[Response, int]:
+            """Creates new off-chain streaming job (direct compute request only)
+
+            Args:
+                message (OffchainMessage): Offchain message
+
+            Returns:
+                Response: A stream, yielding job ID and streaming job results
+            """
+
+            if message.type != MessageType.OffchainJob:
+                return (
+                    jsonify(
+                        {"error": "Streaming only supported for OffchainJob requests."}
+                    ),
+                    405,
+                )
+
+            message = cast(OffchainJobMessage, message)
+
+            # Return created message ID
+            log.info(
+                "Processed REST response",
+                endpoint=request.path,
+                method=request.method,
+                status=200,
+                type=message.type,
+                id=message.id,
+            )
+
+            async def generator() -> Any:
+                """Yields job ID and streaming job results"""
+                yield f"{message.id}\n"
+
+                # Yield streaming job results
+                async for chunk in self._orchestrator.process_streaming_job(message):
+                    yield chunk
+
+            return Response(generator()), 200
 
         @self._app.route("/api/jobs/batch", methods=["POST"])
+        @rate_limit(
+            self._rate_limit_num_requests, timedelta(seconds=self._rate_limit_period)
+        )
         async def create_job_batch() -> Tuple[Response, int]:
             """Creates off-chain jobs in batch (direct compute requests / subscriptions)
 
@@ -253,10 +363,10 @@ class RESTServer(AsyncTask):
 
                 # If data is not an array, return error
                 if not isinstance(data, list):
-                    return jsonify({"error": "Could not parse message"}), 400
+                    return jsonify({"error": "Expected a list"}), 400
 
                 # Inject uuid and client IP to each message
-                parsed: list[Optional[OffchainMessage]] = [
+                parsed: list[OffchainMessage] = [
                     from_union(
                         OffchainMessage,
                         {"id": str(uuid4()), "ip": client_ip, **item},
@@ -304,14 +414,15 @@ class RESTServer(AsyncTask):
                                     cast(DelegatedSubscriptionMessage, item)
                                 )
                             )
+                            results.append({})
                         else:
                             results.append({"error": "Could not parse message"})
 
                 # Return created message IDs or errors
                 log.info(
                     "Processed REST response",
-                    endpoint="/api/jobs/batch",
-                    method="POST",
+                    endpoint=request.path,
+                    method=request.method,
                     status=200,
                     results=results,
                 )
@@ -320,14 +431,17 @@ class RESTServer(AsyncTask):
                 # Return error
                 log.error(
                     "Processed REST response",
-                    endpoint="/api/jobs/batch",
-                    method="POST",
+                    endpoint=request.path,
+                    method=request.method,
                     status=500,
                     err=str(e),
                 )
-                return jsonify({"error": "Could not enqueue job"}), 500
+                return jsonify({"error": f"Could not enqueue job:  {str(e)}"}), 500
 
         @self._app.route("/api/jobs", methods=["GET"])
+        @rate_limit(
+            self._rate_limit_num_requests, timedelta(seconds=self._rate_limit_period)
+        )
         async def get_job() -> Tuple[Response, int]:
             # Get the IP address of the client
             client_ip = request.remote_addr
@@ -360,6 +474,11 @@ class RESTServer(AsyncTask):
         @self._app.route("/api/status", methods=["PUT"])
         async def store_job_status() -> Tuple[Response, int]:
             """Stores job status in data store"""
+
+            # Only allow localhost to store job status
+            if request.remote_addr not in ["127.0.0.1", "::1"]:
+                return jsonify({"error": "Unauthorized"}), 403
+
             try:
                 # Collect JSON body
                 data = await request.get_json(force=True)
@@ -372,7 +491,7 @@ class RESTServer(AsyncTask):
                 log.debug("Received new result", result=data)
 
                 # Create off-chain message with client IP
-                parsed: Optional[OffchainMessage] = from_union(
+                parsed: OffchainMessage = from_union(
                     OffchainMessage,
                     {
                         "id": data["id"],
@@ -381,19 +500,17 @@ class RESTServer(AsyncTask):
                         "data": {},
                     },
                 )
-                if not parsed:
-                    return jsonify({"error": "Could not parse status"}), 400
 
                 # Store job status
                 match data["status"]:
                     case "success":
                         self._store.set_success(parsed, [])
                         for container in data["containers"]:
-                            self._store.track_container(container)
+                            self._store.track_container_status(container, "success")
                     case "failed":
                         self._store.set_failed(parsed, [])
                         for container in data["containers"]:
-                            self._store.track_container(container)
+                            self._store.track_container_status(container, "failed")
                     case "running":
                         self._store.set_running(parsed)
                     case _:
@@ -404,8 +521,8 @@ class RESTServer(AsyncTask):
                 # Return error
                 log.error(
                     "Processed REST response",
-                    endpoint="/api/status",
-                    method="PUT",
+                    endpoint=request.path,
+                    method=request.method,
                     status=500,
                     err=e,
                 )

@@ -2,21 +2,27 @@
   "log_path": "infernet_node.log",
   "manage_containers": true,
   "server": {
-    "port": 4000
+    "port": 4000,
+    "rate_limit": {
+      "num_requests": 100,
+      "period": 100
+    }
   },
   "chain": {
     "enabled": true,
     "trail_head_blocks": 5,
     "rpc_url": "http://127.0.0.1:8545",
-    "coordinator_address": "0x...",
+    "registry_address": "0x...",
     "wallet": {
       "max_gas_limit": 5000000,
-      "private_key": "0x..."
+      "private_key": "0x...",
+      "payment_address": "0x...",
+      "allowed_sim_errors": ["not enough balance"]
+    },
+    "snapshot_sync": {
+      "sleep": 1.5,
+      "batch_size": 200
     }
-  },
-  "snapshot_sync": {
-    "sleep": 1.5,
-    "batch_size": 200
   },
   "docker": {
     "username": "username",
@@ -38,7 +44,13 @@
       "allowed_addresses": [],
       "allowed_ips": [],
       "command": "--bind=0.0.0.0:3000 --workers=2",
-      "env": {}
+      "env": {},
+      "volumes": [],
+      "accepted_payments": {
+        "0x0000000000000000000000000000000000000000": 1000000000000000000,
+        "0x59F2f1fCfE2474fD5F0b9BA1E73ca90b143Eb8d0": 1000000000000000000
+      },
+      "generates_proofs": false
     }
   ]
 }

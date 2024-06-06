@@ -2,18 +2,19 @@ from __future__ import annotations
 
 import time
 from dataclasses import asdict, dataclass
-from typing import Any, Union, cast
+from ipaddress import IPv4Network, IPv6Network, ip_address, ip_network
+from typing import Any, Dict, Optional, Union, cast
 
+from chain.container_lookup import ContainerLookup
+from chain.wallet_checker import WalletChecker
 from shared.message import (
     DelegatedSubscriptionMessage,
+    FilteredMessage,
     GuardianError,
     MessageType,
     OffchainJobMessage,
     PrefilterMessage,
-    FilteredMessage,
     SubscriptionCreatedMessage,
-    SubscriptionCancelledMessage,
-    SubscriptionFulfilledMessage,
 )
 from utils.config import ConfigContainer
 from utils.logging import log
@@ -23,40 +24,103 @@ from utils.logging import log
 class ContainerRestrictions:
     """Container restrictions"""
 
-    allowed_ips: list[str]
+    allowed_ips: list[Union[IPv4Network, IPv6Network]]
     allowed_addresses: list[str]
     allowed_delegate_addresses: list[str]
     external: bool
+    generates_proofs: bool
 
 
 class Guardian:
+    """Filters job requests based on container restrictions
+
+    Both off-chain and on-chain job requests are filtered based on sanity checks and
+    container-level restrictions, such as origin IP address, whether a subscription
+    matches the payment requirements, and allowed chain addresses. If a message fails
+    filtering, a GuardianError is returned. Otherwise, the message is returned for
+    processing.
+
+    Attributes:
+        _container_lookup (ContainerLookup): Container lookup, used for
+            deserialization of subscriptions.
+        _restrictions (dict[str, ContainerRestrictions]): Container restrictions
+        _chain_enabled (bool): Is chain module enabled?
+        _wallet_checker (WalletChecker): Wallet checker, used for filtering
+            subscriptions that don't match payment requirements, None if chain not
+            enabled
+
+    Methods:
+        process_message: Parses and filters message
+        wallet_checker: Wallet checker getter, unpacks the optional _wallet_checker
+
+    Private Methods:
+        _is_external: Is container external
+        _is_allowed_ip: Is IP address allowed for container
+        _is_allowed_address: Is chain address allowed for container
+        _error: Create error message for given message id
+        _process_offchain_message: Filters off-chain job messages
+        _process_delegated_subscription_message: Filters delegated Subscription messages
+        _process_coordinator_created_message: Filters on-chain Coordinator subscription
+            creation messages
+    """
+
     def __init__(
-        self: Guardian, configs: list[ConfigContainer], chain_enabled: bool
+        self: Guardian,
+        configs: list[ConfigContainer],
+        chain_enabled: bool,
+        container_lookup: ContainerLookup,
+        wallet_checker: Optional[WalletChecker],
     ) -> None:
         """Initialize Guardian
 
         Args:
             configs (list[ConfigContainer]): Container configurations
             chain_enabled (bool): Is chain module enabled?
+            container_lookup (ContainerLookup): Container lookup, used for reverse hash
+                lookup of subscriptions' `containers` field.
+            wallet_checker (Optional[WalletChecker]): Wallet checker, used for filtering
+                subscriptions that don't match payment requirements. If chain not
+                enabled, this is None.
         """
         super().__init__()
 
         self._chain_enabled = chain_enabled
+        self._container_lookup: ContainerLookup = container_lookup
+        self._wallet_checker: Optional[WalletChecker] = wallet_checker
 
         # Initialize container restrictions
         self._restrictions: dict[str, ContainerRestrictions] = {
             container["id"]: ContainerRestrictions(
-                allowed_ips=container["allowed_ips"],
+                allowed_ips=[
+                    ip_network(ip, strict=False) for ip in container["allowed_ips"]
+                ],
                 allowed_addresses=list(map(str.lower, container["allowed_addresses"])),
                 allowed_delegate_addresses=list(
                     map(str.lower, container["allowed_delegate_addresses"])
                 ),
                 external=container["external"],
+                generates_proofs=cast(Dict[str, bool], container).get(
+                    "generates_proofs", False
+                ),
             )
             for container in configs
         }
 
         log.info("Initialized Guardian")
+
+    @property
+    def wallet_checker(self: Guardian) -> WalletChecker:
+        """
+        Wallet checker getter, unpacks the optional _wallet_checker attribute, check
+        if it is None and raises an error if it is.
+
+        Returns:
+            WalletChecker: Wallet checker
+        """
+        if self._wallet_checker is None:
+            raise ValueError("Wallet checker not provided when chain is disabled.")
+
+        return self._wallet_checker
 
     @property
     def restrictions(self: Guardian) -> dict[str, Any]:
@@ -77,6 +141,17 @@ class Guardian:
         """
         return self._restrictions[container].external
 
+    def _generates_proof(self: Guardian, container: str) -> bool:
+        """Does container generate proofs
+
+        Args:
+            container (str): Container ID
+
+        Returns:
+            bool: True if container generates proofs, False otherwise
+        """
+        return self._restrictions[container].generates_proofs
+
     def _is_allowed_ip(self: Guardian, container: str, address: str) -> bool:
         """Is IP address allowed for container
 
@@ -91,7 +166,11 @@ class Guardian:
         # If no specified IPs, allow all
         if len(self._restrictions[container].allowed_ips) == 0:
             return True
-        return address in self._restrictions[container].allowed_ips
+
+        return any(
+            ip_address(address) in network
+            for network in self._restrictions[container].allowed_ips
+        )
 
     def _is_allowed_address(
         self: Guardian, container: str, address: str, onchain: bool
@@ -143,6 +222,8 @@ class Guardian:
             2. Checks if any message container IDs are unsupported
             3. Checks if first container ID is external container
             4. Checks if request IP is allowed for container
+            5. Checks if the last container in the pipeline generates a proof if the
+                message requires one
 
         Args:
             message (OffchainJobMessage): Raw message
@@ -178,6 +259,13 @@ class Guardian:
                 first_container=message.containers[0],
             )
 
+        if message.requires_proof and not self._generates_proof(message.containers[-1]):
+            return self._error(
+                message,
+                "Container does not generate proof",
+                container=message.containers[-1],
+            )
+
         # Filter out containers that are not allowed for the IP
         for container in message.containers:
             if not self._is_allowed_ip(container, message.ip):
@@ -204,6 +292,8 @@ class Guardian:
             4. Checks if first container ID is external container
             5. Checks if any subscription container IDs are unsupported
             6. Checks if subscription owner is in allowed addresses
+            7. Checks if subscription requires proof but the last container in their
+                pipeline does not generate one
 
         Non-filters:
             1. Does not check if signature itself is valid (handled by processor)
@@ -229,7 +319,8 @@ class Guardian:
                 message, "Signature expired", delegated_subscription=message
             )
 
-        subscription = message.subscription.deserialize()
+        subscription = message.subscription.deserialize(self._container_lookup)
+
         supported_containers = list(self._restrictions.keys())
 
         # Filter out containers that are not supported
@@ -245,6 +336,17 @@ class Guardian:
                 message,
                 "First container must be external",
                 first_container=subscription.containers[0],
+            )
+
+        # Filter out subscriptions that require proofs but the last container in their
+        # pipeline does not generate one
+        if subscription.requires_proof and not self._generates_proof(
+            subscription.containers[-1]
+        ):
+            return self._error(
+                message,
+                "Container does not generate proof",
+                container=subscription.containers[-1],
             )
 
         # Filter out unallowed subscription recipients
@@ -270,6 +372,8 @@ class Guardian:
             3. Checks if first container ID is external container
             4. Checks if any subscription container IDs are unsupported
             5. Checks if subscription owner is in allowed addresses
+            6. Checks if subscription requires proof but the last container in their
+                pipeline does not generate one
 
         Args:
             message (SubscriptionCreatedMessage): raw message
@@ -279,78 +383,57 @@ class Guardian:
                 filtering fails, otherwise parsed message to be processed
         """
 
-        supported_containers = list(self._restrictions.keys())
+        subscription = message.subscription
 
         # Filter out completed subscriptions
         if message.subscription.completed:
             return self._error(message, "Subscription completed")
 
-        # Filter out empty container list
-        if len(message.subscription.containers) == 0:
-            return self._error(message, "No containers in subscription")
+        if len(subscription.containers) == 0:
+            return self._error(
+                message,
+                "Container-set not supported",
+                containers_hash=subscription.containers_hash,
+            )
 
-        # Filter out containers that are not supported
-        for container in message.subscription.containers:
-            if container not in supported_containers:
-                return self._error(
-                    message, "Container not supported", container=container
-                )
+        log.info(f"Subscription containers: {subscription.containers}")
 
         # Filter out internal first container
-        if not self._is_external(message.subscription.containers[0]):
+        if not self._is_external(subscription.containers[0]):
             return self._error(
                 message,
                 "First container must be external",
-                first_container=message.subscription.containers[0],
+                first_container=subscription.containers[0],
             )
 
         # Filter out unallowed subscription recipients
-        for container in message.subscription.containers:
-            if not self._is_allowed_address(
-                container, message.subscription.owner, True
-            ):
+        for container in subscription.containers:
+            if not self._is_allowed_address(container, subscription.owner, True):
                 return self._error(
                     message,
                     "Container not allowed for address",
                     container=container,
-                    address=message.subscription.owner,
+                    address=subscription.owner,
                 )
 
-        return message
+        # Filter out subscriptions that require proof but the last container in their
+        # pipeline does not generate one
+        if subscription.requires_proof and not self._generates_proof(
+            subscription.containers[-1]
+        ):
+            return self._error(
+                message,
+                "Container does not generate proof",
+                container=subscription.containers[-1],
+            )
 
-    def _process_coordinator_cancelled_message(
-        self: Guardian, message: SubscriptionCancelledMessage
-    ) -> Union[GuardianError, SubscriptionCancelledMessage]:
-        """Filters on-chain Coordinator subscription cancellation messages
-
-        Filters: Filtering unnecessary since replaying a cancellation event for
-            a subscription that is irrelevant/untracked has no side effects.
-
-        Args:
-            message (SubscriptionCancelledMessage): raw message
-
-        Returns:
-            Union[GuardianError, SubscriptionCancelledMessage]: Error message if
-                filtering fails, otherwise parsed message to be processed
-        """
-
-        return message
-
-    def _process_coordinator_fulfilled_message(
-        self: Guardian, message: SubscriptionFulfilledMessage
-    ) -> Union[GuardianError, SubscriptionFulfilledMessage]:
-        """Filters on-chain Coordinator subscription fulfillment messages
-
-        Filters: Filtering unnecessary since replaying a fulfillment event for
-            a subscription that is irrelevant/untracked has no side effects.
-
-        Args:
-            message (SubscriptionFulfilledMessage): raw message
-
-        Returns:
-            Union[GuardianError, SubscriptionFulfilledMessage]: Error message if
-                filtering fails, otherwise parsed message to be processed
-        """
+        # filter out subscriptions that don't match payment requirements
+        if not self.wallet_checker.matches_payment_requirements(subscription):
+            return self._error(
+                message,
+                "Invalid payment",
+                subscription_id=subscription.id,
+            )
 
         return message
 
@@ -378,13 +461,5 @@ class Guardian:
             case MessageType.SubscriptionCreated:
                 return self._process_coordinator_created_message(
                     cast(SubscriptionCreatedMessage, message)
-                )
-            case MessageType.SubscriptionCancelled:
-                return self._process_coordinator_cancelled_message(
-                    cast(SubscriptionCancelledMessage, message)
-                )
-            case MessageType.SubscriptionFulfilled:
-                return self._process_coordinator_fulfilled_message(
-                    cast(SubscriptionFulfilledMessage, message)
                 )
         return self._error(message, "Not supported", raw=message)

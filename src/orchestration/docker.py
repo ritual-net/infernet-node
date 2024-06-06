@@ -43,6 +43,7 @@ from docker.types import DeviceRequest  # type: ignore
 from shared import AsyncTask
 from utils import log
 from utils.config import ConfigContainer, ConfigDocker
+from utils.logging import log_ascii_status
 
 DEFAULT_STARTUP_WAIT: float = 60.0
 
@@ -136,7 +137,12 @@ class ContainerManager(AsyncTask):
 
         # Container objects are cached, need to reload attributes
         for container in self._containers.values():
-            container.reload()
+            try:
+                container.reload()
+            except Exception as e:
+                raise ValueError(
+                    f"Container {container.name} was removed or can't be reloaded: {e}"
+                )
 
         # IDs of running containers
         return [
@@ -225,8 +231,11 @@ class ContainerManager(AsyncTask):
             # Get running containers
             current_containers = self.running_containers
 
+            # Show ASCII status in logs
+            log_ascii_status(f"Running containers: {current_containers}", True)
+
             # Check if any containers exited / crashed
-            if len(current_containers) > len(running_containers):
+            if len(current_containers) < len(running_containers):
                 log.warning(
                     "Container(s) failed / exited / crashed",
                     failed_containers=[
@@ -235,7 +244,7 @@ class ContainerManager(AsyncTask):
                         if container not in current_containers
                     ],
                 )
-            elif len(current_containers) < len(running_containers):
+            elif len(current_containers) > len(running_containers):
                 log.warning(
                     "Container(s) back up",
                     started_containers=[
@@ -274,17 +283,34 @@ class ContainerManager(AsyncTask):
     #######################
 
     async def _pull_images(self: ContainerManager) -> None:
-        """Pulls all supported images in parallel.
+        """Pulls all managed images in parallel.
+
+        This method makes the following assumptions:
+         - If an image exists locally and remotely, and the hashes match, it is not
+            pulled (i.e. the local cached version is used).
+         - If the image exists locally and remotely but the hashes DO NOT match, the
+            image is pulled (i.e. remote version is ALWAYS assumed to be desired). This
+            ensures that the official version of an image is always used (instead of the
+            cached, potentially stale one), including when an official image is reverted
+            to an older version (i.e. official == latest cannot be assumed in general).
+
+        NOTE: For image development, always use unique local tags (e.g. ":dev") to
+        ensure a different remote version is NOT pulled.
 
         Raises:
-            RuntimeError: If any images could not be pulled.
+            RuntimeError: If any images could not be pulled or found locally.
         """
         log.info("Pulling images, this may take a while...")
 
         async def pull_image(image: str) -> bool:
             """Pull a docker image asynchronously
-            - If the image already exists locally, it is not pulled.
-            - If the image doesn't exist and cannot be pulled, returns False.
+
+            - If an image exists locally and remotely, and the hashes match, it is not
+                pulled, i.e. locally cached version is used.
+            - If the image exists locally and remotely but the hashes DO NOT match, it
+                is pulled and overwritten.
+            - If image exists either locally or remotely, uses the existing image.
+            - If the image exists neither locally nor remotely, returns False.
 
             Args:
                 image (str): Image id to pull
@@ -293,6 +319,7 @@ class ContainerManager(AsyncTask):
                 bool: True if image exists locally or was successfully pulled, False
                     otherwise.
             """
+
             try:
                 log.info(f"Pulling image {image}...")
                 await self._loop.run_in_executor(
@@ -387,5 +414,6 @@ class ContainerManager(AsyncTask):
                         "MaximumRetryCount": 5,
                     },
                     device_requests=device_requests,
+                    volumes=config.get("volumes", []),
                 )
                 log.info(f"Created and started new container: {id}")

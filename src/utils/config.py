@@ -2,10 +2,18 @@ from json import load as json_load
 from typing import Any, NamedTuple, Optional, TypedDict, cast
 
 
+class ConfigRateLimit(TypedDict):
+    """Expected config[server][rate_limit] format"""
+
+    num_requests: Optional[int]
+    period: Optional[int]
+
+
 class ConfigServer(TypedDict):
     """Expected config[server] format"""
 
     port: int
+    rate_limit: Optional[ConfigRateLimit]
 
 
 class ConfigWallet(TypedDict):
@@ -13,6 +21,15 @@ class ConfigWallet(TypedDict):
 
     max_gas_limit: int
     private_key: str
+    payment_address: Optional[str]
+    allowed_sim_errors: Optional[list[str]]
+
+
+class ConfigSnapshotSync(TypedDict):
+    """Expected config[snapshot_sync] format"""
+
+    sleep: float
+    batch_size: int
 
 
 class ConfigChain(TypedDict):
@@ -21,8 +38,9 @@ class ConfigChain(TypedDict):
     enabled: bool
     rpc_url: str
     trail_head_blocks: int
-    coordinator_address: str
+    registry_address: str
     wallet: ConfigWallet
+    snapshot_sync: Optional[ConfigSnapshotSync]
 
 
 class ConfigDocker(TypedDict):
@@ -46,6 +64,9 @@ class ConfigContainer(TypedDict):
     allowed_delegate_addresses: list[str]
     external: bool
     gpu: Optional[bool]
+    volumes: Optional[list[str]]
+    accepted_payments: Optional[dict[str, int]]
+    generates_proofs: Optional[bool]
 
 
 class ConfigRedis(TypedDict):
@@ -53,13 +74,6 @@ class ConfigRedis(TypedDict):
 
     host: str
     port: int
-
-
-class ConfigSnapshotSync(TypedDict):
-    """Expected config[snapshot_sync] format"""
-
-    sleep: float
-    batch_size: int
 
 
 class ConfigDict(TypedDict):
@@ -74,7 +88,6 @@ class ConfigDict(TypedDict):
     containers: list[ConfigContainer]
     forward_stats: bool
     startup_wait: Optional[float]
-    snapshot_sync: Optional[ConfigSnapshotSync]
 
 
 class ValidationItem(NamedTuple):
@@ -92,7 +105,7 @@ VALIDATION_CONFIG: list[ValidationItem] = [
     ValidationItem("chain.enabled", bool),
     ValidationItem("chain.rpc_url", str),
     ValidationItem("chain.trail_head_blocks", int),
-    ValidationItem("chain.coordinator_address", str),
+    ValidationItem("chain.registry_address", str),
     ValidationItem("chain.wallet.max_gas_limit", int),
     ValidationItem("chain.wallet.private_key", str),
 ]

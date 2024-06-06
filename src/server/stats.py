@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import time
+from typing import Any, Optional
 from uuid import uuid4
 
 from fluent import sender  # type: ignore
-from typing import Any, Optional
 
 from chain.wallet import Wallet
 from orchestration import DataStore, Guardian
@@ -13,8 +13,8 @@ from shared.service import AsyncTask
 from utils.logging import log
 
 # Constants - intervals in seconds for forwarding stats to Ritual
-LIVE_INTERVAL = 5
-NODE_INTERVAL = 900
+LIVE_INTERVAL = 60
+NODE_INTERVAL = 3600
 
 
 class StatCollector:
@@ -22,6 +22,16 @@ class StatCollector:
 
     Methods to create machine ID, execute shell commands, and collect various
     machine stats.
+
+    Methods:
+        get_uid: Create a unique machine ID
+        get_ip: Get the external IP address
+        get_resources: Get {cpu, disk, gpu, kernel, memory} specs asynchronously
+        get_utilization: Get {cpu, disk, gpu, memory} utilization
+        get_uptime: Get the machine uptime
+
+    Private Methods:
+        _execute: Execute a shell command asynchronously
     """
 
     @classmethod
@@ -110,7 +120,7 @@ class StatCollector:
             "cpu": """mpstat | awk '$2 == "all" {printf "%.1f%%", 100 - $12 - $9}'""",
             "disk": "df -h | awk '/\/$/ {print $5}'",
             "io": """iostat -p sda -d 4 1 -y | awk '/^sda / {print $3" kB_read/s" ", " $4 " kB_wrtn/s"}'""",  # noqa: E501
-            "gpu": """bash -c "if which nvidia-smi > /dev/null; then awk '{sum += $1; count++} END {if (count > 0) print sum / count}' <(nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader | awk '{print $1}'); fi" """,  # noqa: E501
+            "gpu": """bash -c "if which nvidia-smi > /dev/null; then nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader | awk '{print \$1}' | awk '{sum += \$1; count++} END {if (count > 0) print sum / count}'; fi" """,  # noqa: E501
             "memory": """free -m | awk '/Mem:/ {printf "%.f%%", $3 / $2 * 100}'""",
             "network": """ifstat 5 1 | awk 'NR>2 {for (i=1; i<=NF; i+=2) inSum += $i; for (i=2; i<=NF; i+=2) outSum += $i} END {print inSum " KB/s, " outSum " KB/s"}'""",  # noqa: E501
         }
@@ -128,14 +138,15 @@ class StatCollector:
 
 
 class StatSender(AsyncTask):
-    """Periodically sends stats to fluentbit
+    """Periodically forwards node stats via fluentbit
 
-    Sends node (long-lived) stats and live (short-lived) stats to fluentbit, at
+    Sends node (long-lived) stats and live (short-lived) stats via fluentbit, at
     different intervals.
 
     Attributes:
         _uid (str): A unique machine ID
         _version (str): The version of the node
+        _port (int): The port of the local REST server
         _guardian (Guardian): The guardian instance
         _store (DataStore): The data store instance
         _wallet (Optional[Wallet]): Optional wallet instance, if chain enabled
@@ -145,6 +156,7 @@ class StatSender(AsyncTask):
     def __init__(
         self: StatSender,
         version: str,
+        port: int,
         guardian: Guardian,
         store: DataStore,
         wallet: Optional[Wallet],
@@ -153,12 +165,14 @@ class StatSender(AsyncTask):
 
         Args:
             version (str): The version of the node
+            port (int): The port of the local REST server
             guardian (Guardian): The guardian instance
             store (DataStore): The data store instance
             wallet (Optional[Wallet]): Optional wallet instance, if chain enabled
         """
         super().__init__()
         self._version = version
+        self._port = port
         self._guardian = guardian
         self._store = store
         self._wallet = wallet
@@ -172,14 +186,19 @@ class StatSender(AsyncTask):
     async def _get_node_stats(self: StatSender) -> dict[str, Any]:
         """Collect boot stats"""
 
-        counters = self._store.pop_total_counters()
+        job_counters = self._store.counters.pop_job_counters()
+        container_counters = self._store.counters.pop_container_counters()
 
         return {
             "uid": self._uid,
             "address": None if self._wallet is None else self._wallet.address,
             "containers": self._guardian.restrictions,
-            "jobs_completed": {key: dict(counters[key]) for key in counters},
+            "counters": {
+                "jobs": job_counters,
+                "containers": container_counters,
+            },
             "ip": await StatCollector.get_ip(),
+            "port": self._port,
             "resources": await StatCollector.get_resources(),
             "uptime": await StatCollector.get_uptime(),
             "version": self._version,
@@ -193,6 +212,19 @@ class StatSender(AsyncTask):
             "jobs_pending": self._store.get_pending_counters(),
             "utilization": await StatCollector.get_utilization(),
         }
+
+    async def send_node_stats_shutdown(
+        self: StatSender, error: Optional[str] = None
+    ) -> None:
+        """Send node stats with optional error message at shutdown
+
+        Args:
+            error (Optional[str]): The error message to report
+        """
+        data = await self._get_node_stats()
+        if error:
+            data["error"] = error
+        self._sender.emit(label="node", data=data)
 
     async def run_forever(self: StatSender) -> None:
         """Default lifecycle loop
@@ -220,9 +252,6 @@ class StatSender(AsyncTask):
             # Ensure live stats collection is complete before sending
             await live_stats
             self._sender.emit(label="live", data=live_stats.result())
-
-        # Send node stats on shutdown
-        self._sender.emit(label="node", data=await self._get_node_stats())
 
     async def stop(self: StatSender) -> None:
         """Stop the task"""

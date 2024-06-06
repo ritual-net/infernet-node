@@ -18,6 +18,13 @@ repos:
         language: system
         types: [python]
 
+  # This pre-commit hook loads the configurations from the pyproject.toml file
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        name: isort (python)
+
   # Default pre-commit hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v3.2.0
@@ -29,3 +36,9 @@ repos:
         args: ["--maxkb=5000"]
       # Newline at end of file
       - id: trailing-whitespace
+
+  # OpenAPI spec validator
+  - repo: https://github.com/python-openapi/openapi-spec-validator
+    rev: master
+    hooks:
+      - id: openapi-spec-validator

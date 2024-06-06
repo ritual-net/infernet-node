@@ -1,7 +1,15 @@
+from typing import cast
+
+from eth_typing import ChecksumAddress
+
+ZERO_ADDRESS: ChecksumAddress = cast(
+    ChecksumAddress, "0x0000000000000000000000000000000000000000"
+)
+
 DELEGATED_SIGNER_ABI = [
     {
         "type": "function",
-        "name": "signer",
+        "name": "getSigner",
         "inputs": [],
         "outputs": [{"name": "", "type": "address", "internalType": "address"}],
         "stateMutability": "view",
@@ -29,25 +37,15 @@ SUBSCRIPTION_CONSUMER_ABI = [
 
 COORDINATOR_ABI = [
     {
-        "type": "function",
-        "name": "DELEGATEE_OVERHEAD_CACHED_WEI",
-        "inputs": [],
-        "outputs": [{"name": "", "type": "uint256", "internalType": "uint256"}],
-        "stateMutability": "view",
-    },
-    {
-        "type": "function",
-        "name": "DELEGATEE_OVERHEAD_CREATE_WEI",
-        "inputs": [],
-        "outputs": [{"name": "", "type": "uint256", "internalType": "uint256"}],
-        "stateMutability": "view",
-    },
-    {
-        "type": "function",
-        "name": "DELIVERY_OVERHEAD_WEI",
-        "inputs": [],
-        "outputs": [{"name": "", "type": "uint256", "internalType": "uint256"}],
-        "stateMutability": "view",
+        "type": "constructor",
+        "inputs": [
+            {
+                "name": "registry",
+                "type": "address",
+                "internalType": "contract Registry",
+            }
+        ],
+        "stateMutability": "nonpayable",
     },
     {
         "type": "function",
@@ -65,42 +63,26 @@ COORDINATOR_ABI = [
     },
     {
         "type": "function",
-        "name": "activateNode",
-        "inputs": [],
-        "outputs": [],
-        "stateMutability": "nonpayable",
-    },
-    {
-        "type": "function",
         "name": "cancelSubscription",
         "inputs": [
-            {
-                "name": "subscriptionId",
-                "type": "uint32",
-                "internalType": "uint32",
-            }
+            {"name": "subscriptionId", "type": "uint32", "internalType": "uint32"}
         ],
         "outputs": [],
         "stateMutability": "nonpayable",
     },
     {
         "type": "function",
-        "name": "cooldown",
-        "inputs": [],
-        "outputs": [{"name": "", "type": "uint256", "internalType": "uint256"}],
-        "stateMutability": "view",
-    },
-    {
-        "type": "function",
         "name": "createSubscription",
         "inputs": [
             {"name": "containerId", "type": "string", "internalType": "string"},
-            {"name": "inputs", "type": "bytes", "internalType": "bytes"},
-            {"name": "maxGasPrice", "type": "uint48", "internalType": "uint48"},
-            {"name": "maxGasLimit", "type": "uint32", "internalType": "uint32"},
             {"name": "frequency", "type": "uint32", "internalType": "uint32"},
             {"name": "period", "type": "uint32", "internalType": "uint32"},
             {"name": "redundancy", "type": "uint16", "internalType": "uint16"},
+            {"name": "lazy", "type": "bool", "internalType": "bool"},
+            {"name": "paymentToken", "type": "address", "internalType": "address"},
+            {"name": "paymentAmount", "type": "uint256", "internalType": "uint256"},
+            {"name": "wallet", "type": "address", "internalType": "address"},
+            {"name": "verifier", "type": "address", "internalType": "address"},
         ],
         "outputs": [{"name": "", "type": "uint32", "internalType": "uint32"}],
         "stateMutability": "nonpayable",
@@ -114,23 +96,11 @@ COORDINATOR_ABI = [
             {
                 "name": "sub",
                 "type": "tuple",
-                "internalType": "struct Coordinator.Subscription",
+                "internalType": "struct Subscription",
                 "components": [
-                    {
-                        "name": "owner",
-                        "type": "address",
-                        "internalType": "address",
-                    },
-                    {
-                        "name": "activeAt",
-                        "type": "uint32",
-                        "internalType": "uint32",
-                    },
-                    {
-                        "name": "period",
-                        "type": "uint32",
-                        "internalType": "uint32",
-                    },
+                    {"name": "owner", "type": "address", "internalType": "address"},
+                    {"name": "activeAt", "type": "uint32", "internalType": "uint32"},
+                    {"name": "period", "type": "uint32", "internalType": "uint32"},
                     {
                         "name": "frequency",
                         "type": "uint32",
@@ -142,24 +112,30 @@ COORDINATOR_ABI = [
                         "internalType": "uint16",
                     },
                     {
-                        "name": "maxGasPrice",
-                        "type": "uint48",
-                        "internalType": "uint48",
-                    },
-                    {
-                        "name": "maxGasLimit",
-                        "type": "uint32",
-                        "internalType": "uint32",
-                    },
-                    {
                         "name": "containerId",
-                        "type": "string",
-                        "internalType": "string",
+                        "type": "bytes32",
+                        "internalType": "bytes32",
+                    },
+                    {"name": "lazy", "type": "bool", "internalType": "bool"},
+                    {
+                        "name": "verifier",
+                        "type": "address",
+                        "internalType": "address payable",
                     },
                     {
-                        "name": "inputs",
-                        "type": "bytes",
-                        "internalType": "bytes",
+                        "name": "paymentAmount",
+                        "type": "uint256",
+                        "internalType": "uint256",
+                    },
+                    {
+                        "name": "paymentToken",
+                        "type": "address",
+                        "internalType": "address",
+                    },
+                    {
+                        "name": "wallet",
+                        "type": "address",
+                        "internalType": "address payable",
                     },
                 ],
             },
@@ -167,17 +143,7 @@ COORDINATOR_ABI = [
             {"name": "r", "type": "bytes32", "internalType": "bytes32"},
             {"name": "s", "type": "bytes32", "internalType": "bytes32"},
         ],
-        "outputs": [
-            {"name": "", "type": "uint32", "internalType": "uint32"},
-            {"name": "", "type": "bool", "internalType": "bool"},
-        ],
-        "stateMutability": "nonpayable",
-    },
-    {
-        "type": "function",
-        "name": "deactivateNode",
-        "inputs": [],
-        "outputs": [],
+        "outputs": [{"name": "", "type": "uint32", "internalType": "uint32"}],
         "stateMutability": "nonpayable",
     },
     {
@@ -191,19 +157,12 @@ COORDINATOR_ABI = [
         "type": "function",
         "name": "deliverCompute",
         "inputs": [
-            {
-                "name": "subscriptionId",
-                "type": "uint32",
-                "internalType": "uint32",
-            },
-            {
-                "name": "deliveryInterval",
-                "type": "uint32",
-                "internalType": "uint32",
-            },
+            {"name": "subscriptionId", "type": "uint32", "internalType": "uint32"},
+            {"name": "deliveryInterval", "type": "uint32", "internalType": "uint32"},
             {"name": "input", "type": "bytes", "internalType": "bytes"},
             {"name": "output", "type": "bytes", "internalType": "bytes"},
             {"name": "proof", "type": "bytes", "internalType": "bytes"},
+            {"name": "nodeWallet", "type": "address", "internalType": "address"},
         ],
         "outputs": [],
         "stateMutability": "nonpayable",
@@ -217,23 +176,11 @@ COORDINATOR_ABI = [
             {
                 "name": "sub",
                 "type": "tuple",
-                "internalType": "struct Coordinator.Subscription",
+                "internalType": "struct Subscription",
                 "components": [
-                    {
-                        "name": "owner",
-                        "type": "address",
-                        "internalType": "address",
-                    },
-                    {
-                        "name": "activeAt",
-                        "type": "uint32",
-                        "internalType": "uint32",
-                    },
-                    {
-                        "name": "period",
-                        "type": "uint32",
-                        "internalType": "uint32",
-                    },
+                    {"name": "owner", "type": "address", "internalType": "address"},
+                    {"name": "activeAt", "type": "uint32", "internalType": "uint32"},
+                    {"name": "period", "type": "uint32", "internalType": "uint32"},
                     {
                         "name": "frequency",
                         "type": "uint32",
@@ -245,38 +192,41 @@ COORDINATOR_ABI = [
                         "internalType": "uint16",
                     },
                     {
-                        "name": "maxGasPrice",
-                        "type": "uint48",
-                        "internalType": "uint48",
-                    },
-                    {
-                        "name": "maxGasLimit",
-                        "type": "uint32",
-                        "internalType": "uint32",
-                    },
-                    {
                         "name": "containerId",
-                        "type": "string",
-                        "internalType": "string",
+                        "type": "bytes32",
+                        "internalType": "bytes32",
+                    },
+                    {"name": "lazy", "type": "bool", "internalType": "bool"},
+                    {
+                        "name": "verifier",
+                        "type": "address",
+                        "internalType": "address payable",
                     },
                     {
-                        "name": "inputs",
-                        "type": "bytes",
-                        "internalType": "bytes",
+                        "name": "paymentAmount",
+                        "type": "uint256",
+                        "internalType": "uint256",
+                    },
+                    {
+                        "name": "paymentToken",
+                        "type": "address",
+                        "internalType": "address",
+                    },
+                    {
+                        "name": "wallet",
+                        "type": "address",
+                        "internalType": "address payable",
                     },
                 ],
             },
             {"name": "v", "type": "uint8", "internalType": "uint8"},
             {"name": "r", "type": "bytes32", "internalType": "bytes32"},
             {"name": "s", "type": "bytes32", "internalType": "bytes32"},
-            {
-                "name": "deliveryInterval",
-                "type": "uint32",
-                "internalType": "uint32",
-            },
+            {"name": "deliveryInterval", "type": "uint32", "internalType": "uint32"},
             {"name": "input", "type": "bytes", "internalType": "bytes"},
             {"name": "output", "type": "bytes", "internalType": "bytes"},
             {"name": "proof", "type": "bytes", "internalType": "bytes"},
+            {"name": "nodeWallet", "type": "address", "internalType": "address"},
         ],
         "outputs": [],
         "stateMutability": "nonpayable",
@@ -296,11 +246,75 @@ COORDINATOR_ABI = [
                 "internalType": "address",
             },
             {"name": "salt", "type": "bytes32", "internalType": "bytes32"},
+            {"name": "extensions", "type": "uint256[]", "internalType": "uint256[]"},
+        ],
+        "stateMutability": "view",
+    },
+    {
+        "type": "function",
+        "name": "finalizeProofValidation",
+        "inputs": [
+            {"name": "subscriptionId", "type": "uint32", "internalType": "uint32"},
+            {"name": "interval", "type": "uint32", "internalType": "uint32"},
+            {"name": "node", "type": "address", "internalType": "address"},
+            {"name": "valid", "type": "bool", "internalType": "bool"},
+        ],
+        "outputs": [],
+        "stateMutability": "nonpayable",
+    },
+    {
+        "type": "function",
+        "name": "getSubscription",
+        "inputs": [
+            {"name": "subscriptionId", "type": "uint32", "internalType": "uint32"}
+        ],
+        "outputs": [
             {
-                "name": "extensions",
-                "type": "uint256[]",
-                "internalType": "uint256[]",
-            },
+                "name": "",
+                "type": "tuple",
+                "internalType": "struct Subscription",
+                "components": [
+                    {"name": "owner", "type": "address", "internalType": "address"},
+                    {"name": "activeAt", "type": "uint32", "internalType": "uint32"},
+                    {"name": "period", "type": "uint32", "internalType": "uint32"},
+                    {
+                        "name": "frequency",
+                        "type": "uint32",
+                        "internalType": "uint32",
+                    },
+                    {
+                        "name": "redundancy",
+                        "type": "uint16",
+                        "internalType": "uint16",
+                    },
+                    {
+                        "name": "containerId",
+                        "type": "bytes32",
+                        "internalType": "bytes32",
+                    },
+                    {"name": "lazy", "type": "bool", "internalType": "bool"},
+                    {
+                        "name": "verifier",
+                        "type": "address",
+                        "internalType": "address payable",
+                    },
+                    {
+                        "name": "paymentAmount",
+                        "type": "uint256",
+                        "internalType": "uint256",
+                    },
+                    {
+                        "name": "paymentToken",
+                        "type": "address",
+                        "internalType": "address",
+                    },
+                    {
+                        "name": "wallet",
+                        "type": "address",
+                        "internalType": "address payable",
+                    },
+                ],
+            }
         ],
         "stateMutability": "view",
     },
@@ -330,27 +344,28 @@ COORDINATOR_ABI = [
     },
     {
         "type": "function",
-        "name": "nodeInfo",
-        "inputs": [{"name": "", "type": "address", "internalType": "address"}],
-        "outputs": [
-            {
-                "name": "status",
-                "type": "uint8",
-                "internalType": "enum Manager.NodeStatus",
-            },
-            {
-                "name": "cooldownStart",
-                "type": "uint32",
-                "internalType": "uint32",
-            },
-        ],
+        "name": "nodeResponded",
+        "inputs": [{"name": "", "type": "bytes32", "internalType": "bytes32"}],
+        "outputs": [{"name": "", "type": "bool", "internalType": "bool"}],
         "stateMutability": "view",
     },
     {
         "type": "function",
-        "name": "nodeResponded",
+        "name": "proofRequests",
         "inputs": [{"name": "", "type": "bytes32", "internalType": "bytes32"}],
-        "outputs": [{"name": "", "type": "bool", "internalType": "bool"}],
+        "outputs": [
+            {"name": "expiry", "type": "uint32", "internalType": "uint32"},
+            {
+                "name": "nodeWallet",
+                "type": "address",
+                "internalType": "contract Wallet",
+            },
+            {
+                "name": "consumerEscrowed",
+                "type": "uint256",
+                "internalType": "uint256",
+            },
+        ],
         "stateMutability": "view",
     },
     {
@@ -359,81 +374,6 @@ COORDINATOR_ABI = [
         "inputs": [{"name": "", "type": "bytes32", "internalType": "bytes32"}],
         "outputs": [{"name": "", "type": "uint16", "internalType": "uint16"}],
         "stateMutability": "view",
-    },
-    {
-        "type": "function",
-        "name": "registerNode",
-        "inputs": [{"name": "node", "type": "address", "internalType": "address"}],
-        "outputs": [],
-        "stateMutability": "nonpayable",
-    },
-    {
-        "type": "function",
-        "name": "subscriptions",
-        "inputs": [{"name": "", "type": "uint32", "internalType": "uint32"}],
-        "outputs": [
-            {"name": "owner", "type": "address", "internalType": "address"},
-            {"name": "activeAt", "type": "uint32", "internalType": "uint32"},
-            {"name": "period", "type": "uint32", "internalType": "uint32"},
-            {"name": "frequency", "type": "uint32", "internalType": "uint32"},
-            {"name": "redundancy", "type": "uint16", "internalType": "uint16"},
-            {"name": "maxGasPrice", "type": "uint48", "internalType": "uint48"},
-            {"name": "maxGasLimit", "type": "uint32", "internalType": "uint32"},
-            {"name": "containerId", "type": "string", "internalType": "string"},
-            {"name": "inputs", "type": "bytes", "internalType": "bytes"},
-        ],
-        "stateMutability": "view",
-    },
-    {
-        "type": "event",
-        "name": "NodeActivated",
-        "inputs": [
-            {
-                "name": "node",
-                "type": "address",
-                "indexed": True,
-                "internalType": "address",
-            }
-        ],
-        "anonymous": False,
-    },
-    {
-        "type": "event",
-        "name": "NodeDeactivated",
-        "inputs": [
-            {
-                "name": "node",
-                "type": "address",
-                "indexed": True,
-                "internalType": "address",
-            }
-        ],
-        "anonymous": False,
-    },
-    {
-        "type": "event",
-        "name": "NodeRegistered",
-        "inputs": [
-            {
-                "name": "node",
-                "type": "address",
-                "indexed": True,
-                "internalType": "address",
-            },
-            {
-                "name": "registerer",
-                "type": "address",
-                "indexed": True,
-                "internalType": "address",
-            },
-            {
-                "name": "cooldownStart",
-                "type": "uint32",
-                "indexed": False,
-                "internalType": "uint32",
-            },
-        ],
-        "anonymous": False,
     },
     {
         "type": "event",
@@ -480,50 +420,107 @@ COORDINATOR_ABI = [
         ],
         "anonymous": False,
     },
-    {
-        "type": "error",
-        "name": "CooldownActive",
-        "inputs": [
-            {
-                "name": "cooldownStart",
-                "type": "uint32",
-                "internalType": "uint32",
-            }
-        ],
-    },
-    {"type": "error", "name": "GasLimitExceeded", "inputs": []},
-    {"type": "error", "name": "GasPriceExceeded", "inputs": []},
     {"type": "error", "name": "IntervalCompleted", "inputs": []},
     {"type": "error", "name": "IntervalMismatch", "inputs": []},
-    {
-        "type": "error",
-        "name": "NodeNotActivateable",
-        "inputs": [
-            {
-                "name": "status",
-                "type": "uint8",
-                "internalType": "enum Manager.NodeStatus",
-            }
-        ],
-    },
-    {"type": "error", "name": "NodeNotActive", "inputs": []},
-    {
-        "type": "error",
-        "name": "NodeNotRegisterable",
-        "inputs": [
-            {"name": "node", "type": "address", "internalType": "address"},
-            {
-                "name": "status",
-                "type": "uint8",
-                "internalType": "enum Manager.NodeStatus",
-            },
-        ],
-    },
+    {"type": "error", "name": "InvalidWallet", "inputs": []},
     {"type": "error", "name": "NodeRespondedAlready", "inputs": []},
     {"type": "error", "name": "NotSubscriptionOwner", "inputs": []},
+    {"type": "error", "name": "ProofRequestNotFound", "inputs": []},
+    {"type": "error", "name": "Reentrancy", "inputs": []},
     {"type": "error", "name": "SignatureExpired", "inputs": []},
     {"type": "error", "name": "SignerMismatch", "inputs": []},
     {"type": "error", "name": "SubscriptionCompleted", "inputs": []},
     {"type": "error", "name": "SubscriptionNotActive", "inputs": []},
     {"type": "error", "name": "SubscriptionNotFound", "inputs": []},
+    {"type": "error", "name": "UnauthorizedVerifier", "inputs": []},
+    {"type": "error", "name": "UnsupportedVerifierToken", "inputs": []},
+]
+
+WALLET_FACTORY_ABI = [
+    {
+        "type": "function",
+        "name": "isValidWallet",
+        "inputs": [{"name": "wallet", "type": "address", "internalType": "address"}],
+        "outputs": [{"name": "", "type": "bool", "internalType": "bool"}],
+        "stateMutability": "view",
+    }
+]
+
+REGISTRY_ABI = [
+    {
+        "type": "function",
+        "name": "COORDINATOR",
+        "inputs": [],
+        "outputs": [{"name": "", "type": "address", "internalType": "address"}],
+        "stateMutability": "view",
+    },
+    {
+        "type": "function",
+        "name": "FEE",
+        "inputs": [],
+        "outputs": [{"name": "", "type": "address", "internalType": "address"}],
+        "stateMutability": "view",
+    },
+    {
+        "type": "function",
+        "name": "INBOX",
+        "inputs": [],
+        "outputs": [{"name": "", "type": "address", "internalType": "address"}],
+        "stateMutability": "view",
+    },
+    {
+        "type": "function",
+        "name": "READER",
+        "inputs": [],
+        "outputs": [{"name": "", "type": "address", "internalType": "address"}],
+        "stateMutability": "view",
+    },
+    {
+        "type": "function",
+        "name": "WALLET_FACTORY",
+        "inputs": [],
+        "outputs": [{"name": "", "type": "address", "internalType": "address"}],
+        "stateMutability": "view",
+    },
+]
+
+ERC20_ABI = [
+    {
+        "type": "function",
+        "name": "balanceOf",
+        "inputs": [{"name": "owner", "type": "address", "internalType": "address"}],
+        "outputs": [{"name": "result", "type": "uint256", "internalType": "uint256"}],
+        "stateMutability": "view",
+    },
+]
+
+PAYMENT_WALLET_ABI = [
+    {
+        "type": "function",
+        "name": "approve",
+        "inputs": [
+            {"name": "spender", "type": "address", "internalType": "address"},
+            {"name": "token", "type": "address", "internalType": "address"},
+            {"name": "amount", "type": "uint256", "internalType": "uint256"},
+        ],
+        "outputs": [],
+        "stateMutability": "nonpayable",
+    },
+    {
+        "type": "function",
+        "name": "allowance",
+        "inputs": [
+            {"name": "", "type": "address", "internalType": "address"},
+            {"name": "", "type": "address", "internalType": "address"},
+        ],
+        "outputs": [{"name": "", "type": "uint256", "internalType": "uint256"}],
+        "stateMutability": "view",
+    },
+    {
+        "type": "function",
+        "name": "owner",
+        "inputs": [],
+        "outputs": [{"name": "result", "type": "address", "internalType": "address"}],
+        "stateMutability": "view",
+    },
 ]

@@ -1,10 +1,4 @@
-from .job import (
-    ContainerError,
-    ContainerOutput,
-    ContainerResult,
-    JobResult,
-    JobStatus,
-)
+from .job import ContainerError, ContainerOutput, ContainerResult, JobResult, JobStatus
 from .service import AsyncTask
 from .subscription import Subscription
 
