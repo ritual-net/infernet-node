@@ -49,6 +49,8 @@ class Subscription:
         id (int): Subscription ID (-1 if delegated subscription)
         owner (str): Subscription owner + recipient
         containers (list[str]): List of container IDs
+        requires_proof (bool): Whether subscription requires proof
+        requires_payment (bool): Whether subscription requires payment
 
     Private attributes:
         _container_lookup (ContainerLookup): Container lookup instance
@@ -58,7 +60,7 @@ class Subscription:
         _redundancy (int): Number of unique nodes that can fulfill each interval
         _container_id (str): ","-concatenated container IDs (raw format)
         _lazy (bool): Whether subscription is lazy
-        _prover (str): Prover address
+        _verifier (str): Verifier address
         _payment_amount (int): Payment amount
         _payment_token (str): Payment token
         _wallet (str): Wallet address
@@ -79,7 +81,7 @@ class Subscription:
         redundancy: int,
         containers_hash: bytes,
         lazy: bool,
-        prover: str,
+        verifier: str,
         payment_amount: int,
         payment_token: str,
         wallet: str,
@@ -96,7 +98,7 @@ class Subscription:
             containers_hash (bytes): Keccak hash of the comma-separated list of container
                 IDs.
             lazy (bool): Whether subscription is lazy
-            prover (str): Prover address
+            verifier (str): Verifier address
             payment_amount (int): Payment amount
             payment_token (str): Payment token
             wallet (str): Wallet address
@@ -112,7 +114,7 @@ class Subscription:
         self._redundancy = redundancy
         self._containers_hash = containers_hash
         self._lazy = lazy
-        self._prover = prover
+        self._verifier = verifier
         self._payment_amount = payment_amount
         self._payment_token = payment_token
         self._wallet = wallet
@@ -229,13 +231,13 @@ class Subscription:
         return Web3.to_checksum_address(self._payment_token)
 
     @property
-    def prover(self: Subscription) -> ChecksumAddress:
-        """Returns subscription prover address
+    def verifier(self: Subscription) -> ChecksumAddress:
+        """Returns subscription verifier address
 
         Returns:
-            ChecksumAddress: prover address
+            ChecksumAddress: verifier address
         """
-        return Web3.to_checksum_address(self._prover)
+        return Web3.to_checksum_address(self._verifier)
 
     @property
     def requires_proof(self: Subscription) -> bool:
@@ -244,7 +246,16 @@ class Subscription:
         Returns:
             bool: True if subscription requires proof, else False
         """
-        return self.prover != ADDRESS_ZERO
+        return self.verifier != ADDRESS_ZERO
+
+    @property
+    def provides_payment(self: Subscription) -> bool:
+        """Returns whether a subscription requires payment
+
+        Returns:
+            bool: True if subscription requires payment, else False
+        """
+        return self.payment_amount > 0
 
     @property
     def wallet(self: Subscription) -> ChecksumAddress:
@@ -389,7 +400,7 @@ class Subscription:
                         {"name": "redundancy", "type": "uint16"},
                         {"name": "containerId", "type": "bytes32"},
                         {"name": "lazy", "type": "bool"},
-                        {"name": "prover", "type": "address"},
+                        {"name": "verifier", "type": "address"},
                         {"name": "paymentAmount", "type": "uint256"},
                         {"name": "paymentToken", "type": "address"},
                         {"name": "wallet", "type": "address"},
@@ -413,7 +424,7 @@ class Subscription:
                         "redundancy": self._redundancy,
                         "containerId": self._containers_hash,
                         "lazy": self._lazy,
-                        "prover": self._prover,
+                        "verifier": self._verifier,
                         "paymentAmount": self._payment_amount,
                         "paymentToken": self._payment_token,
                         "wallet": self._wallet,
@@ -440,7 +451,7 @@ class Subscription:
             self._redundancy,
             self._containers_hash,
             self._lazy,
-            self._prover,
+            self._verifier,
             self._payment_amount,
             self._payment_token,
             self._wallet,
@@ -458,7 +469,7 @@ class SerializedSubscription:
     redundancy: int
     containers: str
     lazy: bool
-    prover: str
+    verifier: str
     payment_amount: int
     payment_token: str
     wallet: str
@@ -482,7 +493,7 @@ class SerializedSubscription:
             self.redundancy,
             HexBytes(self.containers),
             self.lazy,
-            self.prover,
+            self.verifier,
             self.payment_amount,
             self.payment_token,
             self.wallet,

@@ -14,14 +14,14 @@ class CoordinatorError(Enum):
     InvalidWallet = "0x23455ba1"
     IntervalMismatch = "0x4db310c3"
     IntervalCompleted = "0x2f4ca85b"
-    UnauthorizedProver = "0x8ebcfe1e"
+    UnauthorizedVerifier = "0xb9857aa1"
     NodeRespondedAlready = "0x88a21e4f"
     SubscriptionNotFound = "0x1a00354f"
     ProofRequestNotFound = "0x1d68b37c"
     NotSubscriptionOwner = "0xa7fba711"
     SubscriptionCompleted = "0xae6704a7"
     SubscriptionNotActive = "0xefb74efe"
-    UnsupportedProverToken = "0xa1e29b31"
+    UnsupportedVerifierToken = "0xe2372799"
 
 
 class EIP712CoordinatorError(Enum):
@@ -51,7 +51,7 @@ interval_mismatch_error = "Interval mismatch. The interval is not the current on
 interval_completed_error = (
     "Interval completed. Redundancy has been already met for the current interval"
 )
-unauthorized_prover_error = "Prover is not authorized."
+unauthorized_verifier_error = "Verifier is not authorized."
 node_responded_already_error = "Node already responded for this interval"
 subscription_not_found_error = "Subscription not found"
 proof_request_not_found_error = "Proof request not found"
@@ -61,8 +61,8 @@ subscription_completed_error = (
     "has likely already delivered the response"
 )
 subscription_not_active_error = "Subscription is not active"
-unsupported_prover_token_error = (
-    "Unsupported prover token. Attempting to pay a `IProver`-contract in a token it "
+unsupported_verifier_token_error = (
+    "Unsupported verifier token. Attempting to pay a `IVerifier`-contract in a token it "
     "does not support receiving payments in"
 )
 signer_mismatch_error = "Signer does not match."
@@ -106,14 +106,14 @@ def raise_if_infernet_error(e: ContractCustomError, sub: Subscription) -> None:
         CoordinatorError.InvalidWallet.value: invalid_wallet_error,
         CoordinatorError.IntervalMismatch.value: interval_mismatch_error,
         CoordinatorError.IntervalCompleted.value: interval_completed_error,
-        CoordinatorError.UnauthorizedProver.value: unauthorized_prover_error,
+        CoordinatorError.UnauthorizedVerifier.value: unauthorized_verifier_error,
         CoordinatorError.NodeRespondedAlready.value: node_responded_already_error,
         CoordinatorError.SubscriptionNotFound.value: subscription_not_found_error,
         CoordinatorError.ProofRequestNotFound.value: proof_request_not_found_error,
         CoordinatorError.NotSubscriptionOwner.value: not_subscription_owner_error,
         CoordinatorError.SubscriptionCompleted.value: subscription_completed_error,
         CoordinatorError.SubscriptionNotActive.value: subscription_not_active_error,
-        CoordinatorError.UnsupportedProverToken.value: unsupported_prover_token_error,
+        CoordinatorError.UnsupportedVerifierToken.value: unsupported_verifier_token_error,  # noqa: E501
         EIP712CoordinatorError.SignerMismatch.value: signer_mismatch_error,
         EIP712CoordinatorError.SignatureExpired.value: signature_expired_error,
         WalletError.TransferFailed.value: transfer_failed_error,

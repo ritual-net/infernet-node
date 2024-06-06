@@ -49,7 +49,7 @@ from __future__ import annotations
 
 import asyncio
 from functools import cache
-from typing import Any, Sequence, cast
+from typing import Any, Optional, Sequence, cast
 
 import validators  # type: ignore
 from async_lru import alru_cache
@@ -68,6 +68,7 @@ class RPC:
     """General interface over web3.py to expose commonly used functions.
 
     Public methods:
+        initialize: Initializes new web3.py client
         is_valid_address: Checks if provided string is valid ETH address
         get_keccak: Returns Solidity Keccak256 encoded values
         get_checksum_address: Returns checksum-validated ETH address
@@ -83,6 +84,9 @@ class RPC:
 
     Private attributes:
         _web3 (AsyncWeb3): Async web3.py client
+        _rpc_url (str): HTTP(s) RPC URL
+        _private_key (str): private key
+
     """
 
     def __init__(self: RPC, rpc_url: str, private_key: str) -> None:
@@ -90,6 +94,7 @@ class RPC:
 
         Args:
             rpc_url (str): HTTP(s) RPC url
+            private_key (str): private key
 
         Raises:
             ValueError: RPC URL is incorrectly formatted
@@ -101,7 +106,7 @@ class RPC:
 
         self._rpc_url = rpc_url
         self._private_key = private_key
-        self._web3: AsyncWeb3 | None = None
+        self._web3: Optional[AsyncWeb3] = None
 
     async def initialize(self: RPC) -> RPC:
         # Setup new Web3 HTTP provider w/ 10 minute timeout

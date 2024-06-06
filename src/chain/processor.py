@@ -33,7 +33,6 @@ from shared.message import (
 )
 from shared.service import AsyncTask
 from shared.subscription import Subscription
-from utils.constants import ZERO_ADDRESS
 from utils.logging import log
 
 # Blocked tx
@@ -143,6 +142,7 @@ class ChainProcessor(AsyncTask):
         _rpc (RPC): RPC instance
         _coordinator (Coordinator): Coordinator instance
         _wallet (Wallet): Wallet instance
+        _payment_wallet (PaymentWallet): PaymentWallet instance
         _wallet_checker (WalletChecker): WalletChecker instance
         _registry (Registry): Registry instance
         _subscriptions (dict[SubscriptionID, Subscription]): subscription ID => on-chain
@@ -208,7 +208,6 @@ class ChainProcessor(AsyncTask):
         self._attempts: dict[tuple[UnionID, Interval], int] = {}
         log.info("Initialized ChainProcessor")
         self._attempts_lock = asyncio.Lock()
-        self._nonce_lock = asyncio.Lock()
 
     def _track_created_message(
         self: ChainProcessor, msg: SubscriptionCreatedMessage
@@ -563,20 +562,30 @@ class ChainProcessor(AsyncTask):
     async def _stop_tracking_if_sub_owner_cant_pay(
         self: ChainProcessor, sub_id: SubscriptionID
     ) -> bool:
+        """
+        Check if the subscription owner can pay for the subscription. If not, stop
+        tracking the subscription. Checks for:
+        1. Invalid wallet
+        2. Insufficient balance
+
+        Args:
+            sub_id (SubscriptionID): subscription ID
+        """
         sub = self._subscriptions.get(sub_id)
         # checking if sub is None is necessary because the subscription may have been
         # deleted in _process_subscription
         if sub is None:
             return True
-        (_, requires_payment) = self._wallet_checker.matches_payment_requirements(sub)
-        if not requires_payment:
+
+        if not sub.provides_payment:
             return False
 
         banner = f"Skipping subscription: {sub_id}"
 
         if not await self._wallet_checker.is_valid_wallet(sub.wallet):
             log.info(
-                f"{banner}: Invalid subscription wallet",
+                f"{banner}: Invalid subscription wallet, please use a wallet generated "
+                f"by infernet's `WalletFactory`",
                 sub_id=sub.id,
                 wallet=sub.wallet,
             )
@@ -586,9 +595,10 @@ class ChainProcessor(AsyncTask):
         has_balance, balance = await self._wallet_checker.has_enough_balance(
             sub.wallet, sub.payment_token, sub.payment_amount
         )
+
         if not has_balance:
             log.info(
-                f"{banner}: Insufficient balance",
+                f"{banner}: Subscription wallet has insufficient balance",
                 sub_id=sub.id,
                 wallet=sub.wallet,
                 sub_amount=sub.payment_amount,
@@ -790,7 +800,7 @@ class ChainProcessor(AsyncTask):
         Returns:
             bool: True if the subscription has any infernet-related errors, else False
         """
-        if subscription.prover != ZERO_ADDRESS:
+        if subscription.requires_proof:
             return False
         try:
             await self._deliver(
@@ -859,7 +869,19 @@ class ChainProcessor(AsyncTask):
         delegated: bool,
         delegated_params: Optional[tuple[CoordinatorSignatureParams, dict[Any, Any]]],
     ) -> list[ContainerOutput | ContainerError]:
-        # todo: tell the container if an on-chain sub request needs proof
+        """
+        Execute containers for the subscription.
+
+        Args:
+            subscription (Subscription): subscription
+            delegated (bool): True if processing delegated subscription, else False
+            delegated_params (
+                Optional[tuple[CoordinatorSignatureParams, dict[Any, Any]]]
+            ): delegated subscription params: signature, data
+
+        Returns:
+            list[ContainerOutput | ContainerError]: container results
+        """
         if delegated:
             # Setup off-chain inputs
             parsed_params = cast(
@@ -974,10 +996,6 @@ class ChainProcessor(AsyncTask):
             delegated_params=delegated_params,
         )
 
-        if subscription.prover != ZERO_ADDRESS:
-            # allow wallet to be escrowed
-            await self._escrow_reward_in_wallet(subscription)
-
         # Check if some container response received
         # If none, prevent blocking pending queue and return
         if len(container_results) == 0:
@@ -999,7 +1017,7 @@ class ChainProcessor(AsyncTask):
             if subscription.is_callback:
                 self._stop_tracking(subscription.id, delegated)
             return
-        elif last_result.output.get("code") != "200":
+        elif (code := last_result.output.get("code")) is not None and code != "200":
             log.error(
                 "Container execution errored",
                 id=id,
@@ -1015,6 +1033,10 @@ class ChainProcessor(AsyncTask):
         else:
             log.info("Container execution succeeded", id=id, interval=interval)
             log.debug("Container output", last_result=last_result)
+
+        if subscription.requires_proof:
+            # escrow reward in wallet
+            await self._escrow_reward_in_wallet(subscription)
 
         # Serialize container output
         (input, output, proof) = self._serialize_container_output(last_result)

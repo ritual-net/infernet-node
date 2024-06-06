@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Tuple, cast
+from typing import Optional, Tuple, cast
 
 import structlog
 from eth_typing import ChecksumAddress
@@ -16,6 +16,7 @@ log = structlog.getLogger(__name__)
 
 class WalletChecker:
     """A class to check wallet validity and balance.
+
     A wallet is valid if it is instantiated through Infernet's `WalletFactory` contract.
 
     Public methods:
@@ -38,6 +39,7 @@ class WalletChecker:
         rpc: RPC,
         registry: Registry,
         container_configs: list[ConfigContainer],
+        payment_address: Optional[ChecksumAddress] = None,
     ):
         """
         Args:
@@ -45,11 +47,14 @@ class WalletChecker:
             registry (Registry): An instance of the Registry class.
             container_configs (list[ConfigContainer]): A list of container
             configurations.
+            payment_address (Optional[ChecksumAddress], optional): The payment address of
+                the node.
         """
         self._rpc = rpc
         self._registry = registry
+        self._payment_address: Optional[ChecksumAddress] = payment_address
         self._accepted_payments = {
-            container["id"]: container["accepted_payments"]
+            container["id"]: container.get("accepted_payments") or {}
             for container in container_configs
         }
 
@@ -117,28 +122,32 @@ class WalletChecker:
             balance = await self._erc20_balance(address, token)
         return balance >= amount, balance
 
-    def matches_payment_requirements(
-        self: WalletChecker, sub: Subscription
-    ) -> Tuple[bool, bool]:
+    def matches_payment_requirements(self: WalletChecker, sub: Subscription) -> bool:
         """
         Check if a subscription matches payment requirements.
+        1. Ensure that payment address is provided.
+        2. Check that the subscription matches the payment requirements.
 
         Args:
             sub (Subscription): The subscription to check.
 
         Returns:
-            Tuple[bool, bool]: A tuple containing a boolean indicating if the
-            subscription matches the payment requirements and a boolean indicating
-            if the node requires payment for that subscription.
+            bool: True if the subscription matches payment requirements, False otherwise.
         """
-
         skip_banner = f"Skipping subscription: {sub.id}"
-        matches = False
-        requires_payment = False
+
+        if self._payment_address is None and sub.provides_payment:
+            log.info(
+                f"{skip_banner}: No payment address provided for the node",
+                sub_id=sub.id,
+            )
+            return False
+
         for container in sub.containers:
-            if self._accepted_payments[container] == {}:
+            if not self._accepted_payments[container]:
                 # no payment requirements for this container, it allows everything
                 continue
+
             if sub.payment_token not in self._accepted_payments[container]:
                 log.info(
                     f"{skip_banner}: Token {sub.payment_token} not "
@@ -148,8 +157,11 @@ class WalletChecker:
                     container=container,
                     accepted_tokens=list(self._accepted_payments[container].keys()),
                 )
-                return matches, requires_payment
+                # doesn't match, but requires payment
+                return False
 
+        # minimum required payment for the subscription is the sum of the payment
+        # requirements of each container
         min_payment = sum(
             self._accepted_payments[container].get(sub.payment_token, 0)
             for container in sub.containers
@@ -164,7 +176,6 @@ class WalletChecker:
                 sub_amount=sub.payment_amount,
                 min_amount=min_payment,
             )
-            return matches, requires_payment
-        matches = True
-        requires_payment = min_payment != 0
-        return matches, requires_payment
+            return False
+
+        return True

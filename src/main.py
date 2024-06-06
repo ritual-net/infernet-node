@@ -82,27 +82,13 @@ class NodeLifecycle:
         # Initialize guardian + orchestrator
         container_lookup = ContainerLookup(config["containers"])
 
-        rpc = RPC(config["chain"]["rpc_url"], config["chain"]["wallet"]["private_key"])
-        asyncio.get_event_loop().run_until_complete(rpc.initialize())
-
-        registry = Registry(
-            rpc,
-            Web3.to_checksum_address(config["chain"]["registry_address"]),
-        )
-
-        # address population is an async operation, and needs to be awaited before
-        # other tasks are initialized
-        asyncio.get_event_loop().run_until_complete(registry.populate_addresses())
-
-        wallet_checker = WalletChecker(
-            rpc=rpc, registry=registry, container_configs=config["containers"]
-        )
+        chain_enabled = config["chain"]["enabled"]
 
         guardian = Guardian(
             config["containers"],
-            config["chain"]["enabled"],
+            chain_enabled,
             container_lookup=container_lookup,
-            wallet_checker=wallet_checker,
+            wallet_checker=None,
         )
 
         orchestrator = Orchestrator(manager, store)
@@ -114,15 +100,50 @@ class NodeLifecycle:
             dict[str, int], config["chain"].get("snapshot_sync", {})
         )
 
-        if config["chain"]["enabled"]:
+        if chain_enabled:
+            rpc = RPC(
+                config["chain"]["rpc_url"], config["chain"]["wallet"]["private_key"]
+            )
+
+            asyncio.get_event_loop().run_until_complete(rpc.initialize())
+
+            registry = Registry(
+                rpc,
+                Web3.to_checksum_address(config["chain"]["registry_address"]),
+            )
+
+            _payment_address = config["chain"]["wallet"].get("payment_address")
+
+            payment_address = (
+                _payment_address
+                if _payment_address is None
+                else Web3.to_checksum_address(_payment_address)
+            )
+
+            wallet_checker = WalletChecker(
+                rpc=rpc,
+                registry=registry,
+                container_configs=config["containers"],
+                payment_address=payment_address,
+            )
+
+            guardian = Guardian(
+                config["containers"],
+                chain_enabled,
+                container_lookup=container_lookup,
+                wallet_checker=wallet_checker,
+            )
+
+            # address population is an async operation, and needs to be awaited before
+            # other tasks are initialized
+            asyncio.get_event_loop().run_until_complete(registry.populate_addresses())
+
             coordinator = Coordinator(
                 rpc,
                 registry.coordinator,
                 container_lookup=container_lookup,
             )
-            payment_address = Web3.to_checksum_address(
-                config["chain"]["wallet"]["payment_address"]
-            )
+
             wallet = Wallet(
                 rpc,
                 coordinator,

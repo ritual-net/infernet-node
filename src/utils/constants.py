@@ -82,7 +82,7 @@ COORDINATOR_ABI = [
             {"name": "paymentToken", "type": "address", "internalType": "address"},
             {"name": "paymentAmount", "type": "uint256", "internalType": "uint256"},
             {"name": "wallet", "type": "address", "internalType": "address"},
-            {"name": "prover", "type": "address", "internalType": "address"},
+            {"name": "verifier", "type": "address", "internalType": "address"},
         ],
         "outputs": [{"name": "", "type": "uint32", "internalType": "uint32"}],
         "stateMutability": "nonpayable",
@@ -118,7 +118,7 @@ COORDINATOR_ABI = [
                     },
                     {"name": "lazy", "type": "bool", "internalType": "bool"},
                     {
-                        "name": "prover",
+                        "name": "verifier",
                         "type": "address",
                         "internalType": "address payable",
                     },
@@ -198,7 +198,7 @@ COORDINATOR_ABI = [
                     },
                     {"name": "lazy", "type": "bool", "internalType": "bool"},
                     {
-                        "name": "prover",
+                        "name": "verifier",
                         "type": "address",
                         "internalType": "address payable",
                     },
@@ -294,7 +294,7 @@ COORDINATOR_ABI = [
                     },
                     {"name": "lazy", "type": "bool", "internalType": "bool"},
                     {
-                        "name": "prover",
+                        "name": "verifier",
                         "type": "address",
                         "internalType": "address payable",
                     },
@@ -432,8 +432,8 @@ COORDINATOR_ABI = [
     {"type": "error", "name": "SubscriptionCompleted", "inputs": []},
     {"type": "error", "name": "SubscriptionNotActive", "inputs": []},
     {"type": "error", "name": "SubscriptionNotFound", "inputs": []},
-    {"type": "error", "name": "UnauthorizedProver", "inputs": []},
-    {"type": "error", "name": "UnsupportedProverToken", "inputs": []},
+    {"type": "error", "name": "UnauthorizedVerifier", "inputs": []},
+    {"type": "error", "name": "UnsupportedVerifierToken", "inputs": []},
 ]
 
 WALLET_FACTORY_ABI = [

@@ -25,7 +25,7 @@ vim config.json
 ### Required configuration parameters
 
 - **log_path** (`string`). The local file path for logging.
-- **startup_wait** (`float`, Optional). The number of seconds to wait for containers to start up before starting the node.
+- **startup_wait** (`float`, optional). The number of seconds to wait for containers to start up before starting the node.
 - **chain** (`object`). Chain configurations.
   - **enabled** (`boolean`). Whether chain is enabled on this node.
   - **trail_head_blocks** (`integer`). _if enabled_: how many blocks to stay behind head when syncing. Set to `0` to ignore.
@@ -34,12 +34,11 @@ vim config.json
   - **wallet** (`object`). _if enabled_:
     - **max_gas_limit** (`integer`). Maximum gas limit per node transaction
     - **private_key** (`string`). Node wallet private key
-    - **payment_address** (`string`). Public address of the node's escrow wallet.
-      This is an instance of Infernet's `Wallet` contract.
-    - **allowed_sim_errors** (`array[string]`). Allowed error messages to ignore when simulating transactions. Checks for inclusion in error message. Case-insensitive. i.e. `["out of gas"]` matches `"Contract reverted: Out of gas"`.
-  - **snapshot_sync** (`object`, Optional). Snapshot sync configurations.
-    - **sleep** (`float`, Optional).  Number of seconds to sleep between snapshot syncs. Defaults to `1.0`.
-    - **batch_size** (`int`, Optional). Number of subscriptions to sync in each batch. Defaults to `200`.
+    - **payment_address** (`string`, optional). Public address of the node's escrow wallet. This is an instance of Infernet's `Wallet` contract. If not provided, the node will skip subscriptions that provide payment.
+    - **allowed_sim_errors** (`array[string]`, optional). Allowed error messages to ignore when simulating transactions. Checks for inclusion in error message. Case-insensitive. i.e. `["out of gas"]` matches `"Contract reverted: Out of gas"`. Defaults to `[]`.
+  - **snapshot_sync** (`object`, optional). Snapshot sync configurations.
+    - **sleep** (`float`, optional).  Number of seconds to sleep between snapshot syncs. Defaults to `1.0`.
+    - **batch_size** (`int`, optional). Number of subscriptions to sync in each batch. Defaults to `200`.
 - **docker** (`object`, optional). Docker credentials to pull private containers with
   - **username** (`string`). The Dockerhub username.
   - **password** (`string`). The Dockerhub [Personal Access Token](https://docs.docker.com/security/for-developers/access-tokens/) (PAT).
@@ -50,15 +49,18 @@ vim config.json
     - **command** (`string`). The command and flags to run the container with.
     - **env** (`object`). The environment variables to pass into the container.
     - **port** (`integer`). Local port to expose this container on.
-    - **rate_limit** (`object`). REST server rate-limiting configurations.
-      - **num_requests** (`integer`). Maximum number of requests per `period`.
-      - **period** (`float`). Time period in seconds for `num_requests`.
+    - **rate_limit** (`object`, optional). REST server rate-limiting configurations. If not provided, defaults are used.
+      - **num_requests** (`integer`, optional). Maximum number of requests per `period`. Defaults to `60`.
+      - **period** (`float`, optional). Time period in seconds for allowing `num_requests`. Defaults to `60.0`.
     - **external** (`boolean`). Whether this container can be the first container in a [JobRequest](https://docs.ritual.net/infernet/node/api#jobrequest).
     - **description** (`string`, optional). Description of service provided by this container.
     - **allowed_ips** (`array[string]`). Container-level firewall. Only specified IPs and/or [CIDR blocks](https://www.ipaddressguide.com/cidr) allowed to request execution of this container.
       - _Leave empty for no restrictions_.
     - **allowed_addresses** (`array[string]`). Container-level firewall. Only specified addresses allowed to request execution of this container, with request originating from on-chain contract.
       - _Leave empty for no restrictions_.
+    - **accepted_payments** (`dict[string, string]`, optional). Payment configurations for this container. This is a dictionary of accepted token addresses (zero address for native token i.e. ETH) and their corresponding minimum payment amount. If not provided, no payments will be received. If provided, subscriptions that don't meet these requirements will be skipped.
+      - _Leave empty for no payment requirements_.
+    - **generates_proofs** (`boolean`). Whether this container generates proofs. Defaults to `false`. If `false`, the node will skip subscriptions that require proofs from this container.
     - **allowed_delegate_addresses** (`array[string]`). Container-level firewall. Only specified addresses allowed to request execution of this container, with request originating from on-chain contract but via off-chain delegate subscription (with this address corresponding to the delegate subscription `owner`).
       - _Leave empty for no restrictions_.
     - **gpu** (`boolean`). Whether this should be a GPU-enabled container. Host must also be GPU-enabled.
