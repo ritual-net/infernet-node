@@ -32,3 +32,11 @@ jobs:
       uses: pre-commit/action@v3.0.0
       with:
         extra_args: --all-files --show-diff-on-failure
+
+    - name: Build docker images
+      run: make build
+
+    - name: Publish docker images
+      run: make publish
+
+#    - name: Run e2e tests on infernet-monorepo
