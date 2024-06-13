@@ -232,7 +232,7 @@ class ContainerManager(AsyncTask):
             current_containers = self.running_containers
 
             # Show ASCII status in logs
-            log_ascii_status(f"Running containers: {current_containers}", True)
+            log_ascii_status(f"Running containers: {current_containers}", "success")
 
             # Check if any containers exited / crashed
             if len(current_containers) < len(running_containers):

@@ -22,7 +22,7 @@ from shared import AsyncTask
 from utils import log, setup_logging
 from utils.config import ConfigDict, load_validated_config
 from utils.logging import log_ascii_status
-from version import __version__
+from version import __version__, check_node_is_up_to_date
 
 
 class NodeLifecycle:
@@ -196,6 +196,8 @@ class NodeLifecycle:
             )
             self._tasks.append(self._stat_sender)
 
+        check_node_is_up_to_date()
+
     async def _lifecycle_setup(self: NodeLifecycle) -> None:
         """Process async setup lifecycles for tasks"""
         log.info("Running node lifecycle setup")
@@ -226,7 +228,7 @@ class NodeLifecycle:
             if exception:
                 stack = str(task.get_stack())
                 log.error(stack)
-                log_ascii_status(f"Node exited{': ' + str(exception)}", False)
+                log_ascii_status(f"Node exited{': ' + str(exception)}", "failure")
 
                 # Send error to fluentbit
                 if self._stat_sender:

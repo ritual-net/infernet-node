@@ -1,4 +1,5 @@
 import logging
+from typing import Literal
 
 import pyfiglet  # type: ignore
 import structlog
@@ -71,20 +72,32 @@ def setup_logging(log_path: str = "/tmp/infernet_node.log") -> None:
 RITUAL_LABEL = pyfiglet.figlet_format("RITUAL", font=PIGLET_FONT)
 
 
-def log_ascii_status(message: str, success: bool) -> None:
+def log_ascii_status(
+    message: str, success: Literal["success", "failure", "warning"]
+) -> None:
     """Display ASCII art status message with colorized text
 
     Args:
         message (str): Message to display
-        success (bool): Status of message
+        success (Literal["success", "failure", "warning"]): Status of message
     """
 
-    color = "bold green" if success else "bold red"
-
-    def _colorize(text: str) -> str:
+    def _colorize(text: str, color: str) -> str:
         return f"[{color}]{text}[/{color}]"
 
-    print(
-        f"\n{_colorize(RITUAL_LABEL)}\n"
-        f"Status: {_colorize('SUCCESS' if success else 'FAILURE')} " + message
-    )
+    match success:
+        case "success":
+            print(
+                f"\n{_colorize(RITUAL_LABEL, 'bold green')}\n"
+                f"Status: {_colorize('SUCCESS', 'bold green')} " + message
+            )
+        case "failure":
+            print(
+                f"\n{_colorize(RITUAL_LABEL, 'bold red')}\n"
+                f"Status: {_colorize('FAILURE', 'bold red')} " + message
+            )
+        case "warning":
+            print(
+                f"\n{_colorize(RITUAL_LABEL, 'bold yellow')}\n"
+                f"Status: {_colorize('WARNING', 'bold yellow')} " + message
+            )
