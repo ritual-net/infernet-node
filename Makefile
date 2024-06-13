@@ -50,7 +50,12 @@ register-node:
 activate-node:
 	@PYTHONPATH=$$PYTHONPATH:src python3.11 scripts/activate_node.py
 
-tag ?= 1.0.0
+# Get the current git commit hash
+GIT_COMMIT_HASH := $(shell git rev-parse --short HEAD)
+
+# Set the tag to include commit hash
+tag ?= $(GIT_COMMIT_HASH)
+
 image_id = ritualnetwork/infernet-node:$(tag)
 
 build:
