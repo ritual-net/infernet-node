@@ -57,6 +57,9 @@ build:
 	docker build -t $(image_id) .
 	docker build -t $(image_id)-gpu -f Dockerfile-gpu .
 
+publish:
+	docker image push $(image_id)
+
 run-node:
 	docker-compose -f deploy/docker-compose.yaml up
 
