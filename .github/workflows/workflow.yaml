@@ -12,11 +12,42 @@ on:
       - main
 
 jobs:
-  node:
+  e2e-tests:
     runs-on: ubuntu-latest
 
     env:
       GH_TOKEN: ${{ secrets.MACHINE_USER_PAT }}
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies (python)
+        run: |
+          pip install -r requirements.lock
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build docker images
+        run: make build
+
+      - name: Publish docker images
+        run: make publish
+
+      - name: Setup upterm session
+        uses: lhotari/action-upterm@v1
+
+  node:
+    runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
@@ -31,24 +62,7 @@ jobs:
       run: |
         pip install -r requirements.lock
 
-#    - name: Run pre-commit hooks
-#      uses: pre-commit/action@v3.0.0
-#      with:
-#        extra_args: --all-files --show-diff-on-failure
-
-    - name: Login to Docker Hub
-      uses: docker/login-action@v3
+    - name: Run pre-commit hooks
+      uses: pre-commit/action@v3.0.0
       with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-    - name: Build docker images
-      run: make build
-
-    - name: Publish docker images
-      run: make publish
-
-    - name: Setup upterm session
-      uses: lhotari/action-upterm@v1
-
-#    - name: Run e2e tests on infernet-monorepo
+        extra_args: --all-files --show-diff-on-failure
