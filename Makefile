@@ -56,7 +56,7 @@ GIT_COMMIT_HASH := $(shell git rev-parse --short HEAD)
 # Set the tag to include commit hash
 tag ?= $(GIT_COMMIT_HASH)
 
-image_id = ritualnetwork/infernet-node:$(tag)
+image_id = ritualnetwork/infernet-node-internal:$(tag)
 
 build:
 	docker build -t $(image_id) .
