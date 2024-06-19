@@ -46,7 +46,7 @@ jobs:
       - name: Setup upterm session
         uses: lhotari/action-upterm@v1
 
-  node:
+  pre-compile:
     runs-on: ubuntu-latest
 
     steps:
