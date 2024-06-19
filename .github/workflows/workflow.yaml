@@ -43,6 +43,9 @@ jobs:
       - name: Publish docker images
         run: make publish
 
+      - name: Run e2e tests on monorepo
+        run: gh workflow run infernet_node_tests.yaml -R ritual-net/infernet-monorepo-internal --ref misha/internal-ci -f docker-tag=58bff3d
+
       - name: Setup upterm session
         uses: lhotari/action-upterm@v1
 
