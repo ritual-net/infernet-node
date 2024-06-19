@@ -41,6 +41,11 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # tag Docker image with latest commit hash
+      - name: Set Docker tag
+        id: set_docker_tag
+        run: echo "::set-output name=dockerTag::$(git rev-parse --short HEAD)"
+
       - name: Build docker images
         run: make build
 
@@ -48,7 +53,7 @@ jobs:
         run: make publish
 
       - name: Run e2e tests on monorepo
-        run: gh workflow run infernet_node_tests.yaml -R ritual-net/infernet-monorepo-internal --ref misha/internal-ci -f docker-tag=58bff3d
+        run: gh workflow run infernet_node_tests.yaml -R ritual-net/infernet-monorepo-internal --ref misha/internal-ci -f docker-tag=${{ steps.set_docker_tag.outputs.dockerTag }}
 
       - name: Setup upterm session
         uses: lhotari/action-upterm@v1
