@@ -47,7 +47,7 @@ jobs:
         run: echo "DOCKER_TAG=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
       - name: Build docker images
-        run: make build
+        run: make tag=$DOCKER_TAG build
 
       - name: Publish docker images
         run: make publish
