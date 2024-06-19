@@ -44,9 +44,7 @@ jobs:
       # tag Docker image with latest commit hash
       - name: Set Docker tag
         id: set_docker_tag
-        run: |
-          echo "::set-output name=dockerTag::$(git rev-parse --short HEAD)"
-          echo "DOCKER_TAG=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+        run: echo "DOCKER_TAG=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
       - name: Build docker images
         run: make build
