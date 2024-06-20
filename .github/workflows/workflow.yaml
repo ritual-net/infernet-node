@@ -46,9 +46,6 @@ jobs:
         id: set_docker_tag
         run: echo "DOCKER_TAG=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
-#      - name: Setup upterm session
-#        uses: lhotari/action-upterm@v1
-
       - name: Build docker images
         run: make tag=$DOCKER_TAG build
 
@@ -56,9 +53,11 @@ jobs:
         run: make publish
 
       - name: Run e2e node tests on monorepo
+        # will point this to main branch after infernet-monorepo PR is merged
         run: gh workflow run infernet_node_tests.yaml -R ritual-net/infernet-monorepo-internal --ref misha/internal-ci -f docker-tag=$DOCKER_TAG
 
       - name: Run e2e service tests on monorepo
+        # will point this to main branch after infernet-monorepo PR is merged
         run: gh workflow run infernet_services_tests.yaml -R ritual-net/infernet-monorepo-internal --ref misha/internal-ci -f docker-tag=$DOCKER_TAG
 
   pre-compile:
