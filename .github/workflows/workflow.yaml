@@ -52,25 +52,8 @@ jobs:
       - name: Publish docker images
         run: make publish
 
-#      - name: Run e2e tests on monorepo 1
-#        uses: peter-evans/repository-dispatch@v3
-#        with:
-#          token: ${{ secrets.MACHINE_USER_PAT }}
-#          repository: ritual-net/infernet-monorepo-internal
-#          event-type: run-e2e-node-tests-event
-#          client-payload: |-
-#            {
-#              "repo": {
-#                "branch": "misha/internal-ci",
-#                "docker-tag": "$DOCKER_TAG"
-#              }
-#            }
-
       - name: Run e2e node tests on monorepo 2
         run: gh workflow run infernet_node_tests.yaml -R ritual-net/infernet-monorepo-internal --ref misha/internal-ci -f docker-tag=$DOCKER_TAG
-
-#      - name: Setup upterm session
-#        uses: lhotari/action-upterm@v1
 
   pre-compile:
     runs-on: ubuntu-latest
