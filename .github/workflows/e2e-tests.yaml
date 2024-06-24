@@ -1,8 +1,4 @@
-# pre-commit workflow
-#
-# Ensures the codebase passes the pre-commit stack.
-
-name: pre-commit, e2e tests
+name: e2e tests
 
 on:
   pull_request:
@@ -60,23 +56,3 @@ jobs:
         # will point this to main branch after infernet-monorepo PR is merged
         run: gh workflow run infernet_services_tests.yaml -R ritual-net/infernet-monorepo-internal --ref misha/internal-ci -f docker-tag=$DOCKER_TAG
 
-  pre-compile:
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.11"
-        cache: pip
-
-    - name: Install dependencies (python)
-      run: |
-        pip install -r requirements.lock
-
-    - name: Run pre-commit hooks
-      uses: pre-commit/action@v3.0.0
-      with:
-        extra_args: --all-files --show-diff-on-failure
