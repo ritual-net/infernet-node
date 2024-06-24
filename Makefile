@@ -60,7 +60,9 @@ image_id = ritualnetwork/infernet-node-internal:$(tag)
 
 build:
 	docker build -t $(image_id) .
-	#docker build -t $(image_id)-gpu -f Dockerfile-gpu .
+
+build-gpu:
+	docker build -t $(image_id)-gpu -f Dockerfile-gpu .
 
 publish:
 	docker image push $(image_id)
