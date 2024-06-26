@@ -13,6 +13,7 @@ from quart_rate_limiter import RateLimiter, rate_limit
 
 from chain.processor import ChainProcessor
 from orchestration import ContainerManager, DataStore, Guardian, Orchestrator
+from server.utils import is_local_ip
 from shared import AsyncTask, JobResult
 from shared.message import (
     BaseMessage,
@@ -476,7 +477,11 @@ class RESTServer(AsyncTask):
             """Stores job status in data store"""
 
             # Only allow localhost to store job status
-            if request.remote_addr not in ["127.0.0.1", "::1"]:
+            if request.remote_addr is None or not is_local_ip(request.remote_addr):
+                log.warning(
+                    "Unauthorized attempt to store job status",
+                    remote_addr=request.remote_addr,
+                )
                 return jsonify({"error": "Unauthorized"}), 403
 
             try:
