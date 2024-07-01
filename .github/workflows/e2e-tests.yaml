@@ -49,9 +49,7 @@ jobs:
         run: make publish
 
       - name: Run e2e node tests on monorepo
-        # will point this to main branch after infernet-monorepo PR is merged
         run: gh workflow run infernet_node_tests.yaml -R ritual-net/infernet-monorepo-internal --ref dev -f docker-tag=$DOCKER_TAG
 
       - name: Run e2e service tests on monorepo
-        # will point this to main branch after infernet-monorepo PR is merged
         run: gh workflow run infernet_services_tests.yaml -R ritual-net/infernet-monorepo-internal --ref dev -f docker-tag=$DOCKER_TAG
