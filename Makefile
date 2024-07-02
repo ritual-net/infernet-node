@@ -50,12 +50,22 @@ register-node:
 activate-node:
 	@PYTHONPATH=$$PYTHONPATH:src python3.11 scripts/activate_node.py
 
-tag ?= 1.0.0
-image_id = ritualnetwork/infernet-node:$(tag)
+# Get the current git commit hash
+GIT_COMMIT_HASH := $(shell git rev-parse --short HEAD)
+
+# Set the tag to include commit hash
+tag ?= $(GIT_COMMIT_HASH)
+
+image_id = ritualnetwork/infernet-node-internal:$(tag)
 
 build:
 	docker build -t $(image_id) .
+
+build-gpu:
 	docker build -t $(image_id)-gpu -f Dockerfile-gpu .
+
+publish:
+	docker image push $(image_id)
 
 run-node:
 	docker-compose -f deploy/docker-compose.yaml up
