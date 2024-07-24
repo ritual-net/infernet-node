@@ -1,4 +1,5 @@
 import logging
+import logging.handlers
 from typing import Literal
 
 import pyfiglet  # type: ignore
@@ -46,7 +47,13 @@ def setup_logging(log_path: str = "/tmp/infernet_node.log") -> None:
 
     # Setup log handlers
     console_handler = logging.StreamHandler()  # Stream to sys.stderr
-    file_handler = logging.FileHandler(log_path)  # Stream to file
+
+    # Use RotatingFileHandler to limit log file size
+    max_file_size = 100 * 1024 * 1024  # 100 MB
+    backup_count = 10  # Keep 10 backup files, ~1 GB total
+    file_handler = logging.handlers.RotatingFileHandler(
+        log_path, maxBytes=max_file_size, backupCount=backup_count
+    )
 
     # Setup log formatting
     console_handler.setFormatter(
