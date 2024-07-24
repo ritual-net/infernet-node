@@ -76,10 +76,18 @@ class ConfigRedis(TypedDict):
     port: int
 
 
+class ConfigLog(TypedDict):
+    """Expected config[log] format"""
+
+    path: str
+    max_file_size: Optional[int]
+    backup_count: Optional[int]
+
+
 class ConfigDict(TypedDict):
     """Expected config format"""
 
-    log_path: str
+    log: ConfigLog
     manage_containers: Optional[bool]
     server: ConfigServer
     chain: ConfigChain
@@ -100,7 +108,7 @@ class ValidationItem(NamedTuple):
 
 # Config dict path => expected type
 VALIDATION_CONFIG: list[ValidationItem] = [
-    ValidationItem("log_path", str),
+    ValidationItem("log.path", str),
     ValidationItem("server.port", int),
     ValidationItem("chain.enabled", bool),
     ValidationItem("chain.rpc_url", str),

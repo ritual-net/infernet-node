@@ -24,7 +24,6 @@ vim config.json
 
 ### Required configuration parameters
 
-- **log_path** (`string`). The local file path for logging.
 - **startup_wait** (`float`, optional). The number of seconds to wait for containers to start up before starting the node.
 - **chain** (`object`). Chain configurations.
   - **enabled** (`boolean`). Whether chain is enabled on this node.
@@ -68,6 +67,10 @@ vim config.json
 
 ### Sane default configuration parameters
 
+- **log** (`object`). Logging configurations
+  - **path** (`string`). The local file path for logging.
+  - **max_file_size** (`integer`, optional). The maximum file size for the log file in bytes. Defaults to `1000000000` (i.e. `1 GB`).
+  - **backup_count** (`integer`, optional). The number of latest historical log files to retain, before permanen deletion. Defaults to `2`.
 - **server** (`object`). Server configurations.
   - **port** (`integer`). Port to run server on. Defaults to `4000`.
 - **redis** (`object`). Redis configurations.

@@ -64,7 +64,11 @@ class NodeLifecycle:
         config: ConfigDict = load_validated_config(config_path)
 
         # Setup logging
-        setup_logging(config["log_path"])
+        setup_logging(
+            config["log"]["path"],
+            config["log"].get("max_file_size"),
+            config["log"].get("backup_count"),
+        )
         log.info("Running startup", chain_enabled=config["chain"]["enabled"])
 
         # Initialize container manager

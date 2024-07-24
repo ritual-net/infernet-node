@@ -1,6 +1,6 @@
 import logging
 import logging.handlers
-from typing import Literal
+from typing import Literal, Optional
 
 import pyfiglet  # type: ignore
 import structlog
@@ -23,13 +23,21 @@ SHARED_PROCESSORS: list[Processor] = [
 # Font for ASCII art, taken from http://www.figlet.org/examples.html
 PIGLET_FONT = "o8"
 
+DEFAULT_MAX_FILE_SIZE = 1000 * 1000 * 1000  # Default to 1GB log file size
+DEFAULT_BACKUP_COUNT = 2  # Default to 2 log files to keep
 
-def setup_logging(log_path: str = "/tmp/infernet_node.log") -> None:
+
+def setup_logging(
+    path: str,
+    max_file_size: Optional[int],
+    backup_count: Optional[int],
+) -> None:
     """Setup logging configuration
 
     Args:
-        log_path (str, optional): Path for log file. Defaults to
-            "/app/infernet_node.log".
+        path (str): Path for log file.
+        max_file_size (int, optional): Max size of log file before rollover.
+        backup_count (int, optional): Number of log files to keep.
     """
 
     # Configure structlog
@@ -49,10 +57,10 @@ def setup_logging(log_path: str = "/tmp/infernet_node.log") -> None:
     console_handler = logging.StreamHandler()  # Stream to sys.stderr
 
     # Use RotatingFileHandler to limit log file size
-    max_file_size = 100 * 1024 * 1024  # 100 MB
-    backup_count = 10  # Keep 10 backup files, ~1 GB total
     file_handler = logging.handlers.RotatingFileHandler(
-        log_path, maxBytes=max_file_size, backupCount=backup_count
+        path,
+        maxBytes=DEFAULT_MAX_FILE_SIZE if max_file_size is None else max_file_size,
+        backupCount=DEFAULT_BACKUP_COUNT if backup_count is None else backup_count,
     )
 
     # Setup log formatting
