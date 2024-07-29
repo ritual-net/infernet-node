@@ -23,7 +23,7 @@ SHARED_PROCESSORS: list[Processor] = [
 # Font for ASCII art, taken from http://www.figlet.org/examples.html
 PIGLET_FONT = "o8"
 
-DEFAULT_MAX_FILE_SIZE = 1000 * 1000 * 1000  # Default to 1GB log file size
+DEFAULT_MAX_FILE_SIZE = 2**30  # Default to 1GB log file size
 DEFAULT_BACKUP_COUNT = 2  # Default to 2 log files to keep
 
 
@@ -88,19 +88,19 @@ RITUAL_LABEL = pyfiglet.figlet_format("RITUAL", font=PIGLET_FONT)
 
 
 def log_ascii_status(
-    message: str, success: Literal["success", "failure", "warning"]
+    message: str, status: Literal["success", "failure", "warning"]
 ) -> None:
     """Display ASCII art status message with colorized text
 
     Args:
         message (str): Message to display
-        success (Literal["success", "failure", "warning"]): Status of message
+        status (Literal["success", "failure", "warning"]): Status of message
     """
 
     def _colorize(text: str, color: str) -> str:
         return f"[{color}]{text}[/{color}]"
 
-    match success:
+    match status:
         case "success":
             print(
                 f"\n{_colorize(RITUAL_LABEL, 'bold green')}\n"

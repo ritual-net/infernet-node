@@ -29,13 +29,4 @@ def is_local_ip(ip: str) -> bool:
         return True
 
     # Check if the IP is in any of the Docker subnets
-    try:
-        ip_addr = ipaddress.ip_address(ip)
-        for subnet in docker_subnets:
-            if ip_addr in subnet:
-                return True
-    except ValueError:
-        # In case the IP address is not valid
-        pass
-
-    return False
+    return any(ipaddress.ip_address(ip) in subnet for subnet in docker_subnets)
