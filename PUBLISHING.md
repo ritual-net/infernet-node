@@ -8,6 +8,7 @@ repo public:
 * [ ] Update docker image names `*-internal` to their public counterparts.
 * [ ] Update the docker tag `my-branch-name` references in the `Makefile` to both `latest` as well as specific version: i.e.`0.3.0`.
 * [ ] Update the status badge URL
+* [ ] Set `version.py`
 
 ### `Changelog.md`
 * [ ] Date + Tag "unreleased" section in [CHANGELOG.md](CHANGELOG.md) should be updated to the release date and version number.
