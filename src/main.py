@@ -67,7 +67,7 @@ class NodeLifecycle:
         setup_logging(config.get("log"))
         check_node_is_up_to_date()
 
-        log.info("Running startup", chain_enabled=config["chain"]["enabled"])
+        log.debug("Running startup", chain_enabled=config["chain"]["enabled"])
 
         # Initialize container manager
         manager = ContainerManager(
@@ -200,7 +200,7 @@ class NodeLifecycle:
 
     async def _lifecycle_setup(self: NodeLifecycle) -> None:
         """Process async setup lifecycles for tasks"""
-        log.info("Running node lifecycle setup")
+        log.debug("Running node lifecycle setup")
         await asyncio.gather(*(resource.setup() for resource in self._tasks))
 
     async def _lifecycle_run(self: NodeLifecycle) -> int:
@@ -262,7 +262,7 @@ class NodeLifecycle:
         # Cleanup all tasks
         await asyncio.gather(*(task.cleanup() for task in self._tasks))
 
-        log.info("Shutdown complete.")
+        log.debug("Shutdown complete.")
 
     def lifecycle_main(self: NodeLifecycle) -> None:
         """Node lifecycle

@@ -106,7 +106,7 @@ class Guardian:
             for container in configs
         }
 
-        log.info("Initialized Guardian")
+        log.debug("Initialized Guardian")
 
     @property
     def wallet_checker(self: Guardian) -> WalletChecker:
@@ -396,7 +396,7 @@ class Guardian:
                 containers_hash=subscription.containers_hash,
             )
 
-        log.info(f"Subscription containers: {subscription.containers}")
+        log.debug(f"Subscription containers: {subscription.containers}")
 
         # Filter out internal first container
         if not self._is_external(subscription.containers[0]):

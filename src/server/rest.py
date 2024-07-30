@@ -94,7 +94,7 @@ class RESTServer(AsyncTask):
         self._version = version
         self._wallet_address = wallet_address
 
-        log.info("Initialized RESTServer", port=self._port)
+        log.debug("Initialized RESTServer", port=self._port)
 
     async def setup(self: RESTServer) -> None:
         """Run RESTServer setup"""
@@ -193,7 +193,7 @@ class RESTServer(AsyncTask):
 
                     # Parse message data, inject uuid and client IP
                     job_id = str(uuid4())  # Generate a unique job ID
-                    log.info(
+                    log.debug(
                         "Received new off-chain raw message", msg=data, job_id=job_id
                     )
                     parsed: OffchainMessage = from_union(
@@ -253,7 +253,7 @@ class RESTServer(AsyncTask):
                     return_obj = {"id": str(message.id)}
 
                 elif message.type == MessageType.DelegatedSubscription:
-                    log.info(
+                    log.debug(
                         "Received delegated subscription request",
                         endpoint=request.path,
                         method=request.method,
@@ -276,7 +276,7 @@ class RESTServer(AsyncTask):
                     return_obj = {}
 
                 # Return created message ID
-                log.info(
+                log.debug(
                     "Processed REST response",
                     endpoint=request.path,
                     method=request.method,
@@ -322,7 +322,7 @@ class RESTServer(AsyncTask):
             message = cast(OffchainJobMessage, message)
 
             # Return created message ID
-            log.info(
+            log.debug(
                 "Processed REST response",
                 endpoint=request.path,
                 method=request.method,
@@ -420,7 +420,7 @@ class RESTServer(AsyncTask):
                             results.append({"error": "Could not parse message"})
 
                 # Return created message IDs or errors
-                log.info(
+                log.debug(
                     "Processed REST response",
                     endpoint=request.path,
                     method=request.method,

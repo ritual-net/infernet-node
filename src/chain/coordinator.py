@@ -58,7 +58,7 @@ from eth_typing import BlockNumber, ChecksumAddress, Hash32, HexStr
 from hexbytes import HexBytes
 from web3.constants import ADDRESS_ZERO
 from web3.contract.async_contract import AsyncContractFunction
-from web3.types import FilterParams, LogReceipt, Nonce, TxParams
+from web3.types import Nonce, TxParams
 
 from chain.container_lookup import ContainerLookup
 from chain.rpc import RPC
@@ -175,7 +175,7 @@ class Coordinator:
             address=self._checksum_address,
             abi=COORDINATOR_ABI,
         )
-        log.info("Initialized Coordinator", address=self._checksum_address)
+        log.debug("Initialized Coordinator", address=self._checksum_address)
 
     @cache
     def get_event_hashes(self: Coordinator) -> dict[CoordinatorEvent, str]:
@@ -490,34 +490,3 @@ class Coordinator:
                 block_identifier=block_number
             ),
         )
-
-    async def get_event_logs(
-        self: Coordinator, start_block: BlockNumber, end_block: BlockNumber
-    ) -> list[LogReceipt]:
-        """Collects all Coordinator-emitted events in block range
-
-        Args:
-            start_block (BlockNumber): start block (inclusive, collection range)
-            end_block (BlockNumber): end block (inclusive, collection range)
-
-        Returns:
-            list[LogReceipt]: collected logs
-        """
-        log.info(
-            "Setting filter params",
-            address=self._checksum_address,
-            fromBlock=start_block,
-            toBlock=end_block,
-            topics=[list(cast(TopicType, self.get_event_hashes().values()))],
-        )
-
-        # Setup filter parameters
-        params = FilterParams(
-            address=self._checksum_address,
-            fromBlock=start_block,
-            toBlock=end_block,
-            topics=[list(cast(TopicType, self.get_event_hashes().values()))],
-        )
-
-        # Return collected logs
-        return await self._rpc.get_event_logs(params)

@@ -86,7 +86,7 @@ class ContainerLookup:
         self._container_lookup = {
             _calculate_hash(perm): perm.split(",") for perm in all_permutations
         }
-        log.info(f"Initialized container lookup: {self._container_lookup}")
+        log.debug(f"Initialized container lookup: {self._container_lookup}")
 
     def get_containers(self: ContainerLookup, _hash: str) -> List[str]:
         """
