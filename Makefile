@@ -54,9 +54,9 @@ activate-node:
 GIT_COMMIT_HASH := $(shell git rev-parse --short HEAD)
 
 # Set the tag to include commit hash
-tag ?= $(GIT_COMMIT_HASH)
+tag ?= 1.1.0
 
-image_id = ritualnetwork/infernet-node-internal:$(tag)
+image_id = ritualnetwork/infernet-node:$(tag)
 
 build:
 	docker build -t $(image_id) .
