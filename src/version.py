@@ -1,6 +1,7 @@
 __version__ = "1.1.0"
 
-from typing import Any
+
+import re
 
 import requests
 
@@ -18,16 +19,18 @@ def check_node_is_up_to_date() -> None:
             log.warning(f"Failed to fetch latest node version ({response.text})")
             return
 
-        namespace: dict[str, Any] = {}
-        exec(response.text, namespace)
-        if version := namespace.get("__version__"):
-            if version != __version__:
-                log_ascii_status(
-                    f"Your node version (v{__version__}) does not match with latest "
-                    f"release (v{version}). Consider updating your node.",
-                    "warning",
-                )
-        else:
+        # extract the version from atop the file
+        regex = r"__version__ = \"([0-9]+\.[0-9]+\.[0-9]+)\""
+        matches = re.findall(regex, response.text)
+        version = matches[0]
+
+        if not version:
             log.warning("Latest version not found")
+        elif version != __version__:
+            log_ascii_status(
+                f"Your node version (v{__version__}) does not match with latest "
+                f"release (v{version}). Consider updating your node.",
+                "warning",
+            )
     except Exception as e:
         log.warning(e)

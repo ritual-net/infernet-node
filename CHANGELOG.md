@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 - ##### The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - ##### This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [1.1.0] - 2024-07-30
 
 ### Added
 
@@ -14,7 +14,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Logger now uses RotatingFileHandler to limit disk space impact.
-- `config.json` now requires `log` object, with new configuration options `max_file_size` and `backup_count` for managing logging.
+- `config.json` now accepts optional `log` object, with new configuration options `max_file_size` and `backup_count` for managing logging.
 
 ### Fixed
 

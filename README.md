@@ -67,9 +67,9 @@ vim config.json
 
 ### Sane default configuration parameters
 
-- **log** (`object`). Logging configurations
-  - **path** (`string`). The local file path for logging.
-  - **max_file_size** (`integer`, optional). The maximum file size for the log file in bytes. Defaults to `1000000000` (i.e. `1 GB`).
+- **log** (`object`, optional). Logging configurations
+  - **path** (`string`, optional). The local file path for logging. Defaults to `infernet_node.log`.
+  - **max_file_size** (`integer`, optional). The maximum file size for the log file in bytes. Defaults to `2^30` (i.e. `1 GB`).
   - **backup_count** (`integer`, optional). The number of latest historical log files to retain, before permanent deletion. Defaults to `2`.
 - **server** (`object`). Server configurations.
   - **port** (`integer`). Port to run server on. Defaults to `4000`.
