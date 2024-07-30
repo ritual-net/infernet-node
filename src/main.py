@@ -22,7 +22,7 @@ from shared import AsyncTask
 from utils import log, setup_logging
 from utils.config import ConfigDict, load_validated_config
 from utils.logging import log_ascii_status
-from version import __version__
+from version import __version__, check_node_is_up_to_date
 
 
 class NodeLifecycle:
@@ -64,8 +64,10 @@ class NodeLifecycle:
         config: ConfigDict = load_validated_config(config_path)
 
         # Setup logging
-        setup_logging(config["log_path"])
-        log.info("Running startup", chain_enabled=config["chain"]["enabled"])
+        setup_logging(config.get("log"))
+        check_node_is_up_to_date()
+
+        log.debug("Running startup", chain_enabled=config["chain"]["enabled"])
 
         # Initialize container manager
         manager = ContainerManager(
@@ -198,7 +200,7 @@ class NodeLifecycle:
 
     async def _lifecycle_setup(self: NodeLifecycle) -> None:
         """Process async setup lifecycles for tasks"""
-        log.info("Running node lifecycle setup")
+        log.debug("Running node lifecycle setup")
         await asyncio.gather(*(resource.setup() for resource in self._tasks))
 
     async def _lifecycle_run(self: NodeLifecycle) -> int:
@@ -226,7 +228,7 @@ class NodeLifecycle:
             if exception:
                 stack = str(task.get_stack())
                 log.error(stack)
-                log_ascii_status(f"Node exited{': ' + str(exception)}", False)
+                log_ascii_status(f"Node exited{': ' + str(exception)}", "failure")
 
                 # Send error to fluentbit
                 if self._stat_sender:
@@ -260,7 +262,7 @@ class NodeLifecycle:
         # Cleanup all tasks
         await asyncio.gather(*(task.cleanup() for task in self._tasks))
 
-        log.info("Shutdown complete.")
+        log.debug("Shutdown complete.")
 
     def lifecycle_main(self: NodeLifecycle) -> None:
         """Node lifecycle

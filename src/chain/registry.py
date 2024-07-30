@@ -62,7 +62,7 @@ class Registry:
         self._coordinator = await self._contract.functions.COORDINATOR().call()
         self._reader = await self._contract.functions.READER().call()
         self._wallet_factory = await self._contract.functions.WALLET_FACTORY().call()
-        log.info(
+        log.debug(
             "found addresses",
             coordinator=self._coordinator,
             reader=self._reader,

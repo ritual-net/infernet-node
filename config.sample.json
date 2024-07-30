@@ -1,5 +1,9 @@
 {
-  "log_path": "infernet_node.log",
+  "log": {
+    "path": "infernet_node.log",
+    "max_file_size": 1000000000,
+    "backup_count": 2
+  },
   "manage_containers": true,
   "server": {
     "port": 4000,

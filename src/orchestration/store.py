@@ -241,7 +241,7 @@ class DataStore:
                 "Could not connect to Redis. Please check your configuration."
             )
 
-        log.info("Initialized Redis client", host=host, port=port)
+        log.debug("Initialized Redis client", host=host, port=port)
 
     def get_pending_counters(self: DataStore) -> dict[str, int]:
         """Returns pending counters for onchain and offchain jobs

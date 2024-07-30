@@ -94,7 +94,7 @@ class Wallet:
         self._payment_address: Optional[str] = payment_address
         self._tx_lock = asyncio.Lock()
 
-        log.info("Initialized Wallet", address=self._account.address)
+        log.debug("Initialized Wallet", address=self._account.address)
 
     @property
     def payment_address(self: Wallet) -> ChecksumAddress:

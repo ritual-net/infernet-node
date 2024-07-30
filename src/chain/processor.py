@@ -1045,9 +1045,9 @@ class ChainProcessor(AsyncTask):
             tx_hash = await self._deliver(
                 subscription=subscription,
                 delegated=delegated,
-                signature=delegated_params[0]
-                if delegated and delegated_params
-                else None,
+                signature=(
+                    delegated_params[0] if delegated and delegated_params else None
+                ),
                 input=input,
                 output=output,
                 proof=proof,

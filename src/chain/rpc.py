@@ -121,7 +121,7 @@ class RPC:
         )
         w3.eth.default_account = account.address
         self._web3 = w3
-        log.info(
+        log.debug(
             "Initialized RPC", url=self._rpc_url, default_account=w3.eth.default_account
         )
         return self
