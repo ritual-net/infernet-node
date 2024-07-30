@@ -65,6 +65,7 @@ class NodeLifecycle:
 
         # Setup logging
         setup_logging(config.get("log"))
+        check_node_is_up_to_date()
 
         log.info("Running startup", chain_enabled=config["chain"]["enabled"])
 
@@ -196,8 +197,6 @@ class NodeLifecycle:
                 __version__, config["server"]["port"], guardian, store, wallet
             )
             self._tasks.append(self._stat_sender)
-
-        check_node_is_up_to_date()
 
     async def _lifecycle_setup(self: NodeLifecycle) -> None:
         """Process async setup lifecycles for tasks"""
