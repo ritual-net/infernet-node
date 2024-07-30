@@ -118,7 +118,7 @@ class ContainerManager(AsyncTask):
         # Docker daemon must be running on host. Only used if managed is True
         self.client = from_env() if self._managed else None
 
-        log.info("Initialized Container Manager", port_mappings=self._port_mappings)
+        log.debug("Initialized Container Manager", port_mappings=self._port_mappings)
 
     @property
     def port_mappings(self: ContainerManager) -> dict[str, int]:
@@ -232,7 +232,7 @@ class ContainerManager(AsyncTask):
             current_containers = self.running_containers
 
             # Show ASCII status in logs
-            log_ascii_status(f"Running containers: {current_containers}", True)
+            log_ascii_status(f"Running containers: {current_containers}", "success")
 
             # Check if any containers exited / crashed
             if len(current_containers) < len(running_containers):
@@ -262,7 +262,7 @@ class ContainerManager(AsyncTask):
     async def stop(self: ContainerManager) -> None:
         """Force stops all containers."""
         if not self._managed:
-            log.info("Skipping container manager stop, containers are not managed")
+            log.debug("Skipping container manager stop, containers are not managed")
             return
 
         log.info("Stopping containers")
@@ -321,18 +321,18 @@ class ContainerManager(AsyncTask):
             """
 
             try:
-                log.info(f"Pulling image {image}...")
+                log.debug(f"Pulling image {image}...")
                 await self._loop.run_in_executor(
                     None,
                     lambda: self.client.images.pull(image, auth_config=self._creds),
                 )
-                log.info(f"Successfully pulled image {image}")
+                log.debug(f"Successfully pulled image {image}")
                 return True
 
             except Exception as e:
                 # Check if image exists locally
                 if self.client.images.get(image):
-                    log.info(f"Image {image} already exists locally")
+                    log.debug(f"Image {image} already exists locally")
                     return True
 
                 log.error(f"Error pulling image {image}", error=e)
@@ -385,9 +385,9 @@ class ContainerManager(AsyncTask):
                 # Start the container if it's not running
                 if container.status != "running":
                     container.start()
-                    log.info(f"Started existing container: {id}")
+                    log.debug(f"Started existing container: {id}")
                 else:
-                    log.info(f"Container already running: {id}")
+                    log.debug(f"Container already running: {id}")
 
             except NotFound:
                 # Container does not exist, so create and run a new one
@@ -416,4 +416,4 @@ class ContainerManager(AsyncTask):
                     device_requests=device_requests,
                     volumes=config.get("volumes", []),
                 )
-                log.info(f"Created and started new container: {id}")
+                log.debug(f"Created and started new container: {id}")
