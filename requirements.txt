@@ -1,5 +1,6 @@
 aiohttp>=3.9.4,<4.0.0
 async-lru>=2.0.4,<3.0.0
+async-timeout>=4.0.3,<5.0.0
 dacite>=1.8.1,<2.0.0
 fluent-logger>=0.10.0,<1.0.0
 mypy>=1.7.0,<2.0.0
