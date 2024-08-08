@@ -18,12 +18,15 @@ from eth_typing import BlockNumber
 from reretry import retry  # type: ignore
 
 from chain.coordinator import Coordinator
+from chain.registry import Registry
 from chain.processor import ChainProcessor
 from chain.rpc import RPC
 from orchestration.guardian import Guardian
 from shared.message import GuardianError, SubscriptionCreatedMessage
 from shared.service import AsyncTask
 from utils import log
+from utils.constants import READER_ABI
+from shared.subscription import Subscription
 
 SNAPSHOT_SYNC_BATCH_SIZE = 200
 SNAPSHOT_SYNC_BATCH_SLEEP_S = 1.0
@@ -73,6 +76,7 @@ class ChainListener(AsyncTask):
         self: ChainListener,
         rpc: RPC,
         coordinator: Coordinator,
+        registry: Registry,
         guardian: Guardian,
         processor: ChainProcessor,
         trail_head_blocks: int,
@@ -96,6 +100,7 @@ class ChainListener(AsyncTask):
 
         self._rpc = rpc
         self._coordinator = coordinator
+        self._registry = registry
         self._guardian = guardian
         self._processor = processor
         self._trail_head_blocks = trail_head_blocks
@@ -109,61 +114,128 @@ class ChainListener(AsyncTask):
             if snapshot_sync_batch_size is None
             else snapshot_sync_batch_size
         )
+        self._reader = self._rpc.get_contract(
+                address=self._registry.reader,
+                abi=READER_ABI)          
         log.info("Initialized ChainListener")
 
-    async def _sync_subscription_creation(
+    async def _sync_batch_subscriptions_creation(
         self: ChainListener,
-        sub_id: int,
+        start_id: int,
+        end_id: int,
         block_number: BlockNumber,
     ) -> None:
-        """Syncs a subscription with sub id: sub_id
+        """Syncs a batch of subscriptions from start_id to end_id (inclusive)
 
         Consumed by:
             1. Snapshot sync when initially syncing subscriptions
             2. Parsing subscription creation logs when event replaying creation
 
         Process:
-            1. Collect subscription at specified block number
-            2. If subscription is on last interval, collect and set response count
+            1. Collect subscriptions at specified block number through Reader SC
+            2. Collect batch response count at specified block number through Reader SC
+            3. For subscriptions that are on last interval, collect and set response count
                 (useful to filter out completed subscriptions)
-            3. Validate subscriptions against guardian rules
-            4. If validated, forward subscriptions to ChainProcessor
+            4. Validate subscriptions against guardian rules
+            5. If validated, forward subscriptions to ChainProcessor
 
         Args:
-            sub_id (int): subscription ID
+            start_id (int): starting subscription ID of batch
+            end_id (int): ending subscription ID of batch
             block_number (BlockNumber): block number to collect at (TOCTTOU)
         """
+        subscriptions_data = await self._reader.functions.readSubscriptionBatch(start_id, end_id).call(block_identifier=block_number)
+        subscriptions = []
+        for i, sub in enumerate(subscriptions_data):
+            subscription_id = start_id + i  # Assuming IDs are in increasing order starting from start_id
+            subscription = Subscription(subscription_id, self._coordinator._lookup, *sub)
+            subscriptions.append(subscription)
 
-        # Collect subscription
-        subscription = await self._coordinator.get_subscription_by_id(
-            subscription_id=sub_id, block_number=block_number
-        )
+        # Get IDs, intervals and response count data for subscriptions that are on last interval
+        filtered_ids = [sub.id for sub in subscriptions if sub.last_interval]
+        filtered_intervals = [sub.interval for sub in subscriptions if sub.last_interval]
+        filtered_subscriptions_response_count_data = await self._reader.functions.readRedundancyCountBatch(filtered_ids, filtered_intervals).call(block_identifier=block_number)
+        assert len(filtered_ids) == len(filtered_intervals) == len(filtered_subscriptions_response_count_data), "Arrays must have the same length"
 
-        # If subscription is on last interval
-        if subscription.last_interval:
-            # Collect and set response count for interval (always last)
-            interval = subscription.interval
-            response_count = await self._coordinator.get_subscription_response_count(
-                subscription_id=sub_id,
-                interval=interval,
-                block_number=block_number,
-            )
-            subscription.set_response_count(interval, response_count)
+        for i in range(len(filtered_ids)):
+            sub_id = filtered_ids[i]
+            interval = filtered_intervals[i]
+            response_count = filtered_subscriptions_response_count_data[i]
 
-        # Create new subscription created message
-        msg = SubscriptionCreatedMessage(subscription)
+            # Find the corresponding subscription in the subscriptions list
+            for subscription in subscriptions:
+                if subscription.id == sub_id:
+                    subscription.set_response_count(interval, response_count)
+                    # Create new subscription created message
+                    msg = SubscriptionCreatedMessage(subscription)
 
-        # Run message through guardian
-        filtered = self._guardian.process_message(msg)
+                    # Run message through guardian
+                    filtered = self._guardian.process_message(msg)
 
-        if isinstance(filtered, GuardianError):
-            # If filtered out by guardian, message is irrelevant
-            log.info("Ignored subscription creation", id=sub_id, err=filtered.error)
-            return
+                    if isinstance(filtered, GuardianError):
+                        # If filtered out by guardian, message is irrelevant
+                        log.info("Ignored subscription creation", id=sub_id, err=filtered.error)
+                    else:
+                        # Pass filtered message to ChainProcessor
+                        create_task(self._processor.track(msg))
+                        log.info("Relayed subscription creation", id=sub_id)
+                    break
+        return
+    
+    # DEPRECATED, using _sync_batch_subscriptions_creation through Reader SC    
+    # async def _sync_subscription_creation(
+    #     self: ChainListener,
+    #     sub_id: int,
+    #     block_number: BlockNumber,
+    # ) -> None:
+    #     """Syncs a subscription with sub id: sub_id
 
-        # Pass filtered message to ChainProcessor
-        create_task(self._processor.track(msg))
-        log.info("Relayed subscription creation", id=sub_id)
+    #     Consumed by:
+    #         1. Snapshot sync when initially syncing subscriptions
+    #         2. Parsing subscription creation logs when event replaying creation
+
+    #     Process:
+    #         1. Collect subscription at specified block number
+    #         2. If subscription is on last interval, collect and set response count
+    #             (useful to filter out completed subscriptions)
+    #         3. Validate subscriptions against guardian rules
+    #         4. If validated, forward subscriptions to ChainProcessor
+
+    #     Args:
+    #         sub_id (int): subscription ID
+    #         block_number (BlockNumber): block number to collect at (TOCTTOU)
+    #     """
+
+    #     # Collect subscription
+    #     subscription = await self._coordinator.get_subscription_by_id(
+    #         subscription_id=sub_id, block_number=block_number
+    #     )
+
+    #     # If subscription is on last interval
+    #     if subscription.last_interval:
+    #         # Collect and set response count for interval (always last)
+    #         interval = subscription.interval
+    #         response_count = await self._coordinator.get_subscription_response_count(
+    #             subscription_id=sub_id,
+    #             interval=interval,
+    #             block_number=block_number,
+    #         )
+    #         subscription.set_response_count(interval, response_count)
+    #         print(subscription.id, subscription.get_response_count(interval))
+    #     # Create new subscription created message
+    #     msg = SubscriptionCreatedMessage(subscription)
+
+    #     # Run message through guardian
+    #     filtered = self._guardian.process_message(msg)
+
+    #     if isinstance(filtered, GuardianError):
+    #         # If filtered out by guardian, message is irrelevant
+    #         log.info("Ignored subscription creation", id=sub_id, err=filtered.error)
+    #         return
+
+    #     # Pass filtered message to ChainProcessor
+    #     create_task(self._processor.track(msg))
+    #     log.info("Relayed subscription creation", id=sub_id)
 
     async def _snapshot_sync(self: ChainListener, head_block: BlockNumber) -> None:
         """Snapshot syncs subscriptions from Coordinator up to the latest subscription
@@ -205,12 +277,15 @@ class ChainListener(AsyncTask):
         async def _sync_subscription_batch_with_retry(batch: tuple[int, int]) -> None:
             """Sync subscriptions in batch with retry and exponential backoff"""
             try:
-                await asyncio.gather(
-                    *(
-                        self._sync_subscription_creation(_id, head_block)
-                        for _id in range(*batch)
-                    )
-                )
+                # DEPRECATED, using _sync_batch_subscriptions_creation through Reader SC    
+                # await asyncio.gather(
+                #     *(
+                #         self._sync_subscription_creation(_id, head_block)
+                #         for _id in range(*batch)
+                #     )
+                # )
+                await self._sync_batch_subscriptions_creation(batch[0], batch[1], head_block)
+      
             except Exception as e:
                 log.error(
                     f"Error syncing subscription batch {batch}. Retrying...",
