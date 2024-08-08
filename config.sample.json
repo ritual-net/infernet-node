@@ -25,7 +25,7 @@
     },
     "snapshot_sync": {
       "sleep": 1.5,
-      "batch_size": 200
+      "batch_size": 1800
     }
   },
   "docker": {
