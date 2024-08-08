@@ -168,6 +168,7 @@ class NodeLifecycle:
             listener = ChainListener(
                 rpc,
                 coordinator,
+                registry,
                 guardian,
                 processor,
                 config["chain"]["trail_head_blocks"],
