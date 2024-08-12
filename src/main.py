@@ -12,6 +12,7 @@ from chain.coordinator import Coordinator
 from chain.listener import ChainListener
 from chain.payment_wallet import PaymentWallet
 from chain.processor import ChainProcessor
+from chain.reader import Reader
 from chain.registry import Registry
 from chain.rpc import RPC
 from chain.wallet import Wallet
@@ -146,6 +147,12 @@ class NodeLifecycle:
                 container_lookup=container_lookup,
             )
 
+            reader = Reader(
+                rpc,
+                registry.reader,
+                container_lookup=container_lookup,
+            )
+
             wallet = Wallet(
                 rpc,
                 coordinator,
@@ -169,6 +176,7 @@ class NodeLifecycle:
                 rpc,
                 coordinator,
                 registry,
+                reader,
                 guardian,
                 processor,
                 config["chain"]["trail_head_blocks"],

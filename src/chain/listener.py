@@ -19,14 +19,13 @@ from reretry import retry  # type: ignore
 
 from chain.coordinator import Coordinator
 from chain.processor import ChainProcessor
+from chain.reader import Reader
 from chain.registry import Registry
 from chain.rpc import RPC
 from orchestration.guardian import Guardian
 from shared.message import GuardianError, SubscriptionCreatedMessage
 from shared.service import AsyncTask
-from shared.subscription import Subscription
 from utils import log
-from utils.constants import READER_ABI
 
 SNAPSHOT_SYNC_BATCH_SIZE = 200
 SNAPSHOT_SYNC_BATCH_SLEEP_S = 1.0
@@ -77,6 +76,7 @@ class ChainListener(AsyncTask):
         rpc: RPC,
         coordinator: Coordinator,
         registry: Registry,
+        reader: Reader,
         guardian: Guardian,
         processor: ChainProcessor,
         trail_head_blocks: int,
@@ -101,6 +101,7 @@ class ChainListener(AsyncTask):
         self._rpc = rpc
         self._coordinator = coordinator
         self._registry = registry
+        self._reader = reader
         self._guardian = guardian
         self._processor = processor
         self._trail_head_blocks = trail_head_blocks
@@ -114,9 +115,7 @@ class ChainListener(AsyncTask):
             if snapshot_sync_batch_size is None
             else snapshot_sync_batch_size
         )
-        self._reader = self._rpc.get_contract(
-            address=self._registry.reader, abi=READER_ABI
-        )
+
         log.info("Initialized ChainListener")
 
     async def _sync_batch_subscriptions_creation(
@@ -145,18 +144,9 @@ class ChainListener(AsyncTask):
             end_id (int): ending subscription ID of batch
             block_number (BlockNumber): block number to collect at (TOCTTOU)
         """
-        subscriptions_data = await self._reader.functions.readSubscriptionBatch(
-            start_id, end_id
-        ).call(block_identifier=block_number)
-        subscriptions = []
-        for i, sub in enumerate(subscriptions_data):
-            subscription_id = (
-                start_id + i
-            )  # Assuming IDs are in increasing order starting from start_id
-            subscription = Subscription(
-                subscription_id, self._coordinator._lookup, *sub
-            )
-            subscriptions.append(subscription)
+        subscriptions = await self._reader.read_subscription_batch(
+            start_id, end_id, block_number
+        )
 
         # Get IDs, intervals and response count data
         # for subscriptions that are on last interval
@@ -164,21 +154,22 @@ class ChainListener(AsyncTask):
         filtered_intervals = [
             sub.interval for sub in subscriptions if sub.last_interval
         ]
-        filtered_subscriptions_response_count_data = (
-            await self._reader.functions.readRedundancyCountBatch(
-                filtered_ids, filtered_intervals
-            ).call(block_identifier=block_number)
+        filtered_subscriptions_response_count = (
+            await self._reader.read_redundancy_count_batch(
+                filtered_ids, filtered_intervals, block_number
+            )
         )
+
         assert (
             len(filtered_ids)
             == len(filtered_intervals)
-            == len(filtered_subscriptions_response_count_data)
+            == len(filtered_subscriptions_response_count)
         ), "Arrays must have the same length"
 
         for i in range(len(filtered_ids)):
             sub_id = filtered_ids[i]
             interval = filtered_intervals[i]
-            response_count = filtered_subscriptions_response_count_data[i]
+            response_count = filtered_subscriptions_response_count[i]
 
             # Find the corresponding subscription in the subscriptions list
             for subscription in subscriptions:
