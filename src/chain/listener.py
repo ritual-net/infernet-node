@@ -18,15 +18,15 @@ from eth_typing import BlockNumber
 from reretry import retry  # type: ignore
 
 from chain.coordinator import Coordinator
-from chain.registry import Registry
 from chain.processor import ChainProcessor
+from chain.registry import Registry
 from chain.rpc import RPC
 from orchestration.guardian import Guardian
 from shared.message import GuardianError, SubscriptionCreatedMessage
 from shared.service import AsyncTask
+from shared.subscription import Subscription
 from utils import log
 from utils.constants import READER_ABI
-from shared.subscription import Subscription
 
 SNAPSHOT_SYNC_BATCH_SIZE = 200
 SNAPSHOT_SYNC_BATCH_SLEEP_S = 1.0
@@ -115,8 +115,8 @@ class ChainListener(AsyncTask):
             else snapshot_sync_batch_size
         )
         self._reader = self._rpc.get_contract(
-                address=self._registry.reader,
-                abi=READER_ABI)          
+            address=self._registry.reader, abi=READER_ABI
+        )
         log.info("Initialized ChainListener")
 
     async def _sync_batch_subscriptions_creation(
@@ -134,7 +134,8 @@ class ChainListener(AsyncTask):
         Process:
             1. Collect subscriptions at specified block number through Reader SC
             2. Collect batch response count at specified block number through Reader SC
-            3. For subscriptions that are on last interval, collect and set response count
+            3. For subscriptions that are on last interval,
+                collect and set response count
                 (useful to filter out completed subscriptions)
             4. Validate subscriptions against guardian rules
             5. If validated, forward subscriptions to ChainProcessor
@@ -144,18 +145,35 @@ class ChainListener(AsyncTask):
             end_id (int): ending subscription ID of batch
             block_number (BlockNumber): block number to collect at (TOCTTOU)
         """
-        subscriptions_data = await self._reader.functions.readSubscriptionBatch(start_id, end_id).call(block_identifier=block_number)
+        subscriptions_data = await self._reader.functions.readSubscriptionBatch(
+            start_id, end_id
+        ).call(block_identifier=block_number)
         subscriptions = []
         for i, sub in enumerate(subscriptions_data):
-            subscription_id = start_id + i  # Assuming IDs are in increasing order starting from start_id
-            subscription = Subscription(subscription_id, self._coordinator._lookup, *sub)
+            subscription_id = (
+                start_id + i
+            )  # Assuming IDs are in increasing order starting from start_id
+            subscription = Subscription(
+                subscription_id, self._coordinator._lookup, *sub
+            )
             subscriptions.append(subscription)
 
-        # Get IDs, intervals and response count data for subscriptions that are on last interval
+        # Get IDs, intervals and response count data
+        # for subscriptions that are on last interval
         filtered_ids = [sub.id for sub in subscriptions if sub.last_interval]
-        filtered_intervals = [sub.interval for sub in subscriptions if sub.last_interval]
-        filtered_subscriptions_response_count_data = await self._reader.functions.readRedundancyCountBatch(filtered_ids, filtered_intervals).call(block_identifier=block_number)
-        assert len(filtered_ids) == len(filtered_intervals) == len(filtered_subscriptions_response_count_data), "Arrays must have the same length"
+        filtered_intervals = [
+            sub.interval for sub in subscriptions if sub.last_interval
+        ]
+        filtered_subscriptions_response_count_data = (
+            await self._reader.functions.readRedundancyCountBatch(
+                filtered_ids, filtered_intervals
+            ).call(block_identifier=block_number)
+        )
+        assert (
+            len(filtered_ids)
+            == len(filtered_intervals)
+            == len(filtered_subscriptions_response_count_data)
+        ), "Arrays must have the same length"
 
         for i in range(len(filtered_ids)):
             sub_id = filtered_ids[i]
@@ -174,14 +192,18 @@ class ChainListener(AsyncTask):
 
                     if isinstance(filtered, GuardianError):
                         # If filtered out by guardian, message is irrelevant
-                        log.info("Ignored subscription creation", id=sub_id, err=filtered.error)
+                        log.info(
+                            "Ignored subscription creation",
+                            id=sub_id,
+                            err=filtered.error,
+                        )
                     else:
                         # Pass filtered message to ChainProcessor
                         create_task(self._processor.track(msg))
                         log.info("Relayed subscription creation", id=sub_id)
                     break
         return
-    
+
     async def _snapshot_sync(self: ChainListener, head_block: BlockNumber) -> None:
         """Snapshot syncs subscriptions from Coordinator up to the latest subscription
         read at the head block. Retries on failure, with exponential backoff. Since
@@ -222,8 +244,10 @@ class ChainListener(AsyncTask):
         async def _sync_subscription_batch_with_retry(batch: tuple[int, int]) -> None:
             """Sync subscriptions in batch with retry and exponential backoff"""
             try:
-                await self._sync_batch_subscriptions_creation(batch[0], batch[1], head_block)
-      
+                await self._sync_batch_subscriptions_creation(
+                    batch[0], batch[1], head_block
+                )
+
             except Exception as e:
                 log.error(
                     f"Error syncing subscription batch {batch}. Retrying...",
