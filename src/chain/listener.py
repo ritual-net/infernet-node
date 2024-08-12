@@ -182,61 +182,6 @@ class ChainListener(AsyncTask):
                     break
         return
     
-    # DEPRECATED, using _sync_batch_subscriptions_creation through Reader SC    
-    # async def _sync_subscription_creation(
-    #     self: ChainListener,
-    #     sub_id: int,
-    #     block_number: BlockNumber,
-    # ) -> None:
-    #     """Syncs a subscription with sub id: sub_id
-
-    #     Consumed by:
-    #         1. Snapshot sync when initially syncing subscriptions
-    #         2. Parsing subscription creation logs when event replaying creation
-
-    #     Process:
-    #         1. Collect subscription at specified block number
-    #         2. If subscription is on last interval, collect and set response count
-    #             (useful to filter out completed subscriptions)
-    #         3. Validate subscriptions against guardian rules
-    #         4. If validated, forward subscriptions to ChainProcessor
-
-    #     Args:
-    #         sub_id (int): subscription ID
-    #         block_number (BlockNumber): block number to collect at (TOCTTOU)
-    #     """
-
-    #     # Collect subscription
-    #     subscription = await self._coordinator.get_subscription_by_id(
-    #         subscription_id=sub_id, block_number=block_number
-    #     )
-
-    #     # If subscription is on last interval
-    #     if subscription.last_interval:
-    #         # Collect and set response count for interval (always last)
-    #         interval = subscription.interval
-    #         response_count = await self._coordinator.get_subscription_response_count(
-    #             subscription_id=sub_id,
-    #             interval=interval,
-    #             block_number=block_number,
-    #         )
-    #         subscription.set_response_count(interval, response_count)
-    #         print(subscription.id, subscription.get_response_count(interval))
-    #     # Create new subscription created message
-    #     msg = SubscriptionCreatedMessage(subscription)
-
-    #     # Run message through guardian
-    #     filtered = self._guardian.process_message(msg)
-
-    #     if isinstance(filtered, GuardianError):
-    #         # If filtered out by guardian, message is irrelevant
-    #         log.info("Ignored subscription creation", id=sub_id, err=filtered.error)
-    #         return
-
-    #     # Pass filtered message to ChainProcessor
-    #     create_task(self._processor.track(msg))
-    #     log.info("Relayed subscription creation", id=sub_id)
-
     async def _snapshot_sync(self: ChainListener, head_block: BlockNumber) -> None:
         """Snapshot syncs subscriptions from Coordinator up to the latest subscription
         read at the head block. Retries on failure, with exponential backoff. Since
@@ -277,13 +222,6 @@ class ChainListener(AsyncTask):
         async def _sync_subscription_batch_with_retry(batch: tuple[int, int]) -> None:
             """Sync subscriptions in batch with retry and exponential backoff"""
             try:
-                # DEPRECATED, using _sync_batch_subscriptions_creation through Reader SC    
-                # await asyncio.gather(
-                #     *(
-                #         self._sync_subscription_creation(_id, head_block)
-                #         for _id in range(*batch)
-                #     )
-                # )
                 await self._sync_batch_subscriptions_creation(batch[0], batch[1], head_block)
       
             except Exception as e:
