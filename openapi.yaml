@@ -476,6 +476,8 @@ components:
     ContainerToModelSupportMap:
       type: object
       description: A mapping from container IDs to arrays of supported model IDs.
+      required:
+        - supported
       properties:
         supported:
           type: boolean
@@ -483,11 +485,11 @@ components:
         error:
           type: string
           description: Describes the error in checking the model support.
-      required:
-        - supported
 
-    Model:
+    MLModel:
       type: object
+      required:
+        - owner
       properties:
         owner:
           type: string
@@ -513,11 +515,12 @@ components:
           type: string
           description: The type of machine learning model.
 
-      required:
-        - owner
-
     ComputeCapability:
       type: object
+      required:
+        - id
+        - type
+        - task
       properties:
         id:
           type: string
@@ -533,13 +536,19 @@ components:
         models:
           type: array
           items:
-            $ref: '#/components/schemas/Model'
+            $ref: '#/components/schemas/MLModel'
           description: List of models available for computation.
         cached_models:
           type: array
           items:
-            $ref: '#/components/schemas/Model'
+            $ref: '#/components/schemas/MLModel'
           description: List of models that are cached for faster access.
+        inference_engine:
+          type: string
+          description: Inference engine used by the compute capability.
+        inference_engine_version:
+          type: string
+          description: Version of the inference engine.
 
     HardwareCapability:
       type: object
