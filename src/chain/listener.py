@@ -30,6 +30,7 @@ from utils import log
 SNAPSHOT_SYNC_BATCH_SIZE = 200
 SNAPSHOT_SYNC_BATCH_SLEEP_S = 1.0
 SUBSCRIPTION_SYNC_BATCH_SIZE = 20
+SNAPSHOT_SYNC_STARTING_SUB_ID = 0
 
 
 def get_batches(start: int, end: int, batch_size: int) -> list[tuple[int, int]]:
@@ -82,6 +83,7 @@ class ChainListener(AsyncTask):
         trail_head_blocks: int,
         snapshot_sync_sleep: Optional[int],
         snapshot_sync_batch_size: Optional[int],
+        snapshot_sync_starting_sub_id: Optional[int],
     ) -> None:
         """Initializes new ChainListener
 
@@ -115,6 +117,11 @@ class ChainListener(AsyncTask):
             if snapshot_sync_batch_size is None
             else snapshot_sync_batch_size
         )
+        self._snapshot_sync_starting_sub_id = (
+            SNAPSHOT_SYNC_STARTING_SUB_ID
+            if snapshot_sync_starting_sub_id is None
+            else snapshot_sync_starting_sub_id
+        )
 
         log.info("Initialized ChainListener")
 
@@ -144,55 +151,57 @@ class ChainListener(AsyncTask):
             end_id (int): ending subscription ID of batch
             block_number (BlockNumber): block number to collect at (TOCTTOU)
         """
-        subscriptions = await self._reader.read_subscription_batch(
-            start_id, end_id, block_number
-        )
-
-        # Get IDs, intervals and response count data
-        # for subscriptions that are on last interval
-        filtered_ids = [sub.id for sub in subscriptions if sub.last_interval]
-        filtered_intervals = [
-            sub.interval for sub in subscriptions if sub.last_interval
-        ]
-        filtered_subscriptions_response_count = (
-            await self._reader.read_redundancy_count_batch(
-                filtered_ids, filtered_intervals, block_number
+        while not self._shutdown:
+            subscriptions = await self._reader.read_subscription_batch(
+                start_id, end_id, block_number
             )
-        )
 
-        assert (
-            len(filtered_ids)
-            == len(filtered_intervals)
-            == len(filtered_subscriptions_response_count)
-        ), "Arrays must have the same length"
+            # Get IDs, intervals and response count data
+            # for subscriptions that are on last interval
+            filtered_ids = [sub.id for sub in subscriptions if sub.last_interval]
+            filtered_intervals = [
+                sub.interval for sub in subscriptions if sub.last_interval
+            ]
+            filtered_subscriptions_response_count = (
+                await self._reader.read_redundancy_count_batch(
+                    filtered_ids, filtered_intervals, block_number
+                )
+            )
 
-        for i in range(len(filtered_ids)):
-            sub_id = filtered_ids[i]
-            interval = filtered_intervals[i]
-            response_count = filtered_subscriptions_response_count[i]
+            assert (
+                len(filtered_ids)
+                == len(filtered_intervals)
+                == len(filtered_subscriptions_response_count)
+            ), "Arrays must have the same length"
 
-            # Find the corresponding subscription in the subscriptions list
-            for subscription in subscriptions:
-                if subscription.id == sub_id:
-                    subscription.set_response_count(interval, response_count)
-                    # Create new subscription created message
-                    msg = SubscriptionCreatedMessage(subscription)
+            for i in range(len(filtered_ids)):
+                sub_id = filtered_ids[i]
+                interval = filtered_intervals[i]
+                response_count = filtered_subscriptions_response_count[i]
 
-                    # Run message through guardian
-                    filtered = self._guardian.process_message(msg)
+                # Find the corresponding subscription in the subscriptions list
+                for subscription in subscriptions:
+                    if subscription.id == sub_id:
+                        subscription.set_response_count(interval, response_count)
+                        # Create new subscription created message
+                        msg = SubscriptionCreatedMessage(subscription)
 
-                    if isinstance(filtered, GuardianError):
-                        # If filtered out by guardian, message is irrelevant
-                        log.info(
-                            "Ignored subscription creation",
-                            id=sub_id,
-                            err=filtered.error,
-                        )
-                    else:
-                        # Pass filtered message to ChainProcessor
-                        create_task(self._processor.track(msg))
-                        log.info("Relayed subscription creation", id=sub_id)
-                    break
+                        # Run message through guardian
+                        filtered = self._guardian.process_message(msg)
+
+                        if isinstance(filtered, GuardianError):
+                            # If filtered out by guardian, message is irrelevant
+                            log.info(
+                                "Ignored subscription creation",
+                                id=sub_id,
+                                err=filtered.error,
+                            )
+                        else:
+                            # Pass filtered message to ChainProcessor
+                            create_task(self._processor.track(msg))
+                            log.info("Relayed subscription creation", id=sub_id)
+                        break
+            break       
         return
 
     async def _snapshot_sync(self: ChainListener, head_block: BlockNumber) -> None:
@@ -267,7 +276,7 @@ class ChainListener(AsyncTask):
         head_block = await self._rpc.get_head_block_number() - self._trail_head_blocks
         # Update last synced block
         self._last_block = head_block
-        self._last_subscription_id = 0
+        self._last_subscription_id = self._snapshot_sync_starting_sub_id
 
         log.info(
             "Started snapshot sync",
@@ -277,6 +286,11 @@ class ChainListener(AsyncTask):
 
         # Snapshot sync subscriptions
         await self._snapshot_sync(cast(BlockNumber, head_block))
+        head_sub_id = await self._coordinator.get_head_subscription_id(
+                    head_block
+                )
+        # Setting this after snapshot, to avoid a 2nd full run of "run_forever" method 
+        self._last_subscription_id = head_sub_id
 
         log.info("Finished snapshot sync", new_head=head_block)
 
