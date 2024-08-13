@@ -64,6 +64,8 @@ class ChainListener(AsyncTask):
     Private attributes:
         _rpc (RPC): RPC instance
         _coordinator (Coordinator): Coordinator instance
+        _registry (Registry): Registry instance
+        _reader (Reader): Reader instance
         _guardian (Guardian): Guardian instance
         _processor (ChainProcessor): ChainProcessor instance
         _last_synced (int): Last synced chain block number
@@ -90,6 +92,8 @@ class ChainListener(AsyncTask):
         Args:
             rpc (RPC): RPC instance
             coordinator (Coordinator): Coordinator instance
+            registry (Registry): Registry instance
+            reader (Reader): Reader instance
             guardian (Guardian): Guardian instance
             processor (ChainProcessor): ChainProcessor instance
             trail_head_blocks (int): How many blocks to trail head by
@@ -201,7 +205,7 @@ class ChainListener(AsyncTask):
                             create_task(self._processor.track(msg))
                             log.info("Relayed subscription creation", id=sub_id)
                         break
-            break       
+            break
         return
 
     async def _snapshot_sync(self: ChainListener, head_block: BlockNumber) -> None:
@@ -287,9 +291,9 @@ class ChainListener(AsyncTask):
         # Snapshot sync subscriptions
         await self._snapshot_sync(cast(BlockNumber, head_block))
         head_sub_id = await self._coordinator.get_head_subscription_id(
-                    head_block
-                )
-        # Setting this after snapshot, to avoid a 2nd full run of "run_forever" method 
+            cast(BlockNumber, head_block)
+        )
+        # Setting this after snapshot, to avoid a 2nd full run of "run_forever" method
         self._last_subscription_id = head_sub_id
 
         log.info("Finished snapshot sync", new_head=head_block)

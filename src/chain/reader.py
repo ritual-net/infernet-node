@@ -48,7 +48,7 @@ class Reader:
         Args:
             rpc (RPC): RPC instance
             reader_address (str): Reader contract address
-
+            container_lookup (ContainerLookup): ContainerLookup instance
         Raises:
             ValueError: Reader address is incorrectly formatted
         """
@@ -76,9 +76,9 @@ class Reader:
         Args:
             start_id (int): starting id of batch
             end_id (int): last id of batch
-
+            block_number(BlockNumber): the block number to query at
         Returns:
-            List[Subscriptions]: Subscriptions object list
+            List[Subscription]: Subscriptions object list
         """
 
         subscriptions_data = await self._contract.functions.readSubscriptionBatch(
