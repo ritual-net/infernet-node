@@ -168,6 +168,26 @@ class RESTServer(AsyncTask):
                 200,
             )
 
+        @self._app.route("/resources", methods=["GET"])
+        @rate_limit(
+            self._rate_limit_num_requests, timedelta(seconds=self._rate_limit_period)
+        )
+        async def resources() -> Tuple[Response, int]:
+            """Collects container resources
+
+            If a model ID is provided, returns availability of the model by container.
+            If no model ID is provided, returns full resources of each container.
+
+            Returns:
+                Response: Mapping from container ID to service resources
+            """
+            model_id = request.args.get("model_id")
+
+            return (
+                jsonify(await self._orchestrator.collect_service_resources(model_id)),
+                200,
+            )
+
         def filter_create_job(func):  # type: ignore
             """Decorator to filter and preprocess incoming off-chain messages"""
 

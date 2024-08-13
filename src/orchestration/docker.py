@@ -215,6 +215,9 @@ class ContainerManager(AsyncTask):
 
         except Exception as e:
             log.error("Error setting up container manager", error=e)
+            raise RuntimeError(
+                "Container manager setup failed. Check logs for details."
+            )
 
     async def run_forever(self: ContainerManager) -> None:
         """Lifecycle loop for container manager
@@ -330,10 +333,13 @@ class ContainerManager(AsyncTask):
                 return True
 
             except Exception as e:
-                # Check if image exists locally
-                if self.client.images.get(image):
-                    log.debug(f"Image {image} already exists locally")
-                    return True
+                try:
+                    # Check if image exists locally
+                    if self.client.images.get(image):
+                        log.info(f"Image {image} already exists locally")
+                        return True
+                except Exception:
+                    log.warning(f"Image {image} does not exist locally")
 
                 log.error(f"Error pulling image {image}", error=e)
                 return False

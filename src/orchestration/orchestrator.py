@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import asdict
 from json import JSONDecodeError
 from os import environ
-from typing import Any, AsyncGenerator, Optional
+from typing import Any, AsyncGenerator, Optional, cast
 
 from aiohttp import ClientSession
 
@@ -17,13 +18,18 @@ from .store import DataStore
 
 
 class Orchestrator:
-    """Orchestrates container execution
+    """Orchestrates bi-directional communication with containers
 
-    Orchestrates container execution and tracks job status and results. Handles
-    off-chain messages and on-chain subscriptions. Calls containers in order and
-    passes output of previous container as input to next container. If any container
-    fails, the job is marked as failed. If all containers succeed, the job is marked as
-    successful. Stores job status and results.
+    Manages container execution and tracks job status and results. Handles
+    off-chain messages and on-chain subscriptions as follows:
+        1) Calls containers in order and passes output of previous container as input
+            to next container.
+        2) If any container fails, the job is marked as failed.
+        3) If all containers succeed, the job is marked as successful.
+        4) Stores job status and results (for off-chain jobs only).
+
+    Manages model and resource discovery for containers, by calling the container's
+    /service-resources endpoint to retrieve related metadata.
 
     Attributes:
         _manager (ContainerManager): container manager
@@ -312,3 +318,54 @@ class Orchestrator:
                     container,
                     "failed",
                 )
+
+    async def collect_service_resources(
+        self: Orchestrator, model_id: Optional[str]
+    ) -> dict[str, Any]:
+        """Collects service resources from container
+
+        Calls the container's /service-resources endpoint to retrieve related metadata.
+        If model ID is specified, checks which containers serve the model. Otherwise,
+        fetches all resources from each container.
+
+        Args:
+            model_id (Optional[str]): Optional model ID to search for
+
+        Returns:
+            dict[str, Any]: Mapping from container ID to service resources
+        """
+
+        async def fetch(session: ClientSession, url: str) -> Optional[dict[str, Any]]:
+            """Async fetch data from a URL. Return None if there's an exception."""
+            try:
+                async with session.get(url) as response:
+                    response.raise_for_status()
+                    return cast(dict[str, Any], await response.json())
+            except Exception as e:
+                log.warning(f"Error fetching data from {url}: {e}")
+                return None
+
+        async with ClientSession() as session:
+            tasks = {
+                container["id"]: fetch(
+                    session,
+                    (
+                        # If model ID specified, check which containers serve the model
+                        # Otherwise, fetch all resources from each container
+                        f"http://{self._host}:{container['port']}/service-resources?model_id={model_id}"
+                        if model_id
+                        else f"http://{self._host}:{container['port']}/service-resources"
+                    ),
+                )
+                for container in self._manager._configs
+            }
+
+            # Gather results in parallel
+            results = await asyncio.gather(*tasks.values(), return_exceptions=False)
+
+            # Return a dictionary from container id to fetch result
+            return {
+                container_id: result
+                for container_id, result in zip(tasks.keys(), results)
+                if result is not None
+            }
