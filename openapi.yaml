@@ -1,6 +1,6 @@
 openapi: 3.0.0
 info:
-  title: Infernet Node Client
+  title: Infernet Node API
   version: 1.2.0
   contact:
     name: Stelios Rousoglou
@@ -13,7 +13,8 @@ servers:
     variables:
       baseUrl:
         default: http://localhost:4000
-        description: Base server URL
+        description: Development server
+
 paths:
   /health:
     get:
@@ -40,7 +41,7 @@ paths:
   /resources:
     get:
       summary: Retrieves container resources
-      description: Collects harware resources and available models for each container / service.
+      description: Collects hardware resources and available models for each container / service.
       parameters:
         - name: model_id
           in: query
