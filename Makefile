@@ -54,7 +54,7 @@ activate-node:
 GIT_COMMIT_HASH := $(shell git rev-parse --short HEAD)
 
 # Set the tag to include commit hash
-tag ?= 1.1.0
+tag ?= 1.2.0
 
 image_id = ritualnetwork/infernet-node:$(tag)
 
