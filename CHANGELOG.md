@@ -39,7 +39,6 @@ All notable changes to this project will be documented in this file.
 ## [1.0.0] - 2024-06-06
 
 ### Added
-
 - Added files `Dockerfile-gpu` and `docker-compose-gpu.yaml` for building and deploying GPU-enabled node with access to all local GPUs.
 - Better error-checking and handling for all infernet-related on-chain transaction errors.
 - Forward fatal errors via metric sender at shutdown for better error diagnosing (only if forwarding stats is enabled.)
@@ -60,7 +59,6 @@ All notable changes to this project will be documented in this file.
 - New optional flag `"rate_limit"` in the `config.json`'s `"server"` configuration to allow rate limiting of incoming requests to the REST server.
 
 ### Changed
-
 - Limit restarts within time window in `docker-compose.yaml`.
 - Consolidated `GET /chain/enabled` and `GET /chain/address` endpoints into `GET /info`.
 - Refactored node entrypoint (`main.py`) into a class.
@@ -81,7 +79,6 @@ All notable changes to this project will be documented in this file.
 - Removed the `"coordinator_address"` flag from the `config.json` file. The address of the coordinator contract is now retrieved from the registry contract.
 
 ### Fixed
-
 - Orchestrator now works in dev mode (outside of docker), previously `host.docker.internal` was hardcoded.
 - Surface dacite errors when parsing REST interface inputs for better UX.
 - Don't return job IDs for Delegated Subscriptions (misleading, since results can only be fetched on-chain).
@@ -89,36 +86,30 @@ All notable changes to this project will be documented in this file.
 - Fixed a bug where the node could not send multiple transactions in a single block.
 
 ### Security
-
 - Bumped `aiohttp` version to `3.9.4`.
 - Only `localhost` allowed to make calls to `PUT /api/status`.
 
 ## [0.2.0] - 2024-03-21
 
 ### Added
-
 - Option for containers to be managed separately from the node (via `manage_containers` option in `config.json`)
 - Option to specify alternate `config.json` file name / path via environment variable `INFERNET_CONFIG_PATH`.
 - Batch-syncing support for snapshot-sync, along with batch-sync configuration in the `config.json` file.
 - New endpoint `/api/status` for "independent" (i.e. non-conforming) containers to manually register status of jobs by ID with the node.
 
 ### Changed
-
 - `NODE_INTERVAL` for forwarding node metrics is now `900` seconds.
 
 ### Fixed
-
 - Sample config `rpc_ws` should be `rpc_url` in `config.sample.json`.
 - Added working container example to `config.sample.json`.
 - Bug in `processor.py` where state dictionaries could be mutated while being iterated over.
 
 ### Security
-
 - Bumped `aiohttp` version to `3.9.2`.
 - Compose file no longer exposes Fluentbit and Redis ports to the host.
 
 ## [0.1.0] - 2024-01-18
 
 ### Added
-
 - Initial release of Infernet Node.
