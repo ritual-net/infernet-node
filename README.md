@@ -36,8 +36,9 @@ vim config.json
     - **payment_address** (`string`, optional). Public address of the node's escrow wallet. This is an instance of Infernet's `Wallet` contract. If not provided, the node will skip subscriptions that provide payment.
     - **allowed_sim_errors** (`array[string]`, optional). Allowed error messages to ignore when simulating transactions. Checks for inclusion in error message. Case-insensitive. i.e. `["out of gas"]` matches `"Contract reverted: Out of gas"`. Defaults to `[]`.
   - **snapshot_sync** (`object`, optional). Snapshot sync configurations.
-    - **sleep** (`float`, optional).  Number of seconds to sleep between snapshot syncs. Defaults to `1.0`.
+    - **sleep** (`float`, optional). Number of seconds to sleep between snapshot syncs. Defaults to `1.0`.
     - **batch_size** (`int`, optional). Number of subscriptions to sync in each batch. Defaults to `200`.
+    - **starting_sub_id** (`int`, optional). Subscription id to start the syncing process from. Defaults to `0`.
 - **docker** (`object`, optional). Docker credentials to pull private containers with
   - **username** (`string`). The Dockerhub username.
   - **password** (`string`). The Dockerhub [Personal Access Token](https://docs.docker.com/security/for-developers/access-tokens/) (PAT).
