@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 - ##### The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - ##### This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2024-08-14
+
+### Added
+
+- New `starting_sub_id` field as `snapshot_sync` configuration parameter, to optionally start syncing from a certain subscription id instead of 0.
+
+### Changed
+
+- Subscriptions collection now is handled through smart contract reads instead of RPC calls, resulting in higher efficiency
+
+### Fixed
+
+- Reduced(almost eliminated) "429: Too many requests" RPC errors on Base Mainnet. Public RPCs can be used.
+- Snapshot sync time is significantly less for chains with high number of subscriptions
+- Fixed duplicate snapshot syncing bug
+
 ## [1.1.0] - 2024-07-30
 
 ### Added

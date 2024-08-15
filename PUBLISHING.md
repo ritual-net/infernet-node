@@ -11,3 +11,7 @@ repo public:
 
 ### `Changelog.md`
 * [ ] Date + Tag "unreleased" section in [CHANGELOG.md](CHANGELOG.md) should be updated to the release date and version number.
+
+### Versioning
+* [ ] Update version in `openapi.yaml`.
+* [ ] Update version in `version.py`.

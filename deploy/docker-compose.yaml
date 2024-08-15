@@ -1,8 +1,6 @@
-version: '3'
-
 services:
   node:
-    image: ritualnetwork/infernet-node:latest
+    image: ritualnetwork/infernet-node:1.2.0
     ports:
       - "0.0.0.0:4000:4000"
     volumes:

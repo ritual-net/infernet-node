@@ -524,3 +524,72 @@ PAYMENT_WALLET_ABI = [
         "stateMutability": "view",
     },
 ]
+
+READER_ABI = [
+    {
+        "inputs": [
+            {"internalType": "contract Registry", "name": "registry", "type": "address"}
+        ],
+        "stateMutability": "nonpayable",
+        "type": "constructor",
+    },
+    {
+        "inputs": [
+            {"internalType": "uint32[]", "name": "ids", "type": "uint32[]"},
+            {"internalType": "uint32[]", "name": "intervals", "type": "uint32[]"},
+        ],
+        "name": "readRedundancyCountBatch",
+        "outputs": [{"internalType": "uint16[]", "name": "", "type": "uint16[]"}],
+        "stateMutability": "view",
+        "type": "function",
+    },
+    {
+        "inputs": [
+            {"internalType": "uint32", "name": "startId", "type": "uint32"},
+            {"internalType": "uint32", "name": "endId", "type": "uint32"},
+        ],
+        "name": "readSubscriptionBatch",
+        "outputs": [
+            {
+                "components": [
+                    {"internalType": "address", "name": "owner", "type": "address"},
+                    {"internalType": "uint32", "name": "activeAt", "type": "uint32"},
+                    {"internalType": "uint32", "name": "period", "type": "uint32"},
+                    {"internalType": "uint32", "name": "frequency", "type": "uint32"},
+                    {"internalType": "uint16", "name": "redundancy", "type": "uint16"},
+                    {
+                        "internalType": "bytes32",
+                        "name": "containerId",
+                        "type": "bytes32",
+                    },
+                    {"internalType": "bool", "name": "lazy", "type": "bool"},
+                    {
+                        "internalType": "address payable",
+                        "name": "verifier",
+                        "type": "address",
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "paymentAmount",
+                        "type": "uint256",
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "paymentToken",
+                        "type": "address",
+                    },
+                    {
+                        "internalType": "address payable",
+                        "name": "wallet",
+                        "type": "address",
+                    },
+                ],
+                "internalType": "struct Subscription[]",
+                "name": "",
+                "type": "tuple[]",
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function",
+    },
+]

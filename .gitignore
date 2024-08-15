@@ -30,7 +30,7 @@ venv/
 *.log
 
 # Config file
-config.json
+deploy/config.json
 
 # Redis
 *.rdb

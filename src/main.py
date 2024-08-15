@@ -12,6 +12,7 @@ from chain.coordinator import Coordinator
 from chain.listener import ChainListener
 from chain.payment_wallet import PaymentWallet
 from chain.processor import ChainProcessor
+from chain.reader import Reader
 from chain.registry import Registry
 from chain.rpc import RPC
 from chain.wallet import Wallet
@@ -103,9 +104,9 @@ class NodeLifecycle:
         )
 
         if chain_enabled:
-            rpc = RPC(
-                config["chain"]["rpc_url"], config["chain"]["wallet"]["private_key"]
-            )
+            private_key = config["chain"]["wallet"]["private_key"].removeprefix("0x")
+            private_key = f"0x{private_key}"
+            rpc = RPC(config["chain"]["rpc_url"], private_key)
 
             asyncio.get_event_loop().run_until_complete(rpc.initialize())
 
@@ -117,9 +118,9 @@ class NodeLifecycle:
             _payment_address = config["chain"]["wallet"].get("payment_address")
 
             payment_address = (
-                _payment_address
-                if _payment_address is None
-                else Web3.to_checksum_address(_payment_address)
+                Web3.to_checksum_address(cast(str, _payment_address))
+                if bool(_payment_address)
+                else None
             )
 
             wallet_checker = WalletChecker(
@@ -146,10 +147,16 @@ class NodeLifecycle:
                 container_lookup=container_lookup,
             )
 
+            reader = Reader(
+                rpc,
+                registry.reader,
+                container_lookup=container_lookup,
+            )
+
             wallet = Wallet(
                 rpc,
                 coordinator,
-                config["chain"]["wallet"]["private_key"],
+                private_key,
                 config["chain"]["wallet"]["max_gas_limit"],
                 payment_address,
                 config["chain"]["wallet"].get("allowed_sim_errors"),
@@ -168,11 +175,14 @@ class NodeLifecycle:
             listener = ChainListener(
                 rpc,
                 coordinator,
+                registry,
+                reader,
                 guardian,
                 processor,
                 config["chain"]["trail_head_blocks"],
                 snapshot_sync_sleep=snapshot_sync.get("sleep"),
                 snapshot_sync_batch_size=snapshot_sync.get("batch_size"),
+                snapshot_sync_starting_sub_id=snapshot_sync.get("starting_sub_id"),
             )
             self._tasks.extend([processor, listener])
 
