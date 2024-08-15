@@ -476,16 +476,18 @@ components:
 
     ContainerToModelSupportMap:
       type: object
-      description: A mapping from container IDs to arrays of supported model IDs.
-      required:
-        - supported
-      properties:
-        supported:
-          type: boolean
-          description: Indicates if the model is supported by the container.
-        error:
-          type: string
-          description: Describes the error in checking the model support.
+      description: A mapping from container IDs to objects indicating model support.
+      additionalProperties:
+        type: object
+        properties:
+          supported:
+            type: boolean
+            description: Indicates if the model is supported by the container.
+          error:
+            type: string
+            description: Describes the error in checking the model support.
+        required:
+          - supported
 
     MLModel:
       type: object
@@ -608,17 +610,24 @@ components:
 
     ContainerToResourcesMap:
       type: object
-      properties:
-        service_id:
-          type: string
-          description: The unique identifier for the inference service.
-        compute_capability:
-          type: array
-          description: List of compute capabilities available for the service.
-          items:
-            $ref: '#/components/schemas/ComputeCapability'
-        hardware_capabilities:
-          type: array
-          description: List of hardware capabilities available for the service.
-          items:
-            $ref: '#/components/schemas/HardwareCapability'
+      description: A mapping from container IDs to available resources.
+      additionalProperties:
+        type: object
+        properties:
+          service_id:
+            type: string
+            description: The unique identifier for the inference service.
+          compute_capability:
+            type: array
+            description: List of compute capabilities available for the service.
+            items:
+              $ref: '#/components/schemas/ComputeCapability'
+          hardware_capabilities:
+            type: array
+            description: List of hardware capabilities available for the service.
+            items:
+              $ref: '#/components/schemas/HardwareCapability'
+        required:
+          - service_id
+          - compute_capability
+          - hardware_capabilities
