@@ -1,5 +1,5 @@
 # Config file
-config.json
+deploy/config.json
 
 # Data files
 *.rdb
