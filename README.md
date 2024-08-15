@@ -1,4 +1,4 @@
-[![pre-commit](https://github.com/ritual-net/infernet-node/actions/workflows/workflow.yaml/badge.svg)](https://github.com/ritual-net/infernet-node/actions/workflows/workflow.yaml)
+[![pre-commit](https://github.com/ritual-net/infernet-node/actions/workflows/pre-commit.yaml/badge.svg)](https://github.com/ritual-net/infernet-node/actions/workflows/pre-commit.yaml)
 
 # Infernet Node
 
