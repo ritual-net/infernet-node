@@ -175,11 +175,11 @@ class RESTServer(AsyncTask):
         async def resources() -> Tuple[Response, int]:
             """Collects container resources
 
-            If a model ID is provided, returns support of the model by container.
-            If no model ID is provided, returns full resources of each container.
+            If a model ID is provided, checks whether that model is supported.
+            Otherwise, returns full resources of each container.
 
             Returns:
-                Response: Mapping from container ID to service resources
+                Response: Mapping from container ID to container resources
             """
             model_id = request.args.get("model_id")
 

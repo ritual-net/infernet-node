@@ -322,11 +322,10 @@ class Orchestrator:
     async def collect_service_resources(
         self: Orchestrator, model_id: Optional[str]
     ) -> dict[str, Any]:
-        """Collects service resources from container
+        """Collects service resources from running containers
 
-        Calls the container's /service-resources endpoint to retrieve related metadata.
-        If model ID is specified, checks which containers serve the model. Otherwise,
-        fetches all resources from each container.
+        Calls each container's /service-resources endpoint to retrieve its resources.
+        If model ID is specified, checks whether that model is supported instead.
 
         Args:
             model_id (Optional[str]): Optional model ID to search for
