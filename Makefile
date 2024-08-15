@@ -54,7 +54,7 @@ activate-node:
 GIT_COMMIT_HASH := $(shell git rev-parse --short HEAD)
 
 # Set the tag to include commit hash
-tag ?= 1.1.0
+tag ?= 1.2.0
 
 image_id = ritualnetwork/infernet-node:$(tag)
 
@@ -68,15 +68,15 @@ publish:
 	docker image push $(image_id)
 
 run-node:
-	docker-compose -f deploy/docker-compose.yaml up
+	docker compose -f deploy/docker-compose.yaml up -d
 
 service := echo
 
 stop-node:
-	docker-compose -f deploy/docker-compose.yaml kill || true
-	docker-compose -f deploy/docker-compose.yaml rm -f || true
-	docker kill $(service) || true
-	docker rm $(service) || true
+	docker compose -f deploy/docker-compose.yaml kill || true
+	docker compose -f deploy/docker-compose.yaml rm -f || true
+
+restart-node: stop-node run-node
 
 # You may need to set up a docker builder, to do so run:
 # docker buildx create --name mybuilder --bootstrap --use
