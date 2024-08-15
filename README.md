@@ -127,6 +127,7 @@ docker compose -f docker-compose-gpu.yaml  up -d
 # Create and source new python venv
 python3.11 -m venv env
 source ./env/bin/activate
+pip install -r requirements.txt
 
 # Install dependencies
 make install
