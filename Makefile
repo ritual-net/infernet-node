@@ -40,7 +40,7 @@ format:
 
 # Run process
 run:
-	@python3.11 src/main.py
+	INFERNET_CONFIG_PATH=./deploy/config.json python3.11 src/main.py
 
 # Script: register node
 register-node:
