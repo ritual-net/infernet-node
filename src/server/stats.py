@@ -150,6 +150,7 @@ class StatSender(AsyncTask):
         _guardian (Guardian): The guardian instance
         _store (DataStore): The data store instance
         _wallet (Optional[Wallet]): Optional wallet instance, if chain enabled
+        _chain_id (Optional[int]): Optional chain ID, if chain enabled
         _sender (sender.FluentSender): The fluentbit sender
     """
 
@@ -160,6 +161,7 @@ class StatSender(AsyncTask):
         guardian: Guardian,
         store: DataStore,
         wallet: Optional[Wallet],
+        chain_id: Optional[int],
     ) -> None:
         """Initialize StatSender
 
@@ -169,6 +171,8 @@ class StatSender(AsyncTask):
             guardian (Guardian): The guardian instance
             store (DataStore): The data store instance
             wallet (Optional[Wallet]): Optional wallet instance, if chain enabled
+            chain_id (Optional[int]): Optional chain ID, if chain enabled
+
         """
         super().__init__()
         self._version = version
@@ -176,6 +180,7 @@ class StatSender(AsyncTask):
         self._guardian = guardian
         self._store = store
         self._wallet = wallet
+        self._chain_id = chain_id
 
     async def setup(self: StatSender) -> None:
         """Create a unique ID and initialize the sender"""
@@ -192,6 +197,7 @@ class StatSender(AsyncTask):
         return {
             "uid": self._uid,
             "address": None if self._wallet is None else self._wallet.address,
+            "chain_id": None if self._chain_id is None else self._chain_id,
             "containers": self._guardian.restrictions,
             "counters": {
                 "jobs": job_counters,

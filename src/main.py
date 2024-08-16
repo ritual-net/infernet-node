@@ -109,6 +109,7 @@ class NodeLifecycle:
             rpc = RPC(config["chain"]["rpc_url"], private_key)
 
             asyncio.get_event_loop().run_until_complete(rpc.initialize())
+            chain_id = asyncio.get_event_loop().run_until_complete(rpc.get_chain_id())
 
             registry = Registry(
                 rpc,
@@ -204,7 +205,7 @@ class NodeLifecycle:
         # Forward stats to Fluentbit, if enabled
         if config["forward_stats"]:
             self._stat_sender = StatSender(
-                __version__, config["server"]["port"], guardian, store, wallet
+                __version__, config["server"]["port"], guardian, store, wallet, chain_id
             )
             self._tasks.append(self._stat_sender)
 
