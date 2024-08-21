@@ -87,7 +87,7 @@ class ChainListener(AsyncTask):
         snapshot_sync_sleep: Optional[int],
         snapshot_sync_batch_size: Optional[int],
         snapshot_sync_starting_sub_id: Optional[int],
-        syncing_period: Optional[int],
+        syncing_period: Optional[float],
     ) -> None:
         """Initializes new ChainListener
 
@@ -129,10 +129,8 @@ class ChainListener(AsyncTask):
             else snapshot_sync_starting_sub_id
         )
         self._syncing_period = (
-            SYNCING_PERIOD
-            if syncing_period is None
-            else syncing_period
-        )        
+            SYNCING_PERIOD if syncing_period is None else syncing_period
+        )
         log.info("Initialized ChainListener")
 
     async def _sync_batch_subscriptions_creation(

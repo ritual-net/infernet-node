@@ -31,6 +31,7 @@ class ConfigSnapshotSync(TypedDict):
     sleep: float
     batch_size: int
     starting_sub_id: int
+    sync_period: float
 
 
 class ConfigChain(TypedDict):
