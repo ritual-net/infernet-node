@@ -27,7 +27,7 @@
       "sleep": 1.5,
       "batch_size": 1800,
       "starting_sub_id": 0,
-      "syncing_period": 10
+      "sync_period": 10
     }
   },
   "docker": {
