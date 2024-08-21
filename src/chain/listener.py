@@ -31,6 +31,7 @@ SNAPSHOT_SYNC_BATCH_SIZE = 200
 SNAPSHOT_SYNC_BATCH_SLEEP_S = 1.0
 SUBSCRIPTION_SYNC_BATCH_SIZE = 20
 SNAPSHOT_SYNC_STARTING_SUB_ID = 0
+SYNCING_PERIOD = 0.5
 
 
 def get_batches(start: int, end: int, batch_size: int) -> list[tuple[int, int]]:
@@ -86,6 +87,7 @@ class ChainListener(AsyncTask):
         snapshot_sync_sleep: Optional[int],
         snapshot_sync_batch_size: Optional[int],
         snapshot_sync_starting_sub_id: Optional[int],
+        syncing_period: Optional[int],
     ) -> None:
         """Initializes new ChainListener
 
@@ -126,7 +128,11 @@ class ChainListener(AsyncTask):
             if snapshot_sync_starting_sub_id is None
             else snapshot_sync_starting_sub_id
         )
-
+        self._syncing_period = (
+            SYNCING_PERIOD
+            if syncing_period is None
+            else syncing_period
+        )        
         log.info("Initialized ChainListener")
 
     async def _sync_batch_subscriptions_creation(
@@ -362,12 +368,14 @@ class ChainListener(AsyncTask):
             else:
                 # Else, if already synced to head, sleep
                 log.debug(
-                    "No new blocks, sleeping for 500ms",
+                    "No new blocks, sleeping for: ",
+                    self._syncing_period,
+                    "seconds",
                     head=head_block,
                     synced=self._last_block,
                     behind=self._trail_head_blocks,
                 )
-                await sleep(0.5)
+                await sleep(self._syncing_period)
 
     async def cleanup(self: ChainListener) -> None:
         """Stateless task, no cleanup necessary"""

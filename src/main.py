@@ -184,6 +184,7 @@ class NodeLifecycle:
                 snapshot_sync_sleep=snapshot_sync.get("sleep"),
                 snapshot_sync_batch_size=snapshot_sync.get("batch_size"),
                 snapshot_sync_starting_sub_id=snapshot_sync.get("starting_sub_id"),
+                syncing_period=snapshot_sync.get("sync_period"),
             )
             self._tasks.extend([processor, listener])
 
