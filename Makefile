@@ -1,6 +1,18 @@
 # Use bash as shell
 SHELL := /bin/bash
 
+# Get the current git commit hash
+GIT_COMMIT_HASH := $(shell git rev-parse --short HEAD)
+
+# Set the tag to include commit hash
+tag ?= $(GIT_COMMIT_HASH)
+
+image_id = ritualnetwork/infernet-node-internal:$(tag)
+
+###########
+### DEV ###
+###########
+
 # Phony targets
 .PHONY: install run deps
 
@@ -38,25 +50,13 @@ format:
 	@echo "Formatting scripts/"
 	@ruff format scripts
 
-# Run process
+# Run from source
 run:
 	INFERNET_CONFIG_PATH=./deploy/config.json python3.11 src/main.py
 
-# Script: register node
-register-node:
-	@PYTHONPATH=$$PYTHONPATH:src python3.11 scripts/register_node.py
-
-# Script: activate node
-activate-node:
-	@PYTHONPATH=$$PYTHONPATH:src python3.11 scripts/activate_node.py
-
-# Get the current git commit hash
-GIT_COMMIT_HASH := $(shell git rev-parse --short HEAD)
-
-# Set the tag to include commit hash
-tag ?= $(GIT_COMMIT_HASH)
-
-image_id = ritualnetwork/infernet-node-internal:$(tag)
+###########
+# PUBLISH #
+###########
 
 build:
 	docker build -t $(image_id) .
@@ -65,18 +65,8 @@ build-gpu:
 	docker build -t $(image_id)-gpu -f Dockerfile-gpu .
 
 publish:
-	docker image push $(image_id)
-
-run-node:
-	docker compose -f deploy/docker-compose.yaml up -d
-
-service := echo
-
-stop-node:
-	docker compose -f deploy/docker-compose.yaml kill || true
-	docker compose -f deploy/docker-compose.yaml rm -f || true
-
-restart-node: stop-node run-node
+	docker image push $(image_id) && \
+	docker image push $(image_id)-gpu
 
 # You may need to set up a docker builder, to do so run:
 # docker buildx create --name mybuilder --bootstrap --use

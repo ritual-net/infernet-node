@@ -28,7 +28,7 @@ services:
     stop_grace_period: 1m
 
   redis:
-    image: redis:latest
+    image: redis:7.4.0
     expose:
       - "6379"
     networks:
@@ -40,7 +40,7 @@ services:
       on-failure
 
   fluentbit:
-    image: fluent/fluent-bit:latest
+    image: fluent/fluent-bit:3.1.4
     expose:
       - "24224"
     environment:

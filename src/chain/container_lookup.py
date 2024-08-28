@@ -7,7 +7,7 @@ import structlog
 from eth_abi.abi import encode
 from web3 import Web3
 
-from utils.config import ConfigContainer
+from shared.container import InfernetContainer
 
 
 def get_all_comma_separated_permutations(containers: List[str]) -> List[str]:
@@ -51,17 +51,17 @@ class ContainerLookup:
 
     """
 
-    def __init__(self: ContainerLookup, configs: List[ConfigContainer]) -> None:
+    def __init__(self: ContainerLookup, configs: List[InfernetContainer]) -> None:
         """
         Initialize the container lookup table.
 
         Args:
-            configs (List[ConfigContainer]): Container configurations
+            configs (List[InfernetContainer]): Container configurations
         """
         self._init_container_lookup(configs)
 
     def _init_container_lookup(
-        self: ContainerLookup, configs: List[ConfigContainer]
+        self: ContainerLookup, configs: List[InfernetContainer]
     ) -> None:
         """
         Build a lookup table keccak hash of a container set -> container set
@@ -72,7 +72,7 @@ class ContainerLookup:
         containers are required for a given subscription.
 
         Args:
-            configs (List[ConfigContainer]): Container configurations
+            configs (List[InfernetContainer]): Container configurations
         """
         all_permutations = get_all_comma_separated_permutations(
             [container["id"] for container in configs]

@@ -8,7 +8,7 @@ from eth_typing import ChecksumAddress
 from chain.registry import Registry
 from chain.rpc import RPC
 from shared import Subscription
-from utils.config import ConfigContainer
+from shared.container import InfernetContainer
 from utils.constants import ERC20_ABI, WALLET_FACTORY_ABI, ZERO_ADDRESS
 
 log = structlog.getLogger(__name__)
@@ -38,14 +38,14 @@ class WalletChecker:
         self: WalletChecker,
         rpc: RPC,
         registry: Registry,
-        container_configs: list[ConfigContainer],
+        container_configs: list[InfernetContainer],
         payment_address: Optional[ChecksumAddress] = None,
     ):
         """
         Args:
             rpc (RPC): An instance of the RPC class.
             registry (Registry): An instance of the Registry class.
-            container_configs (list[ConfigContainer]): A list of container
+            container_configs (list[InfernetContainer]): A list of container
             configurations.
             payment_address (Optional[ChecksumAddress], optional): The payment address of
                 the node.
@@ -54,7 +54,7 @@ class WalletChecker:
         self._registry = registry
         self._payment_address: Optional[ChecksumAddress] = payment_address
         self._accepted_payments = {
-            container["id"]: container.get("accepted_payments") or {}
+            container["id"]: container.get("accepted_payments")
             for container in container_configs
         }
 
@@ -144,18 +144,21 @@ class WalletChecker:
             return False
 
         for container in sub.containers:
-            if not self._accepted_payments[container]:
+            # We can cast, guardian has already checked that each container exists
+            accepted_payments = cast(dict[str, int], self._accepted_payments[container])
+
+            if not accepted_payments:
                 # no payment requirements for this container, it allows everything
                 continue
 
-            if sub.payment_token not in self._accepted_payments[container]:
+            if sub.payment_token not in accepted_payments:
                 log.info(
                     f"{skip_banner}: Token {sub.payment_token} not "
                     f"accepted for container {container}.",
                     sub_id=sub.id,
                     token=sub.payment_token,
                     container=container,
-                    accepted_tokens=list(self._accepted_payments[container].keys()),
+                    accepted_tokens=list(accepted_payments.keys()),
                 )
                 # doesn't match, but requires payment
                 return False
@@ -163,7 +166,10 @@ class WalletChecker:
         # minimum required payment for the subscription is the sum of the payment
         # requirements of each container
         min_payment = sum(
-            self._accepted_payments[container].get(sub.payment_token, 0)
+            # We can cast, guardian has already checked that each container exists
+            cast(dict[str, int], self._accepted_payments[container]).get(
+                sub.payment_token, 0
+            )
             for container in sub.containers
         )
 

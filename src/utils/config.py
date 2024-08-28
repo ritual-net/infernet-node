@@ -1,5 +1,5 @@
 from json import load as json_load
-from typing import Any, NamedTuple, Optional, TypedDict, cast
+from typing import Any, NamedTuple, NotRequired, Optional, TypedDict, cast
 
 
 class ConfigRateLimit(TypedDict):
@@ -54,20 +54,25 @@ class ConfigDocker(TypedDict):
 class ConfigContainer(TypedDict):
     """Expected config[containers] format"""
 
+    # Required
     id: str
     image: str
-    description: Optional[str]
-    command: str
-    env: dict[str, Any]
-    port: int
-    allowed_ips: list[str]
-    allowed_addresses: list[str]
-    allowed_delegate_addresses: list[str]
-    external: bool
-    gpu: Optional[bool]
-    volumes: Optional[list[str]]
-    accepted_payments: Optional[dict[str, int]]
-    generates_proofs: Optional[bool]
+
+    # Can be defaulted by node
+    port: NotRequired[int]
+    external: NotRequired[bool]
+    gpu: NotRequired[bool]
+
+    # Optional
+    accepted_payments: NotRequired[dict[str, int]]
+    allowed_ips: NotRequired[list[str]]
+    allowed_addresses: NotRequired[list[str]]
+    allowed_delegate_addresses: NotRequired[list[str]]
+    description: NotRequired[str]
+    command: NotRequired[str]
+    env: NotRequired[dict[str, Any]]
+    generates_proofs: NotRequired[bool]
+    volumes: NotRequired[list[str]]
 
 
 class ConfigRedis(TypedDict):
@@ -88,15 +93,16 @@ class ConfigLog(TypedDict):
 class ConfigDict(TypedDict):
     """Expected config format"""
 
-    log: Optional[ConfigLog]
-    manage_containers: Optional[bool]
-    server: ConfigServer
-    chain: ConfigChain
-    docker: Optional[ConfigDocker]
-    redis: ConfigRedis
     containers: list[ConfigContainer]
+    chain: ConfigChain
     forward_stats: bool
-    startup_wait: Optional[float]
+    redis: ConfigRedis
+    server: ConfigServer
+
+    docker: NotRequired[ConfigDocker]
+    log: NotRequired[ConfigLog]
+    manage_containers: NotRequired[bool]
+    startup_wait: NotRequired[float]
 
 
 class ValidationItem(NamedTuple):
