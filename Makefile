@@ -65,8 +65,7 @@ build-gpu:
 	docker build -t $(image_id)-gpu -f Dockerfile-gpu .
 
 publish:
-	docker image push $(image_id) && \
-	docker image push $(image_id)-gpu
+	docker image push $(image_id)
 
 # You may need to set up a docker builder, to do so run:
 # docker buildx create --name mybuilder --bootstrap --use
