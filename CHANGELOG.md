@@ -13,7 +13,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Almost all container configurations (expect `id` and `image`) are now reasonably defaulted (e.g. port auto-assignment), making it easier to configure a service and enabling the use of service recipes. Container configurations are validated at startup and errors are reported early.
+- Almost all container configurations (except `id` and `image`) are now reasonably defaulted (e.g. port auto-assignment), making it easier to configure a service and enabling the use of service recipes. Container configurations are validated at startup and errors are reported early.
 
 ### Fixed
 

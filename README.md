@@ -84,7 +84,7 @@ vim config.json
 
 ```bash
 # Set tag
-tag="1.0.0"
+tag="1.3.0"
 
 # Build image from source
 docker build -t ritualnetwork/infernet-node:$tag .
@@ -104,7 +104,7 @@ The GPU-enabled version of the image comes pre-installed with the [NVIDIA CUDA T
 
 ```bash
 # Set tag
-tag="1.0.0"
+tag="1.3.0"
 
 # Build GPU-enabled image from source
 docker build -f Dockerfile-gpu -t ritualnetwork/infernet-node:$tag-gpu .
@@ -145,7 +145,7 @@ Follow README instructions in the [infernet-deploy](https://github.com/ritual-ne
 
 ```bash
 # Set tag
-tag="1.0.0"
+tag="1.3.0"
 
 # Build for local platform
 make build
