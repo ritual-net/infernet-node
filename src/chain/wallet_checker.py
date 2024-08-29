@@ -143,9 +143,7 @@ class WalletChecker:
             return False
 
         for container in sub.containers:
-            # We can cast, guardian has already checked that each container exists
             accepted_payments = self._accepted_payments[container]
-
             if not accepted_payments:
                 # no payment requirements for this container, it allows everything
                 continue
@@ -165,7 +163,6 @@ class WalletChecker:
         # minimum required payment for the subscription is the sum of the payment
         # requirements of each container
         min_payment = sum(
-            # We can cast, guardian has already checked that each container exists
             self._accepted_payments[container].get(sub.payment_token, 0)
             for container in sub.containers
         )
