@@ -75,7 +75,7 @@ class ContainerLookup:
             configs (List[InfernetContainer]): Container configurations
         """
         all_permutations = get_all_comma_separated_permutations(
-            [container["id"] for container in configs]
+            [container.id for container in configs]
         )
 
         def _calculate_hash(perm: str) -> str:

@@ -54,8 +54,7 @@ class WalletChecker:
         self._registry = registry
         self._payment_address: Optional[ChecksumAddress] = payment_address
         self._accepted_payments = {
-            container["id"]: container.get("accepted_payments")
-            for container in container_configs
+            container.id: container.accepted_payments for container in container_configs
         }
 
     async def is_valid_wallet(self: WalletChecker, address: ChecksumAddress) -> bool:
@@ -145,7 +144,7 @@ class WalletChecker:
 
         for container in sub.containers:
             # We can cast, guardian has already checked that each container exists
-            accepted_payments = cast(dict[str, int], self._accepted_payments[container])
+            accepted_payments = self._accepted_payments[container]
 
             if not accepted_payments:
                 # no payment requirements for this container, it allows everything
@@ -167,9 +166,7 @@ class WalletChecker:
         # requirements of each container
         min_payment = sum(
             # We can cast, guardian has already checked that each container exists
-            cast(dict[str, int], self._accepted_payments[container]).get(
-                sub.payment_token, 0
-            )
+            self._accepted_payments[container].get(sub.payment_token, 0)
             for container in sub.containers
         )
 

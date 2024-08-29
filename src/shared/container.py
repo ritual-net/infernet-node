@@ -1,12 +1,16 @@
 from __future__ import annotations
 
-from typing import Any, TypedDict
+import json
+import sys
+from typing import Any
+
+from pydantic import BaseModel, ValidationError
 
 from utils import log
 from utils.config import ConfigContainer
 
 
-class InfernetContainer(TypedDict):
+class InfernetContainer(BaseModel):
     """Full Infernet Container configuration"""
 
     # Required
@@ -115,26 +119,35 @@ def validate_configurations(
             )
         ids.add(id)
 
-        containers.append(
-            InfernetContainer(
-                id=id,
-                image=image,
-                port=ports[id],
-                external=config.get("external", True),
-                gpu=config.get("gpu") or False,
-                # Default to empty
-                accepted_payments=config.get("accepted_payments") or {},
-                command=config.get("command") or "",
-                description=config.get("description") or "",
-                env=config.get("env") or {},
-                generates_proofs=config.get("generates_proofs") or False,
-                volumes=config.get("volumes") or [],
-                # Default firewall values to allow all
-                allowed_ips=config.get("allowed_ips") or [],
-                allowed_addresses=config.get("allowed_addresses") or [],
-                allowed_delegate_addresses=config.get("allowed_delegate_addresses")
-                or [],
+        try:
+            containers.append(
+                InfernetContainer(
+                    id=id,
+                    image=image,
+                    port=ports[id],
+                    external=config.get("external", True),
+                    gpu=config.get("gpu", False),
+                    # Default to empty
+                    accepted_payments=config.get("accepted_payments", dict()),
+                    command=config.get("command", ""),
+                    description=config.get("description", ""),
+                    env=config.get("env", dict()),
+                    generates_proofs=config.get("generates_proofs", False),
+                    volumes=config.get("volumes", []),
+                    # Default firewall values to allow all
+                    allowed_ips=config.get("allowed_ips", []),
+                    allowed_addresses=config.get("allowed_addresses", []),
+                    allowed_delegate_addresses=config.get(
+                        "allowed_delegate_addresses", []
+                    ),
+                )
             )
-        )
+        except ValidationError as e:
+            error = json.loads(e.json())
+            log.error(
+                f"Config validation error: field '{error[0]['loc'][0]}'. "
+                f"{error[0]['msg']}"
+            )
+            sys.exit(1)
 
     return containers

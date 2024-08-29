@@ -101,9 +101,9 @@ class ContainerManager(AsyncTask):
         # Store configs, credentials, and port mappings in state
         self._configs: list[InfernetContainer] = configs
         self._creds = credentials
-        self._images: list[str] = [config["image"] for config in self._configs]
+        self._images: list[str] = [config.image for config in self._configs]
         self._port_mappings: dict[str, int] = {
-            config["id"]: config["port"] for config in self._configs
+            config.id: config.port for config in self._configs
         }
         self._loop = get_event_loop()
         self._shutdown = False
@@ -134,7 +134,7 @@ class ContainerManager(AsyncTask):
         # endpoint are a requirement for all containers, use them to check if containers
         # are running.
         if not self._managed:
-            return [config["id"] for config in self._configs]
+            return [config.id for config in self._configs]
 
         # Container objects are cached, need to reload attributes
         for container in self._containers.values():
@@ -157,13 +157,13 @@ class ContainerManager(AsyncTask):
         """Get running container information"""
         return [
             {
-                "id": config["id"],
-                "description": config["description"],
-                "external": config["external"],
-                "image": config["image"],
+                "id": config.id,
+                "description": config.description,
+                "external": config.external,
+                "image": config.image,
             }
             for config in self._configs
-            if config["id"] in self.running_containers
+            if config.id in self.running_containers
         ]
 
     def get_port(self: ContainerManager, container: str) -> int:
@@ -362,7 +362,7 @@ class ContainerManager(AsyncTask):
         """
 
         all_containers = self.client.containers.list(all=True)
-        container_ids = [config["id"] for config in self._configs]
+        container_ids = [config.id for config in self._configs]
 
         for container in all_containers:
             if container.name in container_ids:
@@ -380,7 +380,7 @@ class ContainerManager(AsyncTask):
         """
 
         for config in self._configs:
-            id = config["id"]
+            id = config.id
 
             try:
                 # Check if the container already exists
@@ -389,8 +389,6 @@ class ContainerManager(AsyncTask):
                 # Store existing container object in state
                 self._containers[id] = container
 
-                log.debug(f"Found existing container on port {container.ports}: {id}")
-
                 # Start the container if it's not running
                 if container.status != "running":
                     container.start()
@@ -398,20 +396,20 @@ class ContainerManager(AsyncTask):
                 # Warn about port mismatch, we can't change port of running container
                 container.reload()
                 port = container.ports["3000/tcp"][0]["HostPort"]
-                if port != config["port"]:
+                if port != config.port:
                     log.warning(
                         f"Container '{id}' is already running on port {port}, "
-                        f"disregarding requested port {config['port']}"
+                        f"disregarding requested port {config.port}"
                     )
 
                 log.info(f"Started existing container '{id}' on port {port}")
 
             except NotFound:
                 # Container does not exist, so create and run a new one
-                command = config["command"]
-                env = config["env"]
-                image = config["image"]
-                port = config["port"]
+                command = config.command
+                env = config.env
+                image = config.image
+                port = config.port
 
                 # Run container and store object in state
                 self._containers[id] = self.client.containers.run(
@@ -427,9 +425,9 @@ class ContainerManager(AsyncTask):
                     },
                     device_requests=(
                         [DeviceRequest(count=-1, capabilities=[["gpu"]])]
-                        if config["gpu"] is True
+                        if config.gpu is True
                         else None
                     ),
-                    volumes=config["volumes"],
+                    volumes=config.volumes,
                 )
                 log.info(f"Started new container '{id}' on port {port}")

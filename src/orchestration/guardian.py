@@ -90,16 +90,16 @@ class Guardian:
 
         # Initialize container restrictions
         self._restrictions: dict[str, ContainerRestrictions] = {
-            container["id"]: ContainerRestrictions(
+            container.id: ContainerRestrictions(
                 allowed_ips=[
-                    ip_network(ip, strict=False) for ip in container["allowed_ips"]
+                    ip_network(ip, strict=False) for ip in container.allowed_ips
                 ],
-                allowed_addresses=list(map(str.lower, container["allowed_addresses"])),
+                allowed_addresses=list(map(str.lower, container.allowed_addresses)),
                 allowed_delegate_addresses=list(
-                    map(str.lower, container["allowed_delegate_addresses"])
+                    map(str.lower, container.allowed_delegate_addresses)
                 ),
-                external=container["external"],
-                generates_proofs=container["generates_proofs"],
+                external=container.external,
+                generates_proofs=container.generates_proofs,
             )
             for container in configs
         }
