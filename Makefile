@@ -54,6 +54,18 @@ format:
 run:
 	INFERNET_CONFIG_PATH=./deploy/config.json python3.11 src/main.py
 
+# Using docker-compose
+run-node:
+	docker compose -f deploy/docker-compose.yaml up -d
+
+service := echo
+
+stop-node:
+	docker compose -f deploy/docker-compose.yaml kill || true
+	docker compose -f deploy/docker-compose.yaml rm -f || true
+
+restart-node: stop-node run-node
+
 ###########
 # PUBLISH #
 ###########
