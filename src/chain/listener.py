@@ -188,23 +188,24 @@ class ChainListener(AsyncTask):
                     if subscription.id == sub_id:
                         subscription.set_response_count(interval, response_count)
                         # Create new subscription created message
-                        msg = SubscriptionCreatedMessage(subscription)
 
-                        # Run message through guardian
-                        filtered = self._guardian.process_message(msg)
+            for subscription in subscriptions:
+                msg = SubscriptionCreatedMessage(subscription)
 
-                        if isinstance(filtered, GuardianError):
-                            # If filtered out by guardian, message is irrelevant
-                            log.info(
-                                "Ignored subscription creation",
-                                id=sub_id,
-                                err=filtered.error,
-                            )
-                        else:
-                            # Pass filtered message to ChainProcessor
-                            create_task(self._processor.track(msg))
-                            log.info("Relayed subscription creation", id=sub_id)
-                        break
+                # Run message through guardian
+                filtered = self._guardian.process_message(msg)
+
+                if isinstance(filtered, GuardianError):
+                    # If filtered out by guardian, message is irrelevant
+                    log.info(
+                        "Ignored subscription creation",
+                        id=sub_id,
+                        err=filtered.error,
+                    )
+                else:
+                    # Pass filtered message to ChainProcessor
+                    create_task(self._processor.track(msg))
+                    log.info("Relayed subscription creation", id=subscription.id)
             break
         return
 
