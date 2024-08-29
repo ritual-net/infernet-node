@@ -39,6 +39,7 @@ vim config.json
     - **sleep** (`float`, optional). Number of seconds to sleep between snapshot syncs. Defaults to `1.0`.
     - **batch_size** (`int`, optional). Number of subscriptions to sync in each batch. Defaults to `200`.
     - **starting_sub_id** (`int`, optional). Subscription id to start the syncing process from. Defaults to `0`.
+    - **sync_period** (`float`, optional). The syncing period in seconds, to monitor the chain for new blocks and subscriptions. Defaults to `0.5`.
 - **docker** (`object`, optional). Docker credentials to pull private containers with
   - **username** (`string`). The Dockerhub username.
   - **password** (`string`). The Dockerhub [Personal Access Token](https://docs.docker.com/security/for-developers/access-tokens/) (PAT).
