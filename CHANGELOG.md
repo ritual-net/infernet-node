@@ -11,6 +11,13 @@ All notable changes to this project will be documented in this file.
 
 - New `sync_period` field as `snapshot_sync` configuration parameter, to optionally set the period of polling the chain for new blocks/subscriptions.
 
+### Changed
+
+- Almost all container configurations (except `id` and `image`) are now reasonably defaulted (e.g. port auto-assignment), making it easier to configure a service and enabling the use of service recipes. Container configurations are validated at startup and errors are reported early.
+
+### Fixed
+
+- Bug with batch syncing new subscriptions
 
 ## [1.2.0] - 2024-08-15
 

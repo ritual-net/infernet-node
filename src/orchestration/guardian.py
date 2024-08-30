@@ -3,10 +3,11 @@ from __future__ import annotations
 import time
 from dataclasses import asdict, dataclass
 from ipaddress import IPv4Network, IPv6Network, ip_address, ip_network
-from typing import Any, Dict, Optional, Union, cast
+from typing import Any, Optional, Union, cast
 
 from chain.container_lookup import ContainerLookup
 from chain.wallet_checker import WalletChecker
+from shared.container import InfernetContainer
 from shared.message import (
     DelegatedSubscriptionMessage,
     FilteredMessage,
@@ -16,7 +17,6 @@ from shared.message import (
     PrefilterMessage,
     SubscriptionCreatedMessage,
 )
-from utils.config import ConfigContainer
 from utils.logging import log
 
 
@@ -66,7 +66,7 @@ class Guardian:
 
     def __init__(
         self: Guardian,
-        configs: list[ConfigContainer],
+        configs: list[InfernetContainer],
         chain_enabled: bool,
         container_lookup: ContainerLookup,
         wallet_checker: Optional[WalletChecker],
@@ -74,7 +74,7 @@ class Guardian:
         """Initialize Guardian
 
         Args:
-            configs (list[ConfigContainer]): Container configurations
+            configs (list[InfernetContainer]): Container configurations
             chain_enabled (bool): Is chain module enabled?
             container_lookup (ContainerLookup): Container lookup, used for reverse hash
                 lookup of subscriptions' `containers` field.
@@ -90,18 +90,16 @@ class Guardian:
 
         # Initialize container restrictions
         self._restrictions: dict[str, ContainerRestrictions] = {
-            container["id"]: ContainerRestrictions(
+            container.id: ContainerRestrictions(
                 allowed_ips=[
-                    ip_network(ip, strict=False) for ip in container["allowed_ips"]
+                    ip_network(ip, strict=False) for ip in container.allowed_ips
                 ],
-                allowed_addresses=list(map(str.lower, container["allowed_addresses"])),
+                allowed_addresses=list(map(str.lower, container.allowed_addresses)),
                 allowed_delegate_addresses=list(
-                    map(str.lower, container["allowed_delegate_addresses"])
+                    map(str.lower, container.allowed_delegate_addresses)
                 ),
-                external=container["external"],
-                generates_proofs=cast(Dict[str, bool], container).get(
-                    "generates_proofs", False
-                ),
+                external=container.external,
+                generates_proofs=container.generates_proofs,
             )
             for container in configs
         }

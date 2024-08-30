@@ -58,8 +58,6 @@ run:
 run-node:
 	docker compose -f deploy/docker-compose.yaml up -d
 
-service := echo
-
 stop-node:
 	docker compose -f deploy/docker-compose.yaml kill || true
 	docker compose -f deploy/docker-compose.yaml rm -f || true

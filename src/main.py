@@ -20,6 +20,7 @@ from chain.wallet_checker import WalletChecker
 from orchestration import ContainerManager, DataStore, Guardian, Orchestrator
 from server import RESTServer, StatSender
 from shared import AsyncTask
+from shared.container import validate_configurations
 from utils import log, setup_logging
 from utils.config import ConfigDict, load_validated_config
 from utils.logging import log_ascii_status
@@ -68,11 +69,15 @@ class NodeLifecycle:
         setup_logging(config.get("log"))
         check_node_is_up_to_date()
 
-        log.debug("Running startup", chain_enabled=config["chain"]["enabled"])
+        chain_enabled = config["chain"]["enabled"]
+        log.debug("Running startup", chain_enabled=chain_enabled)
+
+        # Validate container configurations
+        container_configs = validate_configurations(config.get("containers", []))
 
         # Initialize container manager
         manager = ContainerManager(
-            configs=config["containers"],
+            configs=container_configs,
             credentials=config.get("docker"),
             startup_wait=config.get("startup_wait"),
             managed=config.get("manage_containers"),
@@ -82,19 +87,11 @@ class NodeLifecycle:
         # Initialize data store
         store = DataStore(config["redis"]["host"], config["redis"]["port"])
 
-        # Initialize guardian + orchestrator
-        container_lookup = ContainerLookup(config["containers"])
-
-        chain_enabled = config["chain"]["enabled"]
-
-        guardian = Guardian(
-            config["containers"],
-            chain_enabled,
-            container_lookup=container_lookup,
-            wallet_checker=None,
-        )
-
+        # Initialize orchestrator
         orchestrator = Orchestrator(manager, store)
+
+        # Initialize container lookup
+        container_lookup = ContainerLookup(container_configs)
 
         # Initialize chain-specific tasks
         processor: Optional[ChainProcessor] = None
@@ -127,12 +124,12 @@ class NodeLifecycle:
             wallet_checker = WalletChecker(
                 rpc=rpc,
                 registry=registry,
-                container_configs=config["containers"],
+                container_configs=container_configs,
                 payment_address=payment_address,
             )
 
             guardian = Guardian(
-                config["containers"],
+                container_configs,
                 chain_enabled,
                 container_lookup=container_lookup,
                 wallet_checker=wallet_checker,
@@ -187,6 +184,13 @@ class NodeLifecycle:
                 syncing_period=snapshot_sync.get("sync_period"),
             )
             self._tasks.extend([processor, listener])
+        else:
+            guardian = Guardian(
+                container_configs,
+                chain_enabled,
+                container_lookup=container_lookup,
+                wallet_checker=None,
+            )
 
         # Initialize REST server
         self._tasks.append(

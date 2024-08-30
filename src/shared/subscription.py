@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 from functools import cache
+from typing import TYPE_CHECKING
 
 import structlog
 from eth_account.messages import SignableMessage, encode_typed_data
@@ -11,7 +12,9 @@ from hexbytes import HexBytes
 from web3 import Web3
 from web3.constants import ADDRESS_ZERO
 
-from chain.container_lookup import ContainerLookup
+# Breaks circular import
+if TYPE_CHECKING:
+    from chain.container_lookup import ContainerLookup
 
 log = structlog.get_logger()
 

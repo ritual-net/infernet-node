@@ -7,9 +7,9 @@ conflicting IDs.
 Example:
     >>> manager = ContainerManager(
         {
-            "container-1": ConfigContainer(port=3000, image="image1", ...),
-            "container-2": ConfigContainer(port=3001, image="image2", ...),
-            "container-3": ConfigContainer(port=3002, image="image3", ...)
+            "container-1": InfernetContainer(port=3000, image="image1", ...),
+            "container-2": InfernetContainer(port=3001, image="image2", ...),
+            "container-3": InfernetContainer(port=3002, image="image3", ...)
         },
         DockerCredentials("...", "..."),
         startup_wait=60,
@@ -26,8 +26,8 @@ Example:
     >>> manager.running_containers
     ["container-1", "container-3"]
 
-    # Cleanup (containers are force stopped)
-    >>> await manager.cleanup()
+    # Stop manager, containers are force stopped
+    >>> await manager.stop()
 """
 
 from __future__ import annotations
@@ -41,8 +41,9 @@ from docker.models.containers import Container  # type: ignore
 from docker.types import DeviceRequest  # type: ignore
 
 from shared import AsyncTask
+from shared.container import InfernetContainer
 from utils import log
-from utils.config import ConfigContainer, ConfigDocker
+from utils.config import ConfigDocker
 from utils.logging import log_ascii_status
 
 DEFAULT_STARTUP_WAIT: float = 60.0
@@ -67,7 +68,7 @@ class ContainerManager(AsyncTask):
         running_containers (list[str]): List of running containers (by ID).
 
     Private attributes:
-        _configs (list[ConfigContainer]): Container configurations to run.
+        _configs (list[InfernetContainer]): Container configurations to run.
         _creds (ConfigDocker): Docker registry credentials.
         _containers (dict[str, Container]): Container objects, keyed by ID.
         _images (list[str]): List of image ids to pull.
@@ -79,7 +80,7 @@ class ContainerManager(AsyncTask):
 
     def __init__(
         self: ContainerManager,
-        configs: list[ConfigContainer],
+        configs: list[InfernetContainer],
         credentials: Optional[ConfigDocker],
         startup_wait: Optional[float],
         managed: Optional[bool],
@@ -87,7 +88,7 @@ class ContainerManager(AsyncTask):
         """Initialize ContainerManager with given configurations and credentials.
 
         Args:
-            configs (dict[str, ConfigContainer]): Container configurations to run.
+            configs (dict[str, InfernetContainer]): Container configurations to run.
             credentials (ConfigDocker): Docker registry credentials.
             startup_wait (Optional[float]): Number of seconds to wait for containers
                 to start. If None, uses DEFAULT_STARTUP_WAIT.
@@ -98,11 +99,11 @@ class ContainerManager(AsyncTask):
         super().__init__()
 
         # Store configs, credentials, and port mappings in state
-        self._configs: list[ConfigContainer] = configs
+        self._configs: list[InfernetContainer] = configs
         self._creds = credentials
-        self._images: list[str] = [config["image"] for config in self._configs]
+        self._images: list[str] = [config.image for config in self._configs]
         self._port_mappings: dict[str, int] = {
-            config["id"]: config["port"] for config in self._configs
+            config.id: config.port for config in self._configs
         }
         self._loop = get_event_loop()
         self._shutdown = False
@@ -133,7 +134,7 @@ class ContainerManager(AsyncTask):
         # endpoint are a requirement for all containers, use them to check if containers
         # are running.
         if not self._managed:
-            return [config["id"] for config in self._configs]
+            return [config.id for config in self._configs]
 
         # Container objects are cached, need to reload attributes
         for container in self._containers.values():
@@ -156,13 +157,13 @@ class ContainerManager(AsyncTask):
         """Get running container information"""
         return [
             {
-                "id": config["id"],
-                "description": config["description"] if "description" in config else "",
-                "external": config["external"],
-                "image": config["image"],
+                "id": config.id,
+                "description": config.description,
+                "external": config.external,
+                "image": config.image,
             }
             for config in self._configs
-            if config["id"] in self.running_containers
+            if config.id in self.running_containers
         ]
 
     def get_port(self: ContainerManager, container: str) -> int:
@@ -215,6 +216,9 @@ class ContainerManager(AsyncTask):
 
         except Exception as e:
             log.error("Error setting up container manager", error=e)
+            raise RuntimeError(
+                "Container manager setup failed. Check logs for details."
+            )
 
     async def run_forever(self: ContainerManager) -> None:
         """Lifecycle loop for container manager
@@ -330,10 +334,13 @@ class ContainerManager(AsyncTask):
                 return True
 
             except Exception as e:
-                # Check if image exists locally
-                if self.client.images.get(image):
-                    log.debug(f"Image {image} already exists locally")
-                    return True
+                try:
+                    # Check if image exists locally
+                    if self.client.images.get(image):
+                        log.info(f"Image {image} already exists locally")
+                        return True
+                except Exception:
+                    log.warning(f"Image {image} does not exist locally")
 
                 log.error(f"Error pulling image {image}", error=e)
                 return False
@@ -355,7 +362,7 @@ class ContainerManager(AsyncTask):
         """
 
         all_containers = self.client.containers.list(all=True)
-        container_ids = [config["id"] for config in self._configs]
+        container_ids = [config.id for config in self._configs]
 
         for container in all_containers:
             if container.name in container_ids:
@@ -373,7 +380,7 @@ class ContainerManager(AsyncTask):
         """
 
         for config in self._configs:
-            id = config["id"]
+            id = config.id
 
             try:
                 # Check if the container already exists
@@ -385,21 +392,24 @@ class ContainerManager(AsyncTask):
                 # Start the container if it's not running
                 if container.status != "running":
                     container.start()
-                    log.debug(f"Started existing container: {id}")
-                else:
-                    log.debug(f"Container already running: {id}")
+
+                # Warn about port mismatch, we can't change port of running container
+                container.reload()
+                port = container.ports["3000/tcp"][0]["HostPort"]
+                if port != config.port:
+                    log.warning(
+                        f"Container '{id}' is already running on port {port}, "
+                        f"disregarding requested port {config.port}"
+                    )
+
+                log.info(f"Started existing container '{id}' on port {port}")
 
             except NotFound:
                 # Container does not exist, so create and run a new one
-                command = config["command"]
-                env = config["env"]
-                image = config["image"]
-                port = config["port"]
-
-                # Request GPU device if enabled
-                device_requests = []
-                if "gpu" in config and config["gpu"]:
-                    device_requests = [DeviceRequest(count=-1, capabilities=[["gpu"]])]
+                command = config.command
+                env = config.env
+                image = config.image
+                port = config.port
 
                 # Run container and store object in state
                 self._containers[id] = self.client.containers.run(
@@ -413,7 +423,11 @@ class ContainerManager(AsyncTask):
                         "Name": "on-failure",
                         "MaximumRetryCount": 5,
                     },
-                    device_requests=device_requests,
-                    volumes=config.get("volumes", []),
+                    device_requests=(
+                        [DeviceRequest(count=-1, capabilities=[["gpu"]])]
+                        if config.gpu is True
+                        else None
+                    ),
+                    volumes=config.volumes,
                 )
-                log.debug(f"Created and started new container: {id}")
+                log.info(f"Started new container '{id}' on port {port}")
