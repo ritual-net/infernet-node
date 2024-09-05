@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import json
-import sys
 from typing import Any, List, Optional
 
 import structlog
-from pydantic import BaseModel, ValidationError, model_validator
+from pydantic import BaseModel, model_validator
 
 log = structlog.get_logger(__name__)
 
@@ -138,12 +137,3 @@ def load_validated_config(path: str = "config.json") -> Config:
     with open(path) as config_file:
         config_data = json.load(config_file)
         return Config(**config_data)
-        # try:
-        #     return Config(**config_data)
-        # except ValidationError as e:
-        #     error = json.loads(e.json())
-        #     log.error(
-        #         f"Config validation error: field '{error[0]['loc'][0]}'. "
-        #         f"{error[0]['msg']}"
-        #     )
-        #     sys.exit(1)

@@ -1,11 +1,5 @@
 from __future__ import annotations
 
-import json
-import sys
-from typing import Any
-
-from pydantic import BaseModel, ValidationError
-
 from utils.config import InfernetContainer
 from utils.logging import log
 
@@ -14,7 +8,7 @@ def assign_ports(configs: list[InfernetContainer]) -> list[InfernetContainer]:
     """Assigns ports to container configurations.
 
     Args:
-        configs (list[InfernetContainer]): The container configurations to assign ports to.
+        configs (list[InfernetContainer]): The container configurations.
 
     Returns:
         list[InfernetContainer]: The container configurations with assigned ports.

@@ -95,7 +95,7 @@ class ChainListener(AsyncTask):
             guardian (Guardian): Guardian instance
             processor (ChainProcessor): ChainProcessor instance
             trail_head_blocks (int): How many blocks to trail head by
-            snapshot_sync_sleep (Optional[int]): Snapshot sync sleep time between each batch
+            snapshot_sync (ConfigSnapshotSync): Snapshot sync configuration
         """
 
         # Initialize inherited AsyncTask
