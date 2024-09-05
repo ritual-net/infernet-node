@@ -20,7 +20,7 @@ from chain.wallet_checker import WalletChecker
 from orchestration import ContainerManager, DataStore, Guardian, Orchestrator
 from server import RESTServer, StatSender
 from shared import AsyncTask
-from shared.config import Config, ConfigWallet, load_validated_config
+from shared.config import ConfigWallet, load_validated_config
 from utils.container import assign_ports
 from utils.logging import log, log_ascii_status, setup_logging
 from version import __version__, check_node_is_up_to_date
@@ -62,7 +62,9 @@ class NodeLifecycle:
 
         # Load and validate config
         config_path = os.environ.get("INFERNET_CONFIG_PATH", "config.json")
-        config: Config = load_validated_config(config_path)
+        if not (config := load_validated_config(config_path)):
+            log.error("Config file validation failed", config_path=config_path)
+            exit(1)
 
         # Setup logging
         setup_logging(config.log)
@@ -101,9 +103,10 @@ class NodeLifecycle:
             wallet_config = cast(ConfigWallet, config.chain.wallet)
             rcp_url = cast(str, config.chain.rpc_url)
             registry_address = cast(str, config.chain.registry_address)
+            private_key = cast(str, wallet_config.private_key)
 
             # Ensure prefix is added to private key
-            private_key = f"0x{wallet_config.private_key.removeprefix('0x')}"
+            private_key = f"0x{private_key.removeprefix('0x')}"
             rpc = RPC(rcp_url, private_key)
 
             asyncio.get_event_loop().run_until_complete(rpc.initialize())

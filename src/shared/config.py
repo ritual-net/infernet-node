@@ -4,7 +4,7 @@ import json
 from typing import Any, List, Optional
 
 import structlog
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, ValidationError, model_validator
 
 log = structlog.get_logger(__name__)
 
@@ -27,7 +27,7 @@ class ConfigWallet(BaseModel):
     """Expected config[chain][wallet] format"""
 
     max_gas_limit: int = 5000000
-    private_key: str
+    private_key: Optional[str] = None
     payment_address: Optional[str] = None
     allowed_sim_errors: List[str] = []
 
@@ -65,7 +65,8 @@ class ConfigChain(BaseModel):
                 )
             if not self.wallet:
                 raise ValueError("wallet must be defined when chain is enabled")
-
+            if not self.wallet.private_key:
+                raise ValueError("private_key must be defined when chain is enabled")
         return self
 
 
@@ -125,15 +126,20 @@ class Config(BaseModel):
     startup_wait: float = 5.0
 
 
-def load_validated_config(path: str = "config.json") -> Config:
+def load_validated_config(path: str = "config.json") -> Optional[Config]:
     """Loads and validates configuration file. Throws if config can't be validated
 
     Args:
         path (str, optional): Path to config file. Defaults to "config.json".
 
     Returns:
-        Config: parsed and validated config
+        Optional[Config]: parsed and validated config
     """
     with open(path) as config_file:
         config_data = json.load(config_file)
-        return Config(**config_data)
+
+        try:
+            return Config(**config_data)
+        except ValidationError as e:
+            log.error(f"Invalid input data: {e}")
+            return None
