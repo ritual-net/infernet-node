@@ -1,200 +1,149 @@
-from json import load as json_load
-from typing import Any, NamedTuple, NotRequired, Optional, TypedDict, cast
+from __future__ import annotations
+
+import json
+import sys
+from typing import Any, List, Optional
+
+import structlog
+from pydantic import BaseModel, ValidationError, model_validator
+
+log = structlog.get_logger(__name__)
 
 
-class ConfigRateLimit(TypedDict):
+class ConfigRateLimit(BaseModel):
     """Expected config[server][rate_limit] format"""
 
-    num_requests: Optional[int]
-    period: Optional[int]
+    num_requests: int = 60
+    period: int = 60
 
 
-class ConfigServer(TypedDict):
+class ConfigServer(BaseModel):
     """Expected config[server] format"""
 
-    port: int
-    rate_limit: Optional[ConfigRateLimit]
+    port: int = 4000
+    rate_limit: ConfigRateLimit = ConfigRateLimit()
 
 
-class ConfigWallet(TypedDict):
+class ConfigWallet(BaseModel):
     """Expected config[chain][wallet] format"""
 
-    max_gas_limit: int
+    max_gas_limit: int = 5000000
     private_key: str
-    payment_address: Optional[str]
-    allowed_sim_errors: Optional[list[str]]
+    payment_address: Optional[str] = None
+    allowed_sim_errors: List[str] = []
 
 
-class ConfigSnapshotSync(TypedDict):
+class ConfigSnapshotSync(BaseModel):
     """Expected config[snapshot_sync] format"""
 
-    sleep: float
-    batch_size: int
-    starting_sub_id: int
-    sync_period: float
+    sleep: float = 1.0
+    batch_size: int = 500
+    starting_sub_id: int = 0
+    sync_period: float = 0.5
 
 
-class ConfigChain(TypedDict):
+class ConfigChain(BaseModel):
     """Expected config[chain] format"""
 
-    enabled: bool
-    rpc_url: str
-    trail_head_blocks: int
-    registry_address: str
-    wallet: ConfigWallet
-    snapshot_sync: Optional[ConfigSnapshotSync]
+    enabled: bool = False
+    rpc_url: Optional[str] = None
+    trail_head_blocks: int = 1
+    registry_address: Optional[str] = None
+    wallet: Optional[ConfigWallet] = None
+    snapshot_sync: ConfigSnapshotSync = ConfigSnapshotSync()
+
+    @model_validator(mode="after")
+    def check_fields_when_enabled(self: ConfigChain) -> ConfigChain:
+        # If `enabled` is True, check that certain fields are not None or empty
+        enabled = self.enabled
+
+        if enabled:
+            if not self.rpc_url:
+                raise ValueError("rpc_url must be defined when chain is enabled")
+            if not self.registry_address:
+                raise ValueError(
+                    "registry_address must be defined when chain is enabled"
+                )
+            if not self.wallet:
+                raise ValueError("wallet must be defined when chain is enabled")
+
+        return self
 
 
-class ConfigDocker(TypedDict):
+class ConfigDocker(BaseModel):
     """Expected config[docker] format"""
 
     username: str
     password: str
 
 
-class ConfigContainer(TypedDict):
+class InfernetContainer(BaseModel):
     """Expected config[containers] format"""
 
-    # Required
     id: str
     image: str
 
-    # Can be defaulted by node
-    port: NotRequired[int]
-    external: NotRequired[bool]
-    gpu: NotRequired[bool]
-
-    # Optional
-    accepted_payments: NotRequired[dict[str, int]]
-    allowed_ips: NotRequired[list[str]]
-    allowed_addresses: NotRequired[list[str]]
-    allowed_delegate_addresses: NotRequired[list[str]]
-    description: NotRequired[str]
-    command: NotRequired[str]
-    env: NotRequired[dict[str, Any]]
-    generates_proofs: NotRequired[bool]
-    volumes: NotRequired[list[str]]
+    port: int = -1
+    external: bool = True
+    gpu: bool = False
+    accepted_payments: dict[str, int] = {}
+    allowed_ips: List[str] = []
+    allowed_addresses: List[str] = []
+    allowed_delegate_addresses: List[str] = []
+    description: str = ""
+    command: str = ""
+    env: dict[str, Any] = {}
+    generates_proofs: bool = False
+    volumes: List[str] = []
 
 
-class ConfigRedis(TypedDict):
+class ConfigRedis(BaseModel):
     """Expected config[redis] format"""
 
-    host: str
-    port: int
+    host: str = "redis"
+    port: int = 6379
 
 
-class ConfigLog(TypedDict):
+class ConfigLog(BaseModel):
     """Expected config[log] format"""
 
-    path: Optional[str]
-    max_file_size: Optional[int]
-    backup_count: Optional[int]
+    path: str = "infernet_node.log"
+    max_file_size: int = 2**30  # 1GB
+    backup_count: int = 2
 
 
-class ConfigDict(TypedDict):
+class Config(BaseModel):
     """Expected config format"""
 
-    containers: list[ConfigContainer]
-    chain: ConfigChain
-    forward_stats: bool
-    redis: ConfigRedis
-    server: ConfigServer
-
-    docker: NotRequired[ConfigDocker]
-    log: NotRequired[ConfigLog]
-    manage_containers: NotRequired[bool]
-    startup_wait: NotRequired[float]
-
-
-class ValidationItem(NamedTuple):
-    """Validation parser item (dict key path, expected type of value, required)"""
-
-    key_path: str
-    expected_type: type
-    optional: bool = False
+    containers: List[InfernetContainer] = []
+    chain: ConfigChain = ConfigChain()
+    docker: Optional[ConfigDocker] = None
+    forward_stats: bool = True
+    log: ConfigLog = ConfigLog()
+    manage_containers: bool = True
+    redis: ConfigRedis = ConfigRedis()
+    server: ConfigServer = ConfigServer()
+    startup_wait: float = 5.0
 
 
-# Config dict path => expected type
-VALIDATION_CONFIG: list[ValidationItem] = [
-    ValidationItem("server.port", int),
-    ValidationItem("chain.enabled", bool),
-    ValidationItem("chain.rpc_url", str),
-    ValidationItem("chain.trail_head_blocks", int),
-    ValidationItem("chain.registry_address", str),
-    ValidationItem("chain.wallet.max_gas_limit", int),
-    ValidationItem("chain.wallet.private_key", str),
-]
-
-
-def validate(
-    config: dict[Any, Any], path: list[str], expected_type: type, optional: bool
-) -> None:
-    """Validates individual ValidationItem
-
-    Args:
-        config (dict[Any, Any]): recursed config dict
-        path (list[str]): recursed dot-seperated dict path
-        expected_type (type): expected type of root value
-        optional (bool): is path optional
-
-    Raises:
-        TypeError: Thrown if root value has type mismatch to expected type
-        KeyError: Thrown if root value is required but missing in config
-    """
-    if len(path) == 0:
-        # At root value, validate type before returning
-        if type(config) is not expected_type:
-            raise TypeError
-        return
-
-    # Collect next key from path
-    next_key: str = path.pop(0)
-
-    # If key exists in config, recurse one-level deeper
-    if next_key in config:
-        validate(config[next_key], path, expected_type, optional)
-    else:
-        # If key does not exist in config, check if key is optional
-        if optional:
-            # If key is optional, populate key and continue down-level population
-            config[next_key] = None
-            validate(config[next_key], path, expected_type, optional)
-        else:
-            # Else, raise KeyError
-            raise KeyError
-
-
-def validate_config(config: dict[Any, Any]) -> None:
-    """In-place validates passed config for optionality and argument type
-
-    Args:
-        config (dict[Any, Any]): raw loaded JSON config
-
-    Raises:
-        Exception: Thrown if invalid config param (missing required or incorrect type)
-    """
-    for item in VALIDATION_CONFIG:
-        # Split at "." to generate nested key path
-        path: list[str] = item.key_path.split(".")
-
-        try:
-            # Recursively validate path
-            validate(config, path, item.expected_type, item.optional)
-        except KeyError:
-            raise Exception(f"Missing config param: {item.key_path}")
-        except TypeError:
-            raise Exception(f"Incorrect config type: {item.key_path}")
-
-
-def load_validated_config(path: str = "config.json") -> ConfigDict:
+def load_validated_config(path: str = "config.json") -> Config:
     """Loads and validates configuration file. Throws if config can't be validated
 
     Args:
         path (str, optional): Path to config file. Defaults to "config.json".
 
     Returns:
-        ConfigDict: parsed config
+        Config: parsed and validated config
     """
-    config: dict[Any, Any] = json_load(open(path))
-    validate_config(config)
-    return cast(ConfigDict, config)
+    with open(path) as config_file:
+        config_data = json.load(config_file)
+        return Config(**config_data)
+        # try:
+        #     return Config(**config_data)
+        # except ValidationError as e:
+        #     error = json.loads(e.json())
+        #     log.error(
+        #         f"Config validation error: field '{error[0]['loc'][0]}'. "
+        #         f"{error[0]['msg']}"
+        #     )
+        #     sys.exit(1)

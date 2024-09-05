@@ -8,7 +8,7 @@ from eth_typing import ChecksumAddress
 from chain.registry import Registry
 from chain.rpc import RPC
 from shared import Subscription
-from shared.container import InfernetContainer
+from utils.config import InfernetContainer
 from utils.constants import ERC20_ABI, WALLET_FACTORY_ABI, ZERO_ADDRESS
 
 log = structlog.getLogger(__name__)
