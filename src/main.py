@@ -20,8 +20,8 @@ from chain.wallet_checker import WalletChecker
 from orchestration import ContainerManager, DataStore, Guardian, Orchestrator
 from server import RESTServer, StatSender
 from shared import AsyncTask
-from shared.container import assign_ports
-from utils.config import Config, ConfigWallet, load_validated_config
+from shared.config import Config, ConfigWallet, load_validated_config
+from utils.container import assign_ports
 from utils.logging import log, log_ascii_status, setup_logging
 from version import __version__, check_node_is_up_to_date
 

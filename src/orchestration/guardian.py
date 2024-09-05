@@ -7,6 +7,7 @@ from typing import Any, Optional, Union, cast
 
 from chain.container_lookup import ContainerLookup
 from chain.wallet_checker import WalletChecker
+from shared.config import InfernetContainer
 from shared.message import (
     DelegatedSubscriptionMessage,
     FilteredMessage,
@@ -16,7 +17,6 @@ from shared.message import (
     PrefilterMessage,
     SubscriptionCreatedMessage,
 )
-from utils.config import InfernetContainer
 from utils.logging import log
 
 

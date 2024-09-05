@@ -23,10 +23,10 @@ from chain.reader import Reader
 from chain.registry import Registry
 from chain.rpc import RPC
 from orchestration.guardian import Guardian
+from shared.config import ConfigSnapshotSync
 from shared.message import GuardianError, SubscriptionCreatedMessage
 from shared.service import AsyncTask
 from utils import log
-from utils.config import ConfigSnapshotSync
 
 SUBSCRIPTION_SYNC_BATCH_SIZE = 20
 

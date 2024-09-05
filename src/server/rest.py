@@ -15,6 +15,7 @@ from chain.processor import ChainProcessor
 from orchestration import ContainerManager, DataStore, Guardian, Orchestrator
 from server.utils import is_local_ip
 from shared import AsyncTask, JobResult
+from shared.config import ConfigChain, ConfigServer
 from shared.message import (
     BaseMessage,
     DelegatedSubscriptionMessage,
@@ -24,7 +25,6 @@ from shared.message import (
     OffchainMessage,
 )
 from utils import log
-from utils.config import ConfigChain, ConfigServer
 from utils.parser import from_union
 
 

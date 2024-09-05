@@ -6,7 +6,7 @@ import pyfiglet  # type: ignore
 import structlog
 from rich import print
 
-from utils.config import ConfigLog
+from shared.config import ConfigLog
 
 # Re-export logger
 log = structlog.get_logger()
