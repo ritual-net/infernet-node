@@ -71,7 +71,7 @@ class ChainListener(AsyncTask):
         _snapshot_sync_sleep (int): Snapshot sync sleep time between each batch
         _snapshot_sync_batch_size (int): Snapshot sync batch size to sync in parallel
         _snapshot_sync_starting_sub_id (int): Snapshot sync starting subscription ID
-        _syncing_period (int): How long to sleep between each iteration
+        _syncing_period (float): How long to sleep between each iteration
     """
 
     def __init__(

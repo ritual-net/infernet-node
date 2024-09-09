@@ -4,7 +4,7 @@ import json
 from typing import Any, List, Optional
 
 import structlog
-from pydantic import BaseModel, ValidationError, model_validator
+from pydantic import BaseModel, model_validator
 
 log = structlog.get_logger(__name__)
 
@@ -126,20 +126,18 @@ class Config(BaseModel):
     startup_wait: float = 5.0
 
 
-def load_validated_config(path: str = "config.json") -> Optional[Config]:
-    """Loads and validates configuration file. Throws if config can't be validated
+def load_validated_config(path: str = "config.json") -> Config:
+    """Loads and validates configuration file.
 
     Args:
         path (str, optional): Path to config file. Defaults to "config.json".
 
     Returns:
-        Optional[Config]: parsed and validated config
+        Config: parsed and validated config
+
+    Raises:
+        ValidationError: if config is not valid
     """
     with open(path) as config_file:
         config_data = json.load(config_file)
-
-        try:
-            return Config(**config_data)
-        except ValidationError as e:
-            log.error(f"Invalid input data: {e}")
-            return None
+        return Config(**config_data)
