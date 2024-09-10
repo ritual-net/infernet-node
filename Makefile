@@ -72,7 +72,7 @@ build:
 	docker build -t $(image_id) .
 
 build-gpu:
-	docker build -t $(image_id)-gpu -f Dockerfile-gpu .
+	docker build -t $(image_id) -f Dockerfile-gpu .
 
 publish:
 	docker image push $(image_id)
