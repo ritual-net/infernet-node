@@ -45,7 +45,7 @@ jobs:
         run: make tag=$DOCKER_TAG build-gpu
 
       - name: Publish docker images
-        run: make publish
+        run: make tag=$DOCKER_TAG publish
 
       - name: Run e2e node tests on monorepo
         run: gh workflow run infernet_node_tests.yaml -R ritual-net/infernet-monorepo-internal --ref main -f docker-tag=$DOCKER_TAG
