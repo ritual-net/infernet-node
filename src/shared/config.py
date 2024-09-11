@@ -53,7 +53,7 @@ class ConfigChain(BaseModel):
 
     @model_validator(mode="after")
     def check_fields_when_enabled(self: ConfigChain) -> ConfigChain:
-        # If `enabled` is True, check that certain fields are not None or empty
+        """If chain is enabled, validate rpc url, registry, and wallet."""
         enabled = self.enabled
 
         if enabled:
