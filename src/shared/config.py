@@ -83,7 +83,7 @@ class InfernetContainer(BaseModel):
     id: str
     image: str
 
-    port: int = -1
+    port: int = 3000
     external: bool = True
     gpu: bool = False
     accepted_payments: dict[str, int] = {}
