@@ -41,9 +41,8 @@ from docker.models.containers import Container  # type: ignore
 from docker.types import DeviceRequest  # type: ignore
 
 from shared import AsyncTask
-from shared.container import InfernetContainer
+from shared.config import ConfigDocker, InfernetContainer
 from utils import log
-from utils.config import ConfigDocker
 from utils.logging import log_ascii_status
 
 DEFAULT_STARTUP_WAIT: float = 60.0

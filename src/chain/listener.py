@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import asyncio
 from asyncio import create_task, sleep
-from typing import Optional, cast
+from typing import cast
 
 from eth_typing import BlockNumber
 from reretry import retry  # type: ignore
@@ -23,15 +23,12 @@ from chain.reader import Reader
 from chain.registry import Registry
 from chain.rpc import RPC
 from orchestration.guardian import Guardian
+from shared.config import ConfigSnapshotSync
 from shared.message import GuardianError, SubscriptionCreatedMessage
 from shared.service import AsyncTask
 from utils import log
 
-SNAPSHOT_SYNC_BATCH_SIZE = 200
-SNAPSHOT_SYNC_BATCH_SLEEP_S = 1.0
 SUBSCRIPTION_SYNC_BATCH_SIZE = 20
-SNAPSHOT_SYNC_STARTING_SUB_ID = 0
-SYNCING_PERIOD = 0.5
 
 
 def get_batches(start: int, end: int, batch_size: int) -> list[tuple[int, int]]:
@@ -73,6 +70,8 @@ class ChainListener(AsyncTask):
         _trail_head_blocks (int): How many blocks to trail head by
         _snapshot_sync_sleep (int): Snapshot sync sleep time between each batch
         _snapshot_sync_batch_size (int): Snapshot sync batch size to sync in parallel
+        _snapshot_sync_starting_sub_id (int): Snapshot sync starting subscription ID
+        _syncing_period (float): How long to sleep between each iteration
     """
 
     def __init__(
@@ -84,10 +83,7 @@ class ChainListener(AsyncTask):
         guardian: Guardian,
         processor: ChainProcessor,
         trail_head_blocks: int,
-        snapshot_sync_sleep: Optional[int],
-        snapshot_sync_batch_size: Optional[int],
-        snapshot_sync_starting_sub_id: Optional[int],
-        syncing_period: Optional[float],
+        snapshot_sync: ConfigSnapshotSync,
     ) -> None:
         """Initializes new ChainListener
 
@@ -99,8 +95,7 @@ class ChainListener(AsyncTask):
             guardian (Guardian): Guardian instance
             processor (ChainProcessor): ChainProcessor instance
             trail_head_blocks (int): How many blocks to trail head by
-            snapshot_sync_sleep (int): Snapshot sync sleep time between each batch
-            snapshot_sync_batch_size (int): Snapshot sync batch size to sync in parallel
+            snapshot_sync (ConfigSnapshotSync): Snapshot sync configuration
         """
 
         # Initialize inherited AsyncTask
@@ -113,24 +108,10 @@ class ChainListener(AsyncTask):
         self._guardian = guardian
         self._processor = processor
         self._trail_head_blocks = trail_head_blocks
-        self._snapshot_sync_sleep = (
-            SNAPSHOT_SYNC_BATCH_SLEEP_S
-            if snapshot_sync_sleep is None
-            else snapshot_sync_sleep
-        )
-        self._snapshot_sync_batch_size = (
-            SNAPSHOT_SYNC_BATCH_SIZE
-            if snapshot_sync_batch_size is None
-            else snapshot_sync_batch_size
-        )
-        self._snapshot_sync_starting_sub_id = (
-            SNAPSHOT_SYNC_STARTING_SUB_ID
-            if snapshot_sync_starting_sub_id is None
-            else snapshot_sync_starting_sub_id
-        )
-        self._syncing_period = (
-            SYNCING_PERIOD if syncing_period is None else syncing_period
-        )
+        self._snapshot_sync_sleep = snapshot_sync.sleep
+        self._snapshot_sync_batch_size = snapshot_sync.batch_size
+        self._snapshot_sync_starting_sub_id = snapshot_sync.starting_sub_id
+        self._syncing_period = snapshot_sync.sync_period
         log.info("Initialized ChainListener")
 
     async def _sync_batch_subscriptions_creation(
@@ -339,7 +320,7 @@ class ChainListener(AsyncTask):
                 log.info(f"head sub id is: {head_sub_id}")
                 num_subs_to_sync = min(
                     head_sub_id - self._last_subscription_id,
-                    SUBSCRIPTION_SYNC_BATCH_SIZE,
+                    self._snapshot_sync_batch_size,
                 )
 
                 # Collect all Coordinator emitted event logs in range

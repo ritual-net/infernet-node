@@ -7,7 +7,7 @@ import structlog
 from eth_abi.abi import encode
 from web3 import Web3
 
-from shared.container import InfernetContainer
+from shared.config import InfernetContainer
 
 
 def get_all_comma_separated_permutations(containers: List[str]) -> List[str]:
