@@ -7,7 +7,7 @@ GIT_COMMIT_HASH := $(shell git rev-parse --short HEAD)
 # Set the tag to include commit hash
 tag ?= $(GIT_COMMIT_HASH)
 
-image_id = ritualnetwork/infernet-node-internal:$(tag)
+image_id = ritualnetwork/infernet-node:$(tag)
 
 ###########
 ### DEV ###
