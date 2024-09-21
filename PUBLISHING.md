@@ -15,4 +15,5 @@ repo public:
 
 ### Versioning
 * [ ] Update version in `openapi.yaml`.
+* [ ] Update version in `README.md`.
 * [ ] Update version in `version.py`.

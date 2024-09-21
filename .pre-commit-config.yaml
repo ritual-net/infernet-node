@@ -1,12 +1,12 @@
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.0.289
+    rev: v0.6.4
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
 
   - repo: https://github.com/psf/black
-    rev: 23.9.1
+    rev: 24.8.0
     hooks:
       - id: black
 
@@ -27,7 +27,7 @@ repos:
 
   # Default pre-commit hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v3.2.0
+    rev: v4.6.0
     hooks:
       # Ensure EOF exists
       - id: end-of-file-fixer
@@ -39,6 +39,6 @@ repos:
 
   # OpenAPI spec validator
   - repo: https://github.com/python-openapi/openapi-spec-validator
-    rev: master
+    rev: 0.7.1
     hooks:
       - id: openapi-spec-validator
