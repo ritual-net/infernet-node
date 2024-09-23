@@ -49,11 +49,27 @@ jobs:
       - name: Publish docker images
         run: make publish
 
-      - name: Run e2e node tests on monorepo
-        run: gh workflow run infernet_node_tests.yaml -R ritual-net/infernet-monorepo-internal --ref main -f docker-tag=$DOCKER_TAG
+#      - name: Run e2e node tests on monorepo
+#        run: gh workflow run infernet_node_tests.yaml -R ritual-net/infernet-monorepo-internal --ref main -f docker-tag=$DOCKER_TAG
+#
+#      - name: Run e2e service tests on monorepo
+#        run: gh workflow run infernet_services_tests.yaml -R ritual-net/infernet-monorepo-internal --ref main -f docker-tag=$DOCKER_TAG
 
-      - name: Run e2e service tests on monorepo
-        run: gh workflow run infernet_services_tests.yaml -R ritual-net/infernet-monorepo-internal --ref main -f docker-tag=$DOCKER_TAG
+      - name: Run e2e node tests on monorepo
+        uses: convictional/trigger-workflow-and-wait@v1.6.5
+        with:
+          owner: ritual-net
+          repo: infernet-monorepo-internal
+          github_token: ${{ secrets.MACHINE_USER_PAT }}
+          github_user: gh-deployer-01
+          workflow_file_name: infernet_node_tests.yaml
+          ref: main
+          wait_interval: 10
+          client_payload: '{"docker-tag":$DOCKER_TAG}'
+          propagate_failure: false
+          trigger_workflow: true
+          wait_workflow: true
+
 
       - name: Download Docker Hub CLI
         run: wget https://github.com/docker/hub-tool/releases/download/v0.4.6/hub-tool-linux-amd64.tar.gz
