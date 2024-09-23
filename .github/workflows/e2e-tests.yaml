@@ -65,7 +65,7 @@ jobs:
           workflow_file_name: infernet_node_tests.yaml
           ref: main
           wait_interval: 10
-          client_payload: '{"docker-tag":$DOCKER_TAG}'
+          client_payload: '{"docker-tag":"${{ env.DOCKER_TAG }}"}'
           propagate_failure: false
           trigger_workflow: true
           wait_workflow: true
