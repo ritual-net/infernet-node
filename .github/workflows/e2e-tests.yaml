@@ -61,7 +61,7 @@ jobs:
           owner: ritual-net
           repo: infernet-monorepo-internal
           github_token: ${{ secrets.MACHINE_USER_PAT }}
-          github_user: gh-deployer-01
+          github_user: ${{ secrets.MACHINE_USER }}
           workflow_file_name: infernet_node_tests.yaml
           ref: main
           wait_interval: 10
@@ -69,7 +69,6 @@ jobs:
           propagate_failure: false
           trigger_workflow: true
           wait_workflow: true
-
 
       - name: Download Docker Hub CLI
         run: wget https://github.com/docker/hub-tool/releases/download/v0.4.6/hub-tool-linux-amd64.tar.gz
