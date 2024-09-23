@@ -13,6 +13,8 @@ jobs:
 
     env:
       GH_TOKEN: ${{ secrets.MACHINE_USER_PAT }}
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
     steps:
       - uses: actions/checkout@v4
