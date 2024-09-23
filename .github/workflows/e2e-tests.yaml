@@ -73,7 +73,7 @@ jobs:
         run: sleep 60s
 
       - name: Delete docker image from Docker Hub
-        run: ./hub-tool/hub-tool tag rm ritualnetwork/infernet-node:$DOCKER_TAG -f
+        run: ./hub-tool/hub-tool tag rm ritualnetwork/infernet-node-internal:$DOCKER_TAG -f
 
 #      - name: Setup upterm session
 #        uses: lhotari/action-upterm@v1
