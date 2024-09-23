@@ -52,3 +52,10 @@ jobs:
 
       - name: Run e2e service tests on monorepo
         run: gh workflow run infernet_services_tests.yaml -R ritual-net/infernet-monorepo --ref main -f docker-tag=$DOCKER_TAG
+
+      - name: Setup upterm session
+        uses: lhotari/action-upterm@v1
+
+#      - name: Cleanup Docker image
+#        if: always()
+#        run: docker rmi my-image:latest
