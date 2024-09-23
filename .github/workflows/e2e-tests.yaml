@@ -50,10 +50,10 @@ jobs:
         run: make publish
 
       - name: Run e2e node tests on monorepo
-        run: gh workflow run infernet_node_tests.yaml -R ritual-net/infernet-monorepo --ref main -f docker-tag=$DOCKER_TAG
+        run: gh workflow run infernet_node_tests.yaml -R ritual-net/infernet-monorepo-internal --ref main -f docker-tag=$DOCKER_TAG
 
       - name: Run e2e service tests on monorepo
-        run: gh workflow run infernet_services_tests.yaml -R ritual-net/infernet-monorepo --ref main -f docker-tag=$DOCKER_TAG
+        run: gh workflow run infernet_services_tests.yaml -R ritual-net/infernet-monorepo-internal --ref main -f docker-tag=$DOCKER_TAG
 
       - name: Download Docker Hub CLI
         run: wget https://github.com/docker/hub-tool/releases/download/v0.4.6/hub-tool-linux-amd64.tar.gz
@@ -73,7 +73,7 @@ jobs:
         run: sleep 60s
 
       - name: Delete docker image from Docker Hub
-        run: ./hub-tool/hub-tool tag rm ritualnetwork/infernet-node-internal:$DOCKER_TAG -f
+        run: ./hub-tool/hub-tool tag rm ritualnetwork/infernet-node:$DOCKER_TAG -f
 
 #      - name: Setup upterm session
 #        uses: lhotari/action-upterm@v1
