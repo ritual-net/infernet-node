@@ -46,21 +46,12 @@ jobs:
           DOCKER_TAG=$(git rev-parse --short HEAD)
           echo "DOCKER_TAG=$DOCKER_TAG" >> $GITHUB_ENV
           echo "DOCKER_TAG=$DOCKER_TAG" >> $GITHUB_OUTPUT
-#          echo "DOCKER_TAG=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-#          echo "DOCKER_TAG=$DOCKER_TAG" >> $GITHUB_OUTPUT
-#          echo "::set-output name=docker_tag::${{ env.DOCKER_TAG }}"
 
       - name: Build docker images
         run: make tag=$DOCKER_TAG build
 
       - name: Publish docker images
         run: make publish
-
-#      - name: Run e2e node tests on monorepo
-#        run: gh workflow run infernet_node_tests.yaml -R ritual-net/infernet-monorepo-internal --ref main -f docker-tag=$DOCKER_TAG
-#
-#      - name: Run e2e service tests on monorepo
-#        run: gh workflow run infernet_services_tests.yaml -R ritual-net/infernet-monorepo-internal --ref main -f docker-tag=$DOCKER_TAG
 
   run-e2e:
     runs-on: ubuntu-latest
@@ -74,25 +65,19 @@ jobs:
           - workflow_file_name: infernet_services_tests.yaml
     steps:
       - name: Run tests on monorepo (tag:${{ needs.publish-docker-images.outputs.DOCKER_TAG }})
-        run: echo "This is a no-op step"
-
-      - name: Intentional failure
-        run: |
-          echo "This step will intentionally fail"
-          exit 1
-#        uses: convictional/trigger-workflow-and-wait@v1.6.5
-#        with:
-#          owner: ritual-net
-#          repo: infernet-monorepo-internal
-#          github_token: ${{ secrets.MACHINE_USER_PAT }}
-#          github_user: ${{ secrets.MACHINE_USER }}
-#          workflow_file_name: ${{ matrix.workflow_file_name }}
-#          ref: main
-#          wait_interval: 20
-#          client_payload: '{"docker-tag":"${{ needs.publish-docker-images.outputs.DOCKER_TAG }}"}'
-#          propagate_failure: false
-#          trigger_workflow: true
-#          wait_workflow: true
+        uses: convictional/trigger-workflow-and-wait@v1.6.5
+        with:
+          owner: ritual-net
+          repo: infernet-monorepo-internal
+          github_token: ${{ secrets.MACHINE_USER_PAT }}
+          github_user: ${{ secrets.MACHINE_USER }}
+          workflow_file_name: ${{ matrix.workflow_file_name }}
+          ref: main
+          wait_interval: 20
+          client_payload: '{"docker-tag":"${{ needs.publish-docker-images.outputs.DOCKER_TAG }}"}'
+          propagate_failure: false
+          trigger_workflow: true
+          wait_workflow: true
 
   delete-docker-images:
     runs-on: ubuntu-latest
