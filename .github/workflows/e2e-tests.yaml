@@ -80,7 +80,7 @@ jobs:
           github_user: ${{ secrets.MACHINE_USER }}
           workflow_file_name: ${{ matrix.workflow_file_name }}
           ref: main
-          wait_interval: 10
+          wait_interval: 20
           client_payload: '{"docker-tag":"${{ needs.publish-docker.outputs.DOCKER_TAG }}"}'
           propagate_failure: false
           trigger_workflow: true
