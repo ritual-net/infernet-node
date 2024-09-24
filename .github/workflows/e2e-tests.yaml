@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       DOCKER_TAG:     ${{ steps.set_docker_tag.outputs.DOCKER_TAG }}
-      DOCKER_TAG_GPU: ${{ steps.set_docker_tag.outputs.DOCKER_TAG_GPU }}
+      DOCKER_TAG_GPU: ${{ steps.set_docker_gpu_tag.outputs.DOCKER_TAG_GPU }}
     env:
       GH_TOKEN: ${{ secrets.MACHINE_USER_PAT }}
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -48,6 +48,9 @@ jobs:
           echo "DOCKER_TAG=$DOCKER_TAG" >> $GITHUB_ENV
           echo "DOCKER_TAG=$DOCKER_TAG" >> $GITHUB_OUTPUT
 
+      - name: Set Docker GPU tag
+        id: set_docker_gpu_tag
+        run: |
           DOCKER_TAG_GPU=$(DOCKER_TAG)-gpu
           echo "DOCKER_TAG=$DOCKER_TAG_GPU" >> $GITHUB_ENV
           echo "DOCKER_TAG=$DOCKER_TAG_GPU" >> $GITHUB_OUTPUT
