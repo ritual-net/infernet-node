@@ -75,6 +75,11 @@ jobs:
     steps:
       - name: Run tests on monorepo (tag:${{ needs.publish-docker-images.outputs.DOCKER_TAG }})
         run: echo "This is a no-op step"
+
+      - name: Intentional failure
+        run: |
+          echo "This step will intentionally fail"
+          exit 1
 #        uses: convictional/trigger-workflow-and-wait@v1.6.5
 #        with:
 #          owner: ritual-net
