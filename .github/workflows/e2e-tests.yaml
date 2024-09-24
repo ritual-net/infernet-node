@@ -41,17 +41,15 @@ jobs:
       # tag Docker image with latest commit hash
       - name: Set Docker tag
         id: set_docker_tag
-        run: echo "DOCKER_TAG=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+        run: |
+          echo "DOCKER_TAG=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "::set-output name=docker_tag::${{ env.DOCKER_TAG }}"
 
       - name: Build docker images
         run: make tag=$DOCKER_TAG build
 
       - name: Publish docker images
         run: make publish
-
-      - name: Set DOCKER_TAG
-        id: set_docker_tag
-        run: echo "::set-output name=docker_tag::${{ env.DOCKER_TAG }}"
 
 #      - name: Run e2e node tests on monorepo
 #        run: gh workflow run infernet_node_tests.yaml -R ritual-net/infernet-monorepo-internal --ref main -f docker-tag=$DOCKER_TAG
