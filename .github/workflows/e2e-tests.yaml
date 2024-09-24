@@ -51,7 +51,7 @@ jobs:
       - name: Set Docker GPU tag
         id: set_docker_gpu_tag
         run: |
-          DOCKER_TAG_GPU=$(DOCKER_TAG)-gpu
+          DOCKER_TAG_GPU=$DOCKER_TAG-gpu
           echo "DOCKER_TAG=$DOCKER_TAG_GPU" >> $GITHUB_ENV
           echo "DOCKER_TAG=$DOCKER_TAG_GPU" >> $GITHUB_OUTPUT
 
