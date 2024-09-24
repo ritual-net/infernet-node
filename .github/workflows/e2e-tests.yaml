@@ -70,7 +70,7 @@ jobs:
           - workflow_file_name: infernet_node_tests.yaml
           - workflow_file_name: infernet_services_tests.yaml
     steps:
-      - name: Run tests on monorepo (tag:${{ needs.publish_docker.outputs.DOCKER_TAG }})
+      - name: Run tests on monorepo (tag:${{ needs.publish-docker.outputs.DOCKER_TAG }})
         uses: convictional/trigger-workflow-and-wait@v1.6.5
         with:
           owner: ritual-net
@@ -80,7 +80,7 @@ jobs:
           workflow_file_name: ${{ matrix.workflow_file_name }}
           ref: main
           wait_interval: 10
-          client_payload: '{"docker-tag":"${{ needs.publish_docker.outputs.DOCKER_TAG }}"}'
+          client_payload: '{"docker-tag":"${{ needs.publish-docker.outputs.DOCKER_TAG }}"}'
           propagate_failure: false
           trigger_workflow: true
           wait_workflow: true
