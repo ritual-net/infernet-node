@@ -95,7 +95,7 @@ jobs:
           github_user: ${{ secrets.MACHINE_USER }}
           workflow_file_name: ${{ matrix.workflow_file_name }}
           ref: main
-          wait_interval: 20
+          wait_interval: 30
           client_payload: '{"docker-tag":"${{ matrix.docker_tag }}"}'
           propagate_failure: true
           trigger_workflow: true
