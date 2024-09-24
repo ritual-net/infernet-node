@@ -55,14 +55,25 @@ jobs:
 #      - name: Run e2e service tests on monorepo
 #        run: gh workflow run infernet_services_tests.yaml -R ritual-net/infernet-monorepo-internal --ref main -f docker-tag=$DOCKER_TAG
 
-      - name: Run e2e node tests on monorepo
+  run-e2e:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - tests_name: Infernet Node Tests
+            workflow_file_name: infernet_node_tests.yaml
+          - tests_name: Infernet Service Tests
+            workflow_file_name: infernet_services_tests.yaml
+
+    steps:
+      - name: Run tests on monorepo (${{ matrix.tests_name }})
         uses: convictional/trigger-workflow-and-wait@v1.6.5
         with:
           owner: ritual-net
           repo: infernet-monorepo-internal
           github_token: ${{ secrets.MACHINE_USER_PAT }}
           github_user: ${{ secrets.MACHINE_USER }}
-          workflow_file_name: infernet_node_tests.yaml
+          workflow_file_name: ${{ matrix.workflow_file_name }}
           ref: main
           wait_interval: 10
           client_payload: '{"docker-tag":"${{ env.DOCKER_TAG }}"}'
@@ -84,8 +95,8 @@ jobs:
         run: ./docker-hub.exp
 
       # give enough time for the image to be pulled down so it's not needed anymore
-      - name: Sleep for 1 minute
-        run: sleep 60s
+#      - name: Sleep for 1 minute
+#        run: sleep 60s
 
       - name: Delete docker image from Docker Hub
         run: ./hub-tool/hub-tool tag rm ritualnetwork/infernet-node:$DOCKER_TAG -f
