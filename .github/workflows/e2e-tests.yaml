@@ -118,7 +118,7 @@ jobs:
       - name: Untar Docker Hub CLI
         run: tar -xvzf hub-tool-linux-amd64.tar.gz
 
-      # automates auto login to Dock Hub CLI
+      # automates auto login to Docker Hub CLI
       - name: Install expect
         run: sudo apt-get update && sudo apt-get install -y expect
 
