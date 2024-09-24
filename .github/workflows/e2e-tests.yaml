@@ -91,6 +91,8 @@ jobs:
     needs: run-e2e
     if: always()
     steps:
+      - uses: actions/checkout@v4
+
       - name: Download Docker Hub CLI
         run: wget https://github.com/docker/hub-tool/releases/download/v0.4.6/hub-tool-linux-amd64.tar.gz
 
