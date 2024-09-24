@@ -10,7 +10,8 @@ on:
 jobs:
   publish-docker:
     runs-on: ubuntu-latest
-
+    outputs:
+      DOCKER_TAG: ${{ steps.set_docker_tag.outputs.DOCKER_TAG }}
     env:
       GH_TOKEN: ${{ secrets.MACHINE_USER_PAT }}
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
