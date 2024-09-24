@@ -60,13 +60,10 @@ jobs:
     strategy:
       matrix:
         include:
-          - tests_name: Infernet Node Tests
-            workflow_file_name: infernet_node_tests.yaml
-          - tests_name: Infernet Service Tests
-            workflow_file_name: infernet_services_tests.yaml
-
+          - workflow_file_name: infernet_node_tests.yaml
+          - workflow_file_name: infernet_services_tests.yaml
     steps:
-      - name: Run tests on monorepo (${{ matrix.tests_name }})
+      - name: Run tests on monorepo (tag:$DOCKER_TAG)
         uses: convictional/trigger-workflow-and-wait@v1.6.5
         with:
           owner: ritual-net
