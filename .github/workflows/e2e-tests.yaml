@@ -97,7 +97,7 @@ jobs:
           ref: main
           wait_interval: 20
           client_payload: '{"docker-tag":"${{ matrix.docker_tag }}"}'
-          propagate_failure: false
+          propagate_failure: true
           trigger_workflow: true
           wait_workflow: true
 
