@@ -1,11 +1,9 @@
 name: e2e tests - gpu
 
 on:
-  pull_request:
   push:
     branches:
-      - dev
-      - main
+      - non-existent
 
 jobs:
   e2e-tests:
