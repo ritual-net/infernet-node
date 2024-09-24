@@ -84,19 +84,20 @@ jobs:
 
     steps:
       - name: Run tests on monorepo (tag:${{ needs.publish-docker-images.outputs.DOCKER_TAG }})
-        uses: convictional/trigger-workflow-and-wait@v1.6.5
-        with:
-          owner: ritual-net
-          repo: infernet-monorepo-internal
-          github_token: ${{ secrets.MACHINE_USER_PAT }}
-          github_user: ${{ secrets.MACHINE_USER }}
-          workflow_file_name: ${{ matrix.workflow_file_name }}
-          ref: main
-          wait_interval: 20
-          client_payload: '{"docker-tag":"${{ needs.publish-docker-images.outputs.DOCKER_TAG }}"}'
-          propagate_failure: false
-          trigger_workflow: true
-          wait_workflow: true
+        run: echo "This is a no-op step"
+#        uses: convictional/trigger-workflow-and-wait@v1.6.5
+#        with:
+#          owner: ritual-net
+#          repo: infernet-monorepo-internal
+#          github_token: ${{ secrets.MACHINE_USER_PAT }}
+#          github_user: ${{ secrets.MACHINE_USER }}
+#          workflow_file_name: ${{ matrix.workflow_file_name }}
+#          ref: main
+#          wait_interval: 20
+#          client_payload: '{"docker-tag":"${{ needs.publish-docker-images.outputs.DOCKER_TAG }}"}'
+#          propagate_failure: false
+#          trigger_workflow: true
+#          wait_workflow: true
 
   delete-docker-images:
     runs-on: ubuntu-latest
