@@ -110,9 +110,6 @@ jobs:
       - name: Install expect
         run: sudo apt-get update && sudo apt-get install -y expect
 
-      - name: Setup upterm session
-        uses: lhotari/action-upterm@v1
-
       - name: Auto login to Docker Hub CLI
         run: ./docker-hub.exp
 
