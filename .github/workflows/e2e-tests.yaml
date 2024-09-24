@@ -42,8 +42,12 @@ jobs:
       - name: Set Docker tag
         id: set_docker_tag
         run: |
-          echo "DOCKER_TAG=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-          echo "::set-output name=docker_tag::${{ env.DOCKER_TAG }}"
+          DOCKER_TAG=$(git rev-parse --short HEAD)
+          echo "DOCKER_TAG=$DOCKER_TAG" >> $GITHUB_ENV
+          echo "DOCKER_TAG=$DOCKER_TAG" >> $GITHUB_OUTPUT
+#          echo "DOCKER_TAG=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+#          echo "DOCKER_TAG=$DOCKER_TAG" >> $GITHUB_OUTPUT
+#          echo "::set-output name=docker_tag::${{ env.DOCKER_TAG }}"
 
       - name: Build docker images
         run: make tag=$DOCKER_TAG build
@@ -66,7 +70,7 @@ jobs:
           - workflow_file_name: infernet_node_tests.yaml
           - workflow_file_name: infernet_services_tests.yaml
     steps:
-      - name: Run tests on monorepo (tag:${{ needs.publish_docker.outputs.docker_tag }})
+      - name: Run tests on monorepo (tag:${{ needs.publish_docker.outputs.DOCKER_TAG }})
         uses: convictional/trigger-workflow-and-wait@v1.6.5
         with:
           owner: ritual-net
@@ -76,7 +80,7 @@ jobs:
           workflow_file_name: ${{ matrix.workflow_file_name }}
           ref: main
           wait_interval: 10
-          client_payload: '{"docker-tag":"${{ needs.publish_docker.outputs.docker_tag }}"}'
+          client_payload: '{"docker-tag":"${{ needs.publish_docker.outputs.DOCKER_TAG }}"}'
           propagate_failure: false
           trigger_workflow: true
           wait_workflow: true
