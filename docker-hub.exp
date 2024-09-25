@@ -1,0 +1,14 @@
+#!/usr/bin/expect -f
+
+set timeout 5
+
+spawn ./hub-tool/hub-tool login $env(DOCKERHUB_USERNAME)
+
+# Add a small delay - this prevents not finding the password prompt
+sleep 1
+
+expect "Password:"
+
+send -- "$env(DOCKERHUB_TOKEN)\r"
+
+expect eof
