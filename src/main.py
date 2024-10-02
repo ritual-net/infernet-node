@@ -97,6 +97,7 @@ class NodeLifecycle:
         # Initialize chain-specific tasks
         processor: Optional[ChainProcessor] = None
         wallet: Optional[Wallet] = None
+        chain_id: Optional[int] = None
 
         if chain_enabled:
             # Required fields if chain is enabled
