@@ -12,7 +12,6 @@ services:
       - network
     depends_on:
       - redis
-      - infernet-anvil
     extra_hosts:
       - "host.docker.internal:host-gateway"
     stop_grace_period: 1m
@@ -56,15 +55,6 @@ services:
         delay: 3s
         max_attempts: 5
         window: 120s
-
-  infernet-anvil:
-    image: ritualnetwork/infernet-anvil:1.0.0
-    command: --host 0.0.0.0 --port 3000 --load-state infernet_deployed.json -b 1
-    ports:
-      - "8545:3000"
-    networks:
-      - network
-    container_name: infernet-anvil
 
 networks:
   network:
