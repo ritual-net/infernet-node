@@ -5,7 +5,13 @@ All notable changes to this project will be documented in this file.
 - ##### The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - ##### This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.3.0] - 2024-XX-XX
+## [1.3.1] - 2024-10-02
+
+### Fixed
+
+- Bug with `chain_id` being undefined when chain is disabled.
+
+## [1.3.0] - 2024-09-20
 
 ### Added
 
