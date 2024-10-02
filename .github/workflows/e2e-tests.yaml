@@ -90,7 +90,7 @@ jobs:
         uses: convictional/trigger-workflow-and-wait@v1.6.5
         with:
           owner: ritual-net
-          repo: infernet-monorepo-internal
+          repo: infernet-monorepo
           github_token: ${{ secrets.MACHINE_USER_PAT }}
           github_user: ${{ secrets.MACHINE_USER }}
           workflow_file_name: ${{ matrix.workflow_file_name }}
