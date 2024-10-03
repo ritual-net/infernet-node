@@ -74,6 +74,7 @@ jobs:
       DOCKER_TAG:     ${{ needs.publish-docker-images.outputs.DOCKER_TAG }}
       DOCKER_TAG_GPU: ${{ needs.publish-docker-images.outputs.DOCKER_TAG_GPU }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - workflow_file_name: infernet_node_tests.yaml
@@ -90,7 +91,7 @@ jobs:
         uses: convictional/trigger-workflow-and-wait@v1.6.5
         with:
           owner: ritual-net
-          repo: infernet-monorepo
+          repo: infernet-monorepo-internal
           github_token: ${{ secrets.MACHINE_USER_PAT }}
           github_user: ${{ secrets.MACHINE_USER }}
           workflow_file_name: ${{ matrix.workflow_file_name }}
