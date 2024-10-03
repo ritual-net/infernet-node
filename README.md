@@ -24,7 +24,7 @@ For a full list of available configurations, check out our [Node Configuration](
 
 ```bash
 # Set tag
-tag="1.3.0"
+tag="1.3.1"
 
 # Build image from source
 docker build -t ritualnetwork/infernet-node:$tag .
@@ -44,7 +44,7 @@ The GPU-enabled version of the image comes pre-installed with the [NVIDIA CUDA T
 
 ```bash
 # Set tag
-tag="1.3.0"
+tag="1.3.1"
 
 # Build GPU-enabled image from source
 docker build -f Dockerfile-gpu -t ritualnetwork/infernet-node:$tag-gpu .
@@ -85,7 +85,7 @@ Follow README instructions in the [infernet-deploy](https://github.com/ritual-ne
 
 ```bash
 # Set tag
-tag="1.3.0"
+tag="1.3.1"
 
 # Build for local platform
 make build
