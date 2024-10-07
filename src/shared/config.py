@@ -83,6 +83,7 @@ class InfernetContainer(BaseModel):
     id: str
     image: str = ""
     url: str = ""
+    bearer: str = ""
     port: int = 3000
     external: bool = True
     gpu: bool = False

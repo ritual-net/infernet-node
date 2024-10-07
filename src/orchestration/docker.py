@@ -107,6 +107,9 @@ class ContainerManager(AsyncTask):
         self._url_mappings: dict[str, str] = {
             config.id: config.url for config in self._configs
         }
+        self._bearer_mappings: dict[str, str] = {
+            config.id: config.bearer for config in self._configs
+        }
         self._loop = get_event_loop()
         self._shutdown = False
 
@@ -175,7 +178,10 @@ class ContainerManager(AsyncTask):
     def get_url(self: ContainerManager, container: str) -> int:
         """Returns url for given container"""
         return self._url_mappings[container]
-
+    
+    def get_bearer(self: ContainerManager, container: str) -> int:
+        """Returns bearer auth token for given container"""
+        return self._bearer_mappings[container]
     #######################
     ## Lifecycle methods ##
     #######################
