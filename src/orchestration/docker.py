@@ -104,6 +104,9 @@ class ContainerManager(AsyncTask):
         self._port_mappings: dict[str, int] = {
             config.id: config.port for config in self._configs
         }
+        self._url_mappings: dict[str, str] = {
+            config.id: config.url for config in self._configs
+        }
         self._loop = get_event_loop()
         self._shutdown = False
 
@@ -168,6 +171,10 @@ class ContainerManager(AsyncTask):
     def get_port(self: ContainerManager, container: str) -> int:
         """Returns port for given container"""
         return self._port_mappings[container]
+
+    def get_url(self: ContainerManager, container: str) -> int:
+        """Returns url for given container"""
+        return self._url_mappings[container]
 
     #######################
     ## Lifecycle methods ##
@@ -264,18 +271,16 @@ class ContainerManager(AsyncTask):
 
     async def stop(self: ContainerManager) -> None:
         """Force stops all containers."""
-        if not self._managed:
-            log.debug("Skipping container manager stop, containers are not managed")
-            return
-
-        log.info("Stopping containers")
-
         self._shutdown = True
-        for container in self._containers.values():
-            try:
-                container.stop(timeout=60)
-            except Exception as e:
-                log.error(f"Error stopping container {container.id}", error=e)
+
+        if self._managed:
+            log.info("Stopping containers")
+            for container in self._containers.values():
+                try:
+                    container.stop(timeout=60)
+                except Exception as e:
+                    log.error(f"Error stopping container {container.id}", error=e)
+        return
 
     async def cleanup(self: ContainerManager) -> None:
         """No cleanup required."""

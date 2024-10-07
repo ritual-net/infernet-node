@@ -106,9 +106,12 @@ class Orchestrator:
         async with ClientSession() as session:
             for index, container in enumerate(containers):
                 # Get container port and URL
-                port = self._manager.get_port(container)
-                url = f"http://{self._host}:{port}/service_output"
-
+                container_url = self._manager.get_url(container)
+                if container_url:
+                    url = f"{container_url}/service_output"
+                else:
+                    port = self._manager.get_port(container)
+                    url = f"http://{self._host}:{port}/service_output"
                 try:
                     async with session.post(
                         url, json=asdict(input_data), timeout=ClientTimeout(total=180)
@@ -259,9 +262,12 @@ class Orchestrator:
         # Only one container is supported for streaming (i.e. no chaining)
         container = message.containers[0]
 
-        port = self._manager.get_port(container)
-        url = f"http://{self._host}:{port}/service_output"
-
+        container_url = self._manager.get_url(container)
+        if container_url:
+            url = f"{container_url}/service_output"
+        else:
+            port = self._manager.get_port(container)
+            url = f"http://{self._host}:{port}/service_output"
         # Start job and track container
         self._store.set_running(message)
 

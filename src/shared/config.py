@@ -81,8 +81,8 @@ class InfernetContainer(BaseModel):
     """Expected config[containers] format"""
 
     id: str
-    image: str
-
+    image: str = ""
+    url: str = ""
     port: int = 3000
     external: bool = True
     gpu: bool = False
