@@ -113,18 +113,20 @@ class Orchestrator:
                 else:
                     port = self._manager.get_port(container)
                     url = f"http://{self._host}:{port}/service_output"
+
                 try:
-                    headers = {
-                        'Content-Type': 'application/json'
-                    }
+                    headers = {"Content-Type": "application/json"}
 
                     if bearer:
-                        headers['Authorization'] = f'Bearer {bearer}'
+                        headers["Authorization"] = f"Bearer {bearer}"
 
                     async with session.post(
-                        url, json=asdict(job_input), headers=headers, timeout=ClientTimeout(total=180)
+                        url,
+                        json=asdict(input_data),
+                        headers=headers,
+                        timeout=ClientTimeout(total=180),
                     ) as response:
-               
+
                         # Handle JSON response
                         output = await response.json()
                         results.append(ContainerOutput(container, output))
@@ -292,15 +294,16 @@ class Orchestrator:
                     data=message.data,
                 )
 
-                headers = {
-                    'Content-Type': 'application/json'
-                }
+                headers = {"Content-Type": "application/json"}
 
                 if bearer:
-                    headers['Authorization'] = f'Bearer {bearer}'
+                    headers["Authorization"] = f"Bearer {bearer}"
 
                 async with session.post(
-                    url, json=asdict(job_input), headers=headers, timeout=ClientTimeout(total=60)
+                    url,
+                    json=asdict(job_input),
+                    headers=headers,
+                    timeout=ClientTimeout(total=60),
                 ) as response:
                     # Raises exception if status code is not 200
                     response.raise_for_status()

@@ -175,13 +175,14 @@ class ContainerManager(AsyncTask):
         """Returns port for given container"""
         return self._port_mappings[container]
 
-    def get_url(self: ContainerManager, container: str) -> int:
+    def get_url(self: ContainerManager, container: str) -> str:
         """Returns url for given container"""
         return self._url_mappings[container]
-    
-    def get_bearer(self: ContainerManager, container: str) -> int:
+
+    def get_bearer(self: ContainerManager, container: str) -> str:
         """Returns bearer auth token for given container"""
         return self._bearer_mappings[container]
+
     #######################
     ## Lifecycle methods ##
     #######################
