@@ -126,6 +126,26 @@ class Config(BaseModel):
     server: ConfigServer = ConfigServer()
     startup_wait: float = 5.0
 
+    @model_validator(mode="after")
+    def check_container_fields(self: Config) -> Config:
+        """If chain is enabled, validate rpc url, registry, and wallet."""
+        managed = self.manage_containers
+
+        if managed:
+            if not all(container.image for container in self.containers):
+                raise ValueError(
+                    "image must be defined when manage_containers is set to true"
+                )
+            if any(container.url for container in self.containers):
+                log.warning(
+                    "containers.url is set in config but it won't be used since manage_containers is set to true"
+                )
+            if any(container.bearer for container in self.containers):
+                log.warning(
+                    "containers.bearer is set in config but it won't be used since manage_containers is set to true"
+                )
+        return self
+
 
 def load_validated_config(path: str = "config.json") -> Config:
     """Loads and validates configuration file.

@@ -287,7 +287,6 @@ class ContainerManager(AsyncTask):
                     container.stop(timeout=60)
                 except Exception as e:
                     log.error(f"Error stopping container {container.id}", error=e)
-        return
 
     async def cleanup(self: ContainerManager) -> None:
         """No cleanup required."""

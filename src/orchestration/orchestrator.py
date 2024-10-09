@@ -55,6 +55,21 @@ class Orchestrator:
             else "localhost"
         )
 
+    def _get_container_url(self: Orchestrator, container: str) -> str:
+        # TODO: Add check either here or in config validation, for url existence
+        container_url = self._manager.get_url(container)
+        if container_url:
+            return f"{container_url}/service_output"
+        else:
+            port = self._manager.get_port(container)
+            return f"http://{self._host}:{port}/service_output"
+
+    def _get_headers(self: Orchestrator, bearer: Optional[str]) -> dict[str, str]:
+        headers = {"Content-Type": "application/json"}
+        if bearer:
+            headers["Authorization"] = f"Bearer {bearer}"
+        return headers
+
     async def _run_job(
         self: Orchestrator,
         job_id: Any,
@@ -106,17 +121,10 @@ class Orchestrator:
         async with ClientSession() as session:
             for index, container in enumerate(containers):
                 # Get container port and URL
-                container_url = self._manager.get_url(container)
+                url = self._get_container_url(container)
                 bearer = self._manager.get_bearer(container)
-                if container_url:
-                    url = f"{container_url}/service_output"
-                else:
-                    port = self._manager.get_port(container)
-                    url = f"http://{self._host}:{port}/service_output"
-
+                headers = self._get_headers(bearer)
                 try:
-                    headers = {"Content-Type": "application/json"}
-
                     if bearer:
                         headers["Authorization"] = f"Bearer {bearer}"
 
@@ -273,13 +281,9 @@ class Orchestrator:
         # Only one container is supported for streaming (i.e. no chaining)
         container = message.containers[0]
 
-        container_url = self._manager.get_url(container)
+        url = self._get_container_url(container)
         bearer = self._manager.get_bearer(container)
-        if container_url:
-            url = f"{container_url}/service_output"
-        else:
-            port = self._manager.get_port(container)
-            url = f"http://{self._host}:{port}/service_output"
+        headers = self._get_headers(bearer)
         # Start job and track container
         self._store.set_running(message)
 
