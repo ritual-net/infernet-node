@@ -344,14 +344,14 @@ class Orchestrator:
 
         async with ClientSession() as session:
             tasks = {
-                container["id"]: fetch(
+                container.id: fetch(
                     session,
                     (
                         # If model ID specified, check which containers serve the model
                         # Otherwise, fetch all resources from each container
-                        f"http://{self._host}:{container['port']}/service-resources?model_id={model_id}"
+                        f"http://{self._host}:{container.port}/service-resources?model_id={model_id}"
                         if model_id
-                        else f"http://{self._host}:{container['port']}/service-resources"
+                        else f"http://{self._host}:{container.port}/service-resources"
                     ),
                 )
                 for container in self._manager._configs

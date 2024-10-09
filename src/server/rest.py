@@ -162,7 +162,7 @@ class RESTServer(AsyncTask):
 
         @self._app.route("/resources", methods=["GET"])
         @rate_limit(
-            self._rate_limit_num_requests, timedelta(seconds=self._rate_limit_period)
+            self._rate_limit.num_requests, timedelta(seconds=self._rate_limit.period)
         )
         async def resources() -> Tuple[Response, int]:
             """Collects container resources
