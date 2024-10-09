@@ -157,7 +157,7 @@ def load_validated_config(path: str = "config.json") -> Config:
         Config: parsed and validated config
 
     Raises:
-        ValidationError: if config is not valid
+        ValidationError: if config is not vali
     """
     with open(path) as config_file:
         config_data = json.load(config_file)
