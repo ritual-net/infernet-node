@@ -3,7 +3,7 @@ from __future__ import annotations
 from asyncio import CancelledError, Event, create_task
 from datetime import timedelta
 from functools import wraps
-from typing import Any, Dict, Optional, Tuple, Union, cast
+from typing import Any, Optional, Tuple, Union, cast
 from uuid import uuid4
 
 from hypercorn.asyncio import serve
@@ -15,6 +15,7 @@ from chain.processor import ChainProcessor
 from orchestration import ContainerManager, DataStore, Guardian, Orchestrator
 from server.utils import is_local_ip
 from shared import AsyncTask, JobResult
+from shared.config import ConfigChain, ConfigServer
 from shared.message import (
     BaseMessage,
     DelegatedSubscriptionMessage,
@@ -24,7 +25,6 @@ from shared.message import (
     OffchainMessage,
 )
 from utils import log
-from utils.config import ConfigChain, ConfigServer
 from utils.parser import from_union
 
 
@@ -38,8 +38,7 @@ class RESTServer(AsyncTask):
         _manager (ContainerManager): container manager instance
         _orchestrator (Orchestrator): orchestrator instance
         _port (int): webserver port
-        _rate_limit_num_requests (int): rate limit number of requests
-        _rate_limit_period (float): rate limit period
+        _rate_limit (ConfigRateLimit): rate limit configuration
         _processor (Optional[ChainProcessor]): chain processor instance
         _store (DataStore): data store instance
         _version (str): node version
@@ -81,16 +80,9 @@ class RESTServer(AsyncTask):
         self._orchestrator = orchestrator
         self._processor = processor
         self._store = store
-        self._chain = config_chain["enabled"]
-        self._port = config_server["port"]
-        self._rate_limit_num_requests = int(
-            cast(Dict[str, Any], config_server)
-            .get("rate_limit", {})
-            .get("num_requests", 60)
-        )
-        self._rate_limit_period = float(
-            cast(Dict[str, Any], config_server).get("rate_limit", {}).get("period", 60)
-        )
+        self._chain = config_chain.enabled
+        self._port = config_server.port
+        self._rate_limit = config_server.rate_limit
         self._version = version
         self._wallet_address = wallet_address
 
@@ -124,7 +116,7 @@ class RESTServer(AsyncTask):
 
         @self._app.route("/health", methods=["GET"])
         @rate_limit(
-            self._rate_limit_num_requests, timedelta(seconds=self._rate_limit_period)
+            self._rate_limit.num_requests, timedelta(seconds=self._rate_limit.period)
         )
         async def health() -> Tuple[Response, int]:
             """Collects health of node
@@ -143,7 +135,7 @@ class RESTServer(AsyncTask):
 
         @self._app.route("/info", methods=["GET"])
         @rate_limit(
-            self._rate_limit_num_requests, timedelta(seconds=self._rate_limit_period)
+            self._rate_limit.num_requests, timedelta(seconds=self._rate_limit.period)
         )
         async def info() -> Tuple[Response, int]:
             """Collects node info
@@ -252,7 +244,7 @@ class RESTServer(AsyncTask):
         @self._app.route("/api/jobs", methods=["POST"])
         @filter_create_job  # type: ignore
         @rate_limit(
-            self._rate_limit_num_requests, timedelta(seconds=self._rate_limit_period)
+            self._rate_limit.num_requests, timedelta(seconds=self._rate_limit.period)
         )
         async def create_job(message: OffchainMessage) -> Tuple[Response, int]:
             """Creates new off-chain job (direct compute request or subscription)
@@ -319,7 +311,7 @@ class RESTServer(AsyncTask):
         @self._app.route("/api/jobs/stream", methods=["POST"])
         @filter_create_job  # type: ignore
         @rate_limit(
-            self._rate_limit_num_requests, timedelta(seconds=self._rate_limit_period)
+            self._rate_limit.num_requests, timedelta(seconds=self._rate_limit.period)
         )
         async def create_job_stream(message: OffchainMessage) -> Tuple[Response, int]:
             """Creates new off-chain streaming job (direct compute request only)
@@ -363,7 +355,7 @@ class RESTServer(AsyncTask):
 
         @self._app.route("/api/jobs/batch", methods=["POST"])
         @rate_limit(
-            self._rate_limit_num_requests, timedelta(seconds=self._rate_limit_period)
+            self._rate_limit.num_requests, timedelta(seconds=self._rate_limit.period)
         )
         async def create_job_batch() -> Tuple[Response, int]:
             """Creates off-chain jobs in batch (direct compute requests / subscriptions)
@@ -461,7 +453,7 @@ class RESTServer(AsyncTask):
 
         @self._app.route("/api/jobs", methods=["GET"])
         @rate_limit(
-            self._rate_limit_num_requests, timedelta(seconds=self._rate_limit_period)
+            self._rate_limit.num_requests, timedelta(seconds=self._rate_limit.period)
         )
         async def get_job() -> Tuple[Response, int]:
             # Get the IP address of the client

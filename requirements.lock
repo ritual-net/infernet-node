@@ -51,6 +51,8 @@ priority==2.0.0
 protobuf==5.26.1
 pycparser==2.22
 pycryptodome==3.20.0
+pydantic==2.8.2
+pydantic_core==2.20.1
 pyfiglet==1.0.2
 pygments==2.18.0
 pyunormalize==15.1.0

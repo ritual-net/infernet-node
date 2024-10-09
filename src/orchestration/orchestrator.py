@@ -6,7 +6,7 @@ from json import JSONDecodeError
 from os import environ
 from typing import Any, AsyncGenerator, Optional, cast
 
-from aiohttp import ClientSession
+from aiohttp import ClientSession, ClientTimeout
 
 from shared import ContainerError, ContainerOutput, ContainerResult
 from shared.job import ContainerInput, JobInput, JobLocation
@@ -117,7 +117,7 @@ class Orchestrator:
 
                 try:
                     async with session.post(
-                        url, json=asdict(input_data), timeout=180
+                        url, json=asdict(input_data), timeout=ClientTimeout(total=180)
                     ) as response:
                         # Handle JSON response
                         output = await response.json()
@@ -282,9 +282,7 @@ class Orchestrator:
                     data=message.data,
                 )
                 async with session.post(
-                    url,
-                    json=asdict(job_input),
-                    timeout=180,
+                    url, json=asdict(job_input), timeout=ClientTimeout(total=60)
                 ) as response:
                     # Raises exception if status code is not 200
                     response.raise_for_status()

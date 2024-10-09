@@ -20,9 +20,9 @@ from chain.wallet_checker import WalletChecker
 from orchestration import ContainerManager, DataStore, Guardian, Orchestrator
 from server import RESTServer, StatSender
 from shared import AsyncTask
-from utils import log, setup_logging
-from utils.config import ConfigDict, load_validated_config
-from utils.logging import log_ascii_status
+from shared.config import ConfigWallet, load_validated_config
+from utils.container import assign_ports
+from utils.logging import log, log_ascii_status, setup_logging
 from version import __version__, check_node_is_up_to_date
 
 
@@ -62,61 +62,63 @@ class NodeLifecycle:
 
         # Load and validate config
         config_path = os.environ.get("INFERNET_CONFIG_PATH", "config.json")
-        config: ConfigDict = load_validated_config(config_path)
+        if not (config := load_validated_config(config_path)):
+            log.error("Config file validation failed", config_path=config_path)
+            exit(1)
 
         # Setup logging
-        setup_logging(config.get("log"))
+        setup_logging(config.log)
         check_node_is_up_to_date()
 
-        log.debug("Running startup", chain_enabled=config["chain"]["enabled"])
+        chain_enabled = config.chain.enabled
+        log.debug("Running startup", chain_enabled=chain_enabled)
+
+        # Automatically assign ports to containers
+        container_configs = assign_ports(config.containers)
 
         # Initialize container manager
         manager = ContainerManager(
-            configs=config["containers"],
-            credentials=config.get("docker"),
-            startup_wait=config.get("startup_wait"),
-            managed=config.get("manage_containers"),
+            configs=container_configs,
+            credentials=config.docker,
+            startup_wait=config.startup_wait,
+            managed=config.manage_containers,
         )
         self._tasks.append(manager)
 
         # Initialize data store
-        store = DataStore(config["redis"]["host"], config["redis"]["port"])
+        store = DataStore(config.redis.host, config.redis.port)
 
-        # Initialize guardian + orchestrator
-        container_lookup = ContainerLookup(config["containers"])
-
-        chain_enabled = config["chain"]["enabled"]
-
-        guardian = Guardian(
-            config["containers"],
-            chain_enabled,
-            container_lookup=container_lookup,
-            wallet_checker=None,
-        )
-
+        # Initialize orchestrator
         orchestrator = Orchestrator(manager, store)
+
+        # Initialize container lookup
+        container_lookup = ContainerLookup(container_configs)
 
         # Initialize chain-specific tasks
         processor: Optional[ChainProcessor] = None
         wallet: Optional[Wallet] = None
-        snapshot_sync: dict[str, int] = cast(
-            dict[str, int], config["chain"].get("snapshot_sync", {})
-        )
+        chain_id: Optional[int] = None
 
         if chain_enabled:
-            private_key = config["chain"]["wallet"]["private_key"].removeprefix("0x")
-            private_key = f"0x{private_key}"
-            rpc = RPC(config["chain"]["rpc_url"], private_key)
+            # Required fields if chain is enabled
+            wallet_config = cast(ConfigWallet, config.chain.wallet)
+            rcp_url = cast(str, config.chain.rpc_url)
+            registry_address = cast(str, config.chain.registry_address)
+            private_key = cast(str, wallet_config.private_key)
+
+            # Ensure prefix is added to private key
+            private_key = f"0x{private_key.removeprefix('0x')}"
+            rpc = RPC(rcp_url, private_key)
 
             asyncio.get_event_loop().run_until_complete(rpc.initialize())
+            chain_id = asyncio.get_event_loop().run_until_complete(rpc.get_chain_id())
 
             registry = Registry(
                 rpc,
-                Web3.to_checksum_address(config["chain"]["registry_address"]),
+                Web3.to_checksum_address(registry_address),
             )
 
-            _payment_address = config["chain"]["wallet"].get("payment_address")
-
+            _payment_address = wallet_config.payment_address
             payment_address = (
                 Web3.to_checksum_address(cast(str, _payment_address))
                 if bool(_payment_address)
@@ -126,12 +128,12 @@ class NodeLifecycle:
             wallet_checker = WalletChecker(
                 rpc=rpc,
                 registry=registry,
-                container_configs=config["containers"],
+                container_configs=container_configs,
                 payment_address=payment_address,
             )
 
             guardian = Guardian(
-                config["containers"],
+                container_configs,
                 chain_enabled,
                 container_lookup=container_lookup,
                 wallet_checker=wallet_checker,
@@ -157,9 +159,9 @@ class NodeLifecycle:
                 rpc,
                 coordinator,
                 private_key,
-                config["chain"]["wallet"]["max_gas_limit"],
+                wallet_config.max_gas_limit,
                 payment_address,
-                config["chain"]["wallet"].get("allowed_sim_errors"),
+                wallet_config.allowed_sim_errors,
             )
             payment_wallet = PaymentWallet(payment_address, rpc)
             processor = ChainProcessor(
@@ -179,12 +181,17 @@ class NodeLifecycle:
                 reader,
                 guardian,
                 processor,
-                config["chain"]["trail_head_blocks"],
-                snapshot_sync_sleep=snapshot_sync.get("sleep"),
-                snapshot_sync_batch_size=snapshot_sync.get("batch_size"),
-                snapshot_sync_starting_sub_id=snapshot_sync.get("starting_sub_id"),
+                config.chain.trail_head_blocks,
+                config.chain.snapshot_sync,
             )
             self._tasks.extend([processor, listener])
+        else:
+            guardian = Guardian(
+                container_configs,
+                chain_enabled,
+                container_lookup=container_lookup,
+                wallet_checker=None,
+            )
 
         # Initialize REST server
         self._tasks.append(
@@ -194,17 +201,17 @@ class NodeLifecycle:
                 orchestrator,
                 processor if processor else None,
                 store,
-                config["chain"],
-                config["server"],
+                config.chain,
+                config.server,
                 __version__,
                 wallet.address if wallet else None,
             )
         )
 
         # Forward stats to Fluentbit, if enabled
-        if config["forward_stats"]:
+        if config.forward_stats:
             self._stat_sender = StatSender(
-                __version__, config["server"]["port"], guardian, store, wallet
+                __version__, config.server.port, guardian, store, wallet, chain_id
             )
             self._tasks.append(self._stat_sender)
 

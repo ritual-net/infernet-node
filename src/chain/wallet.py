@@ -62,7 +62,7 @@ class Wallet:
         private_key: str,
         max_gas_limit: int,
         payment_address: Optional[str],
-        allowed_sim_errors: Optional[list[str]],
+        allowed_sim_errors: list[str],
     ) -> None:
         """Initialize Wallet
 
@@ -71,7 +71,8 @@ class Wallet:
             coordinator (Coordinator): Coodinator instance
             private_key (str): 0x-prefixed private key
             max_gas_limit (int): Wallet-enforced max gas limit per tx
-            allowed_sim_errors (Optional[list[str]]): List of allowed error messages to
+            payment_address (Optional[str]): Node's payment wallet address
+            allowed_sim_errors (list[str]): List of allowed error messages to
                 ignore when simulating transactions. Checks for inclusion in error
                 message, case-insensitive. i.e. ["bad input"] will match
                 error message: "Contract reverted with error: Bad input.
@@ -90,7 +91,7 @@ class Wallet:
 
         # Initialize account
         self._account = Account.from_key(private_key)
-        self._allowed_sim_errors = allowed_sim_errors or []
+        self._allowed_sim_errors = allowed_sim_errors
         self._payment_address: Optional[str] = payment_address
         self._tx_lock = asyncio.Lock()
 
