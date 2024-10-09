@@ -56,7 +56,6 @@ class Orchestrator:
         )
 
     def _get_container_url(self: Orchestrator, container: str) -> str:
-        # TODO: Add check either here or in config validation, for url existence
         container_url = self._manager.get_url(container)
         if container_url:
             return f"{container_url}/service_output"
