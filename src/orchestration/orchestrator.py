@@ -60,7 +60,7 @@ class Orchestrator:
         Get the service output URL for the specified container.
 
         If a custom URL is defined in container config, use this.
-        Otherwise, retrieve the port for the container and construct the URL using the 
+        Otherwise, retrieve the port for the container and construct the URL using the
         host and port.
 
         Args:
@@ -75,7 +75,6 @@ class Orchestrator:
         else:
             port = self._manager.get_port(container)
             return f"http://{self._host}:{port}/service_output"
-
 
     def _get_headers(self: Orchestrator, container: str) -> dict[str, str]:
         """
