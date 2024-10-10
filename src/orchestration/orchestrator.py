@@ -63,7 +63,8 @@ class Orchestrator:
             port = self._manager.get_port(container)
             return f"http://{self._host}:{port}/service_output"
 
-    def _get_headers(self: Orchestrator, bearer: Optional[str]) -> dict[str, str]:
+    def _get_headers(self: Orchestrator, container: str) -> dict[str, str]:
+        bearer = self._manager.get_bearer(container)
         headers = {"Content-Type": "application/json"}
         if bearer:
             headers["Authorization"] = f"Bearer {bearer}"
@@ -121,12 +122,8 @@ class Orchestrator:
             for index, container in enumerate(containers):
                 # Get container port and URL
                 url = self._get_container_url(container)
-                bearer = self._manager.get_bearer(container)
-                headers = self._get_headers(bearer)
+                headers = self._get_headers(container)
                 try:
-                    if bearer:
-                        headers["Authorization"] = f"Bearer {bearer}"
-
                     async with session.post(
                         url,
                         json=asdict(input_data),
@@ -281,8 +278,7 @@ class Orchestrator:
         container = message.containers[0]
 
         url = self._get_container_url(container)
-        bearer = self._manager.get_bearer(container)
-        headers = self._get_headers(bearer)
+        headers = self._get_headers(container)
         # Start job and track container
         self._store.set_running(message)
 
@@ -296,11 +292,6 @@ class Orchestrator:
                     destination=JobLocation.STREAM.value,
                     data=message.data,
                 )
-
-                headers = {"Content-Type": "application/json"}
-
-                if bearer:
-                    headers["Authorization"] = f"Bearer {bearer}"
 
                 async with session.post(
                     url,
