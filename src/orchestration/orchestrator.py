@@ -55,6 +55,46 @@ class Orchestrator:
             else "localhost"
         )
 
+    def _get_container_url(self: Orchestrator, container: str) -> str:
+        """
+        Get the service output URL for the specified container.
+
+        If a custom URL is defined in container config, use this.
+        Otherwise, retrieve the port for the container and construct the URL using the
+        host and port.
+
+        Args:
+            container (str): The name of the container.
+
+        Returns:
+            str: The URL of the service output for the container.
+        """
+        container_url = self._manager.get_url(container)
+        if container_url:
+            return f"{container_url}/service_output"
+        else:
+            port = self._manager.get_port(container)
+            return f"http://{self._host}:{port}/service_output"
+
+    def _get_headers(self: Orchestrator, container: str) -> dict[str, str]:
+        """
+        Get the headers for the specified container, including Bearer authorization if available.
+
+        The headers will always include the 'Content-Type' set to 'application/json'.
+        If the container has a Bearer token, it is included in the 'Authorization' header.
+
+        Args:
+            container (str): The name of the container.
+
+        Returns:
+            dict[str, str]: A dictionary containing the necessary headers for the container.
+        """
+        bearer = self._manager.get_bearer(container)
+        headers = {"Content-Type": "application/json"}
+        if bearer:
+            headers["Authorization"] = f"Bearer {bearer}"
+        return headers
+
     async def _run_job(
         self: Orchestrator,
         job_id: Any,
@@ -106,13 +146,16 @@ class Orchestrator:
         async with ClientSession() as session:
             for index, container in enumerate(containers):
                 # Get container port and URL
-                port = self._manager.get_port(container)
-                url = f"http://{self._host}:{port}/service_output"
-
+                url = self._get_container_url(container)
+                headers = self._get_headers(container)
                 try:
                     async with session.post(
-                        url, json=asdict(input_data), timeout=ClientTimeout(total=180)
+                        url,
+                        json=asdict(input_data),
+                        headers=headers,
+                        timeout=ClientTimeout(total=180),
                     ) as response:
+
                         # Handle JSON response
                         output = await response.json()
                         results.append(ContainerOutput(container, output))
@@ -259,9 +302,8 @@ class Orchestrator:
         # Only one container is supported for streaming (i.e. no chaining)
         container = message.containers[0]
 
-        port = self._manager.get_port(container)
-        url = f"http://{self._host}:{port}/service_output"
-
+        url = self._get_container_url(container)
+        headers = self._get_headers(container)
         # Start job and track container
         self._store.set_running(message)
 
@@ -275,8 +317,12 @@ class Orchestrator:
                     destination=JobLocation.STREAM.value,
                     data=message.data,
                 )
+
                 async with session.post(
-                    url, json=asdict(job_input), timeout=ClientTimeout(total=60)
+                    url,
+                    json=asdict(job_input),
+                    headers=headers,
+                    timeout=ClientTimeout(total=60),
                 ) as response:
                     # Raises exception if status code is not 200
                     response.raise_for_status()
