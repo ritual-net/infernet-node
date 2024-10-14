@@ -81,10 +81,6 @@ jobs:
             docker_tag: ${{ needs.publish-docker-images.outputs.DOCKER_TAG }}
           - workflow_file_name: infernet_node_tests.yaml
             docker_tag: ${{ needs.publish-docker-images.outputs.DOCKER_TAG_GPU }}
-          - workflow_file_name: infernet_services_tests.yaml
-            docker_tag: ${{ needs.publish-docker-images.outputs.DOCKER_TAG }}
-          - workflow_file_name: infernet_services_tests.yaml
-            docker_tag: ${{ needs.publish-docker-images.outputs.DOCKER_TAG_GPU }}
 
     steps:
       - name: Run tests on monorepo (tag:${{ needs.publish-docker-images.outputs.DOCKER_TAG }})
