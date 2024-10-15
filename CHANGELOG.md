@@ -9,7 +9,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Enable service containers to be ran on remote machines.
+- New `resources/` endpoint used to advertize supported services' hardware and software capabilities.
+- Option for service containers to be ran on remote machines.
 
 ## [1.3.1] - 2024-10-02
 
