@@ -824,7 +824,7 @@ class ChainProcessor(AsyncTask):
         signature: Optional[CoordinatorSignatureParams],
         simulate_only: bool = False,
         input: bytes = b"",
-        output: bytes = b"\x00" * 32 + b"\x8b{'output': \"\"}",
+        output: bytes = b"\x00" * 32,
         proof: bytes = b"",
     ) -> bytes:
         """
