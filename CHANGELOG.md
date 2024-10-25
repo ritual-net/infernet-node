@@ -12,6 +12,10 @@ All notable changes to this project will be documented in this file.
 - New `resources/` endpoint used to advertize supported services' hardware and software capabilities.
 - Option for service containers to be ran on remote machines.
 
+### Fixed
+
+- Transaction simulation warning
+
 ## [1.3.1] - 2024-10-02
 
 ### Fixed
