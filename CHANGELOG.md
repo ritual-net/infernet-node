@@ -14,7 +14,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- Transaction simulation warning
+- Bug with empty input transaction simulations 
 
 ## [1.3.1] - 2024-10-02
 
