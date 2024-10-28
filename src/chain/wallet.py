@@ -122,7 +122,7 @@ class Wallet:
         self: Wallet, fn: AsyncContractFunction, subscription: Subscription
     ) -> bool:
         """Simulates the function call, retrying 3 times with a delay of 0.5 and
-        raises if there's errors.
+        raises if there are errors.
         * Simulation errors may be bypassed if they are in the `allowed_sim_errors` list.
             In which case, the simulation is considered to have passed.
         * For infernet-specific errors, more verbose logging is provided, and an

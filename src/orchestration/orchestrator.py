@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import asdict
 from json import JSONDecodeError
 from os import environ
-from typing import Any, AsyncGenerator, Optional
+from typing import Any, AsyncGenerator, Optional, cast
 
 from aiohttp import ClientSession, ClientTimeout
 
@@ -17,13 +18,18 @@ from .store import DataStore
 
 
 class Orchestrator:
-    """Orchestrates container execution
+    """Orchestrates bi-directional communication with containers
 
-    Orchestrates container execution and tracks job status and results. Handles
-    off-chain messages and on-chain subscriptions. Calls containers in order and
-    passes output of previous container as input to next container. If any container
-    fails, the job is marked as failed. If all containers succeed, the job is marked as
-    successful. Stores job status and results.
+    Manages container execution and tracks job status and results. Handles
+    off-chain messages and on-chain subscriptions as follows:
+        1) Calls containers in order and passes output of previous container as input
+            to next container.
+        2) If any container fails, the job is marked as failed.
+        3) If all containers succeed, the job is marked as successful.
+        4) Stores job status and results (for off-chain jobs only).
+
+    Manages model and resource discovery for containers, by calling the container's
+    /service-resources endpoint to retrieve related metadata.
 
     Attributes:
         _manager (ContainerManager): container manager
@@ -54,6 +60,46 @@ class Orchestrator:
             if environ.get("RUNTIME") == "docker"
             else "localhost"
         )
+
+    def _get_container_url(self: Orchestrator, container: str) -> str:
+        """
+        Get the service output URL for the specified container.
+
+        If a custom URL is defined in container config, use this.
+        Otherwise, retrieve the port for the container and construct the URL using the
+        host and port.
+
+        Args:
+            container (str): The name of the container.
+
+        Returns:
+            str: The URL of the service output for the container.
+        """
+        container_url = self._manager.get_url(container)
+        if container_url:
+            return f"{container_url}/service_output"
+        else:
+            port = self._manager.get_port(container)
+            return f"http://{self._host}:{port}/service_output"
+
+    def _get_headers(self: Orchestrator, container: str) -> dict[str, str]:
+        """
+        Get the headers for the specified container, including Bearer authorization if available.
+
+        The headers will always include the 'Content-Type' set to 'application/json'.
+        If the container has a Bearer token, it is included in the 'Authorization' header.
+
+        Args:
+            container (str): The name of the container.
+
+        Returns:
+            dict[str, str]: A dictionary containing the necessary headers for the container.
+        """
+        bearer = self._manager.get_bearer(container)
+        headers = {"Content-Type": "application/json"}
+        if bearer:
+            headers["Authorization"] = f"Bearer {bearer}"
+        return headers
 
     async def _run_job(
         self: Orchestrator,
@@ -106,13 +152,16 @@ class Orchestrator:
         async with ClientSession() as session:
             for index, container in enumerate(containers):
                 # Get container port and URL
-                port = self._manager.get_port(container)
-                url = f"http://{self._host}:{port}/service_output"
-
+                url = self._get_container_url(container)
+                headers = self._get_headers(container)
                 try:
                     async with session.post(
-                        url, json=asdict(input_data), timeout=ClientTimeout(total=180)
+                        url,
+                        json=asdict(input_data),
+                        headers=headers,
+                        timeout=ClientTimeout(total=180),
                     ) as response:
+
                         # Handle JSON response
                         output = await response.json()
                         results.append(ContainerOutput(container, output))
@@ -259,9 +308,8 @@ class Orchestrator:
         # Only one container is supported for streaming (i.e. no chaining)
         container = message.containers[0]
 
-        port = self._manager.get_port(container)
-        url = f"http://{self._host}:{port}/service_output"
-
+        url = self._get_container_url(container)
+        headers = self._get_headers(container)
         # Start job and track container
         self._store.set_running(message)
 
@@ -275,8 +323,12 @@ class Orchestrator:
                     destination=JobLocation.STREAM.value,
                     data=message.data,
                 )
+
                 async with session.post(
-                    url, json=asdict(job_input), timeout=ClientTimeout(total=60)
+                    url,
+                    json=asdict(job_input),
+                    headers=headers,
+                    timeout=ClientTimeout(total=60),
                 ) as response:
                     # Raises exception if status code is not 200
                     response.raise_for_status()
@@ -310,3 +362,53 @@ class Orchestrator:
                     container,
                     "failed",
                 )
+
+    async def collect_service_resources(
+        self: Orchestrator, model_id: Optional[str]
+    ) -> dict[str, Any]:
+        """Collects service resources from running containers
+
+        Calls each container's /service-resources endpoint to retrieve its resources.
+        If model ID is specified, checks whether that model is supported instead.
+
+        Args:
+            model_id (Optional[str]): Optional model ID to search for
+
+        Returns:
+            dict[str, Any]: Mapping from container ID to service resources
+        """
+
+        async def fetch(session: ClientSession, url: str) -> Optional[dict[str, Any]]:
+            """Async fetch data from a URL. Return None if there's an exception."""
+            try:
+                async with session.get(url) as response:
+                    response.raise_for_status()
+                    return cast(dict[str, Any], await response.json())
+            except Exception as e:
+                log.warning(f"Error fetching data from {url}: {e}")
+                return None
+
+        async with ClientSession() as session:
+            tasks = {
+                container.id: fetch(
+                    session,
+                    (
+                        # If model ID specified, check which containers serve the model
+                        # Otherwise, fetch all resources from each container
+                        f"http://{self._host}:{container.port}/service-resources?model_id={model_id}"
+                        if model_id
+                        else f"http://{self._host}:{container.port}/service-resources"
+                    ),
+                )
+                for container in self._manager._configs
+            }
+
+            # Gather results in parallel
+            results = await asyncio.gather(*tasks.values(), return_exceptions=False)
+
+            # Return a dictionary from container id to fetch result
+            return {
+                container_id: result
+                for container_id, result in zip(tasks.keys(), results)
+                if result is not None
+            }

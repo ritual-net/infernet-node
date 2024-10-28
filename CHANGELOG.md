@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 - ##### The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - ##### This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - XXXX-XX-XX
+
+### Added
+
+- New `resources/` endpoint used to advertize supported services' hardware and software capabilities.
+- Option for service containers to be ran on remote machines.
+
+### Fixed
+
+- Bug with empty input transaction simulations
+
 ## [1.3.1] - 2024-10-02
 
 ### Fixed
